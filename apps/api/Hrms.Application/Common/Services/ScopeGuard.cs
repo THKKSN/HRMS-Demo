@@ -1,40 +1,62 @@
 using Hrms.Application.Common.Exceptions;
-using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Domain.Enums;
+using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Common.Services;
 
 /// <summary>
 /// กฎ scope:
-///   Admin / HR ที่ CompanyId = null ใน JWT → เห็นทุก company (Central)
-///   Admin / HR ที่ CompanyId = X → เห็นเฉพาะ company X
-///   SchoolAdmin → เห็นเฉพาะ company ที่ผูกอยู่ (ICurrentUser.CompanyId)
-///   Supervisor / Employee → ใช้ scope ของ company ตัวเอง
+///   Admin → เข้าได้ทุก company (system-wide)
+///   HR ของ company X → เข้าได้ company X และ descendant ทั้งหมด
+///   SchoolAdmin → เข้าได้เฉพาะ company ตัวเอง
 /// </summary>
-public class ScopeGuard(ICurrentUser currentUser) : IScopeGuard
+public class ScopeGuard(ICurrentUser currentUser, IApplicationDbContext db) : IScopeGuard
 {
-    public bool CanAccessCompany(Guid companyId)
+    public async Task<bool> CanAccessCompanyAsync(Guid companyId, CancellationToken ct = default)
     {
         if (!currentUser.IsAuthenticated) return false;
 
-        // Admin / HR ที่ไม่ผูก company (Central) → เข้าได้ทุกที่
-        if (currentUser.Roles.Any(r =>
-                (r.Role == RoleType.Admin.ToString() || r.Role == RoleType.Hr.ToString()) &&
-                r.CompanyId == null))
+        // Admin → เข้าได้ทุก company เสมอ
+        if (currentUser.Roles.Any(r => r.Role == RoleType.Admin.ToString()))
             return true;
 
-        // Admin / HR / SchoolAdmin ที่ผูก company → เช็คตรงๆ
-        return currentUser.Roles.Any(r =>
-            r.CompanyId == companyId &&
-            (r.Role == RoleType.Admin.ToString() ||
-             r.Role == RoleType.Hr.ToString() ||
-             r.Role == RoleType.SchoolAdmin.ToString()));
+        var hrCompanyIds = currentUser.Roles
+            .Where(r => r.Role == RoleType.Hr.ToString() && r.CompanyId.HasValue)
+            .Select(r => r.CompanyId!.Value)
+            .ToHashSet();
+
+        if (hrCompanyIds.Count == 0)
+        {
+            // SchoolAdmin / Supervisor → เฉพาะ company ตัวเอง
+            return currentUser.Roles.Any(r =>
+                r.CompanyId == companyId &&
+                r.Role == RoleType.SchoolAdmin.ToString());
+        }
+
+        // HR: เช็คว่า targetCompany เป็น companyId ตรงๆ หรือ descendant ของ HR company
+        if (hrCompanyIds.Contains(companyId)) return true;
+
+        // โหลด company tree สำหรับ ancestor check
+        var allCompanies = await db.Companies
+            .Select(c => new { c.Id, c.ParentId })
+            .ToListAsync(ct);
+
+        var parentMap = allCompanies.ToDictionary(c => c.Id, c => c.ParentId);
+
+        var current = companyId;
+        while (parentMap.TryGetValue(current, out var parentId) && parentId.HasValue)
+        {
+            if (hrCompanyIds.Contains(parentId.Value)) return true;
+            current = parentId.Value;
+        }
+
+        return false;
     }
 
-    public void ThrowIfCannotAccess(Guid companyId)
+    public async Task ThrowIfCannotAccessAsync(Guid companyId, CancellationToken ct = default)
     {
-        if (!CanAccessCompany(companyId))
+        if (!await CanAccessCompanyAsync(companyId, ct))
             throw new AppForbiddenException($"Access to company {companyId} is not permitted.");
     }
 }

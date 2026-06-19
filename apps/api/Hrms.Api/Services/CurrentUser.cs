@@ -29,4 +29,10 @@ public class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
             return JsonSerializer.Deserialize<List<RoleClaim>>(json) ?? [];
         }
     }
+
+    public IReadOnlyList<Guid> ManagedCompanyIds =>
+        Roles.Where(r => r.CompanyId.HasValue)
+             .Select(r => r.CompanyId!.Value)
+             .Distinct()
+             .ToList();
 }

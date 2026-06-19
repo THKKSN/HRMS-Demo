@@ -8,5 +8,6 @@ public interface ICurrentUser
     string? LineUserId { get; }
     Guid? CompanyId { get; }
     IReadOnlyList<RoleClaim> Roles { get; }
+    IReadOnlyList<Guid> ManagedCompanyIds { get; }
     bool IsAuthenticated { get; }
 }

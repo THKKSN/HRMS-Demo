@@ -24,4 +24,13 @@ public static class CurrentUserExtensions
 
     public static bool IsSupervisorOrAbove(this ICurrentUser user, Guid? companyId = null)
         => user.HasRole(RoleType.Supervisor, companyId) || user.IsAdminOrHr(companyId);
+
+    /// <summary>
+    /// ตรวจว่า user มีสิทธิ์จัดการ company นั้นๆ ไหม
+    /// Admin → ผ่านเสมอ
+    /// HR/อื่น → ต้องมี role ใน company นั้น (ManagedCompanyIds)
+    /// </summary>
+    public static bool CanManageCompany(this ICurrentUser user, Guid companyId)
+        => user.HasRole(RoleType.Admin)
+        || user.ManagedCompanyIds.Contains(companyId);
 }
