@@ -27,5 +27,7 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
             .WithMany(x => x.Children)
             .HasForeignKey(x => x.ParentId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(x => x.ParentId).HasDatabaseName("ix_companies_parent_id");
     }
 }
