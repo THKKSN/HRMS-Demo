@@ -13,6 +13,15 @@ export function useLeaveBalances(params: { year: number; page?: number; pageSize
   })
 }
 
+export function useCreateLeaveBalance() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { employeeId: string; leaveTypeId: string; year: number; totalDays: number }) =>
+      leaveBalancesApi.create(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: balanceKeys.all }),
+  })
+}
+
 export function useAdjustBalance() {
   const qc = useQueryClient()
   return useMutation({

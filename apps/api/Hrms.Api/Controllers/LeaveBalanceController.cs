@@ -1,5 +1,6 @@
 using Hrms.Api.Authorization;
 using Hrms.Application.Features.LeaveBalances.Commands.AdjustLeaveBalance;
+using Hrms.Application.Features.LeaveBalances.Commands.CreateLeaveBalance;
 using Hrms.Application.Features.LeaveBalances.Commands.RecalcLeaveBalances;
 using Hrms.Application.Features.LeaveBalances.Queries.GetLeaveBalances;
 using MediatR;
@@ -24,6 +25,17 @@ public class LeaveBalanceController(IMediator mediator) : ControllerBase
     {
         if (year <= 0) year = DateTime.UtcNow.Year;
         var result = await mediator.Send(new GetLeaveBalancesQuery(page, pageSize, year, employeeId), ct);
+        return Ok(result);
+    }
+
+    /// <summary>สร้างโควตาวันลาให้พนักงาน 1 คน × 1 ประเภท</summary>
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        [FromBody] CreateLeaveBalanceRequest request,
+        CancellationToken ct)
+    {
+        var result = await mediator.Send(
+            new CreateLeaveBalanceCommand(request.EmployeeId, request.LeaveTypeId, request.Year, request.TotalDays), ct);
         return Ok(result);
     }
 
@@ -52,5 +64,6 @@ public class LeaveBalanceController(IMediator mediator) : ControllerBase
     }
 }
 
+public record CreateLeaveBalanceRequest(Guid EmployeeId, Guid LeaveTypeId, int Year, decimal TotalDays);
 public record AdjustLeaveBalanceRequest(decimal TotalDays);
 public record SeedLeaveBalanceRequest(int Year);

@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.LeaveTypes.Dtos;
 using MediatR;
@@ -28,9 +28,9 @@ public class UpdateLeaveTypeHandler(IApplicationDbContext db, IScopeGuard scope)
     public async Task<LeaveTypeDto> Handle(UpdateLeaveTypeCommand request, CancellationToken ct)
     {
         var leaveType = await db.LeaveTypes.FirstOrDefaultAsync(lt => lt.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบประเภทการลา");
+            ?? throw new KeyNotFoundException("à¹„à¸¡à¹ˆà¸žà¸šà¸›à¸£à¸°à¹€à¸ à¸—à¸à¸²à¸£à¸¥à¸²");
 
-        scope.ThrowIfCannotAccess(leaveType.CompanyId);
+        await scope.ThrowIfCannotAccessAsync(leaveType.CompanyId);
 
         leaveType.NameTh             = request.NameTh;
         leaveType.NameEn             = request.NameEn;
@@ -44,3 +44,4 @@ public class UpdateLeaveTypeHandler(IApplicationDbContext db, IScopeGuard scope)
             leaveType.DefaultDaysPerYear, leaveType.RequiresAttachment, leaveType.IsActive);
     }
 }
+
