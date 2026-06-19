@@ -15,27 +15,46 @@ public class LeaveNotificationJob(IApplicationDbContext db, ILineMessagingServic
 
         if (request is null) return;
 
-        var companyId = request.Employee.CompanyId;
+        var companyId    = request.Employee.CompanyId;
         var employeeName = $"{request.Employee.FirstName} {request.Employee.LastName}".Trim();
-        var message = $"📋 {employeeName} ขอลา{request.LeaveType.NameTh} " +
-                      $"{request.DateFrom:dd/MM/yyyy}–{request.DateTo:dd/MM/yyyy} " +
-                      $"({request.TotalDays} วัน) กรุณาอนุมัติในระบบ HRMS";
+        var dateRange    = $"{request.DateFrom:dd/MM/yyyy}–{request.DateTo:dd/MM/yyyy}";
 
-        var supervisorLineIds = await db.EmployeeRoles
+        // ตัดสินว่าจะส่งหา Supervisor หรือ HR ตามสถานะปัจจุบัน
+        var targetRole = request.Status == LeaveStatus.PendingHr
+            ? RoleType.Hr
+            : RoleType.Supervisor;
+
+        var altText = $"📋 {employeeName} ขอลา{request.LeaveType.NameTh} {dateRange} ({request.TotalDays} วัน)";
+        var text    = $"{employeeName} ขอลา{request.LeaveType.NameTh}\n{dateRange} ({request.TotalDays} วัน)\nกรุณาพิจารณาอนุมัติ";
+
+        var approveData = $"action=approve&leaveId={request.Id}";
+        var rejectData  = $"action=reject&leaveId={request.Id}";
+
+        var recipientLineIds = await db.EmployeeRoles
             .Include(r => r.Employee)
             .Where(r =>
-                r.Role == RoleType.Supervisor &&
+                r.Role     == targetRole &&
                 r.IsActive &&
                 r.Employee.IsActive &&
-                r.Employee.CompanyId == companyId &&
+                r.Employee.CompanyId  == companyId &&
                 r.Employee.LineUserId != null)
             .Select(r => r.Employee.LineUserId!)
             .Distinct()
             .ToListAsync();
 
-        foreach (var lineUserId in supervisorLineIds)
+        foreach (var lineUserId in recipientLineIds)
         {
-            try { await line.PushMessageAsync(lineUserId, message); }
+            try
+            {
+                await line.PushConfirmTemplateAsync(
+                    lineUserId,
+                    altText,
+                    text,
+                    confirmLabel: "อนุมัติ",
+                    confirmData:  approveData,
+                    rejectLabel:  "ปฏิเสธ",
+                    rejectData:   rejectData);
+            }
             catch { /* ไม่ให้ job ล้มเหลวถ้า push คนใดคนหนึ่งไม่ได้ */ }
         }
     }

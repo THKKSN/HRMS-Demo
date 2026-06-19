@@ -50,6 +50,7 @@ public static class DependencyInjection
         services.AddScoped<IWorkingDayCalculator, WorkingDayCalculator>();
         services.AddHttpClient<ILineAuthService, LineAuthService>();
         services.AddHttpClient<ILineMessagingService, LineMessagingService>();
+        services.AddScoped<ILineWebhookService, LineWebhookService>();
         services.AddScoped<ILeaveNotificationService, HangfireLeaveNotificationService>();
 
         // Hangfire (InMemory — swap to MySqlStorage for production)

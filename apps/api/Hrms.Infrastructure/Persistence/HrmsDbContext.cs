@@ -17,6 +17,15 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<LoginHistory> LoginHistories => Set<LoginHistory>();
 
+    public DbSet<Location>    Locations    => Set<Location>();
+    public DbSet<RoleLabel>   RoleLabels   => Set<RoleLabel>();
+
+    // Address reference data — read-only, imported directly to DB (no migrations)
+    public DbSet<Province>    Provinces    => Set<Province>();
+    public DbSet<District>    Districts    => Set<District>();
+    public DbSet<SubDistrict> SubDistricts => Set<SubDistrict>();
+    public DbSet<ZipCode>     ZipCodes     => Set<ZipCode>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(HrmsDbContext).Assembly);
