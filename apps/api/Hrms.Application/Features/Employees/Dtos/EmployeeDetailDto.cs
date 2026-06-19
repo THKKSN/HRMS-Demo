@@ -12,4 +12,6 @@ public record EmployeeDetailDto(
     string? DepartmentName,
     DateOnly? HireDate,
     bool IsActive,
-    IReadOnlyList<EmployeeRoleDto> Roles);
+    IReadOnlyList<EmployeeRoleDto> Roles,
+    Guid? RoleLabelId,
+    string? RoleLabelName);

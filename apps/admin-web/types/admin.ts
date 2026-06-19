@@ -1,6 +1,6 @@
-import type { PagedResult } from '@hrms/shared-types'
+import type { PagedResult, RoleType } from '@hrms/shared-types'
 
-export type RoleType = 'Employee' | 'Supervisor' | 'Hr' | 'Admin' | 'Executive'
+export type { RoleType }
 
 export type EmployeeRoleDto = {
   id: string
@@ -15,9 +15,12 @@ export type EmployeeListItemDto = {
   employeeCode: string
   fullName: string
   companyId: string
+  companyName: string
   departmentId?: string
   departmentName?: string
   roles: string[]
+  roleLabelId?: string
+  roleLabelName?: string
   isActive: boolean
 }
 
@@ -28,12 +31,15 @@ export type EmployeeDetailDto = {
   email?: string
   phone?: string
   nationalIdMasked?: string
-  companyId: string
+  companyId?: string
+  companyName?: string
   departmentId?: string
   departmentName?: string
   hireDate?: string
   isActive: boolean
   roles: EmployeeRoleDto[]
+  roleLabelId?: string
+  roleLabelName?: string
 }
 
 export type LeaveTypeAdminDto = {

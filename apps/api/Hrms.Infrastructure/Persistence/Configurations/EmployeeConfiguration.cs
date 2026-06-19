@@ -34,9 +34,16 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
             .HasForeignKey(x => x.CompanyId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.Property(x => x.RoleLabelId).HasColumnType("char(36)");
+
         builder.HasOne(x => x.Department)
             .WithMany(x => x.Employees)
             .HasForeignKey(x => x.DepartmentId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(x => x.RoleLabel)
+            .WithMany(x => x.Employees)
+            .HasForeignKey(x => x.RoleLabelId)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

@@ -9,7 +9,7 @@ export const employeeKeys = {
   roles: (id: string) => [...employeeKeys.all, 'roles', id] as const,
 }
 
-export function useEmployees(params?: { page?: number; pageSize?: number; search?: string; isActive?: boolean }) {
+export function useEmployees(params?: { page?: number; pageSize?: number; search?: string; isActive?: boolean; companyId?: string }) {
   return useQuery({
     queryKey: employeeKeys.list(params),
     queryFn: () => employeesApi.getAll(params),

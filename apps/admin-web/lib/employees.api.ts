@@ -8,7 +8,7 @@ import type {
 } from '@/types/admin'
 
 export const employeesApi = {
-  getAll: (params?: { page?: number; pageSize?: number; search?: string; isActive?: boolean }) =>
+  getAll: (params?: { page?: number; pageSize?: number; search?: string; isActive?: boolean; companyId?: string }) =>
     api.get<PagedResult<EmployeeListItemDto>>('/employees', { params }).then((r) => r.data),
 
   getById: (id: string) =>
@@ -24,6 +24,8 @@ export const employeesApi = {
     password: string
     hireDate?: string
     departmentId?: string
+    companyId?: string
+    roleLabelId?: string
   }) => api.post<EmployeeDetailDto>('/employees', body).then((r) => r.data),
 
   update: (
@@ -34,7 +36,9 @@ export const employeesApi = {
       email?: string
       phone?: string
       hireDate?: string
+      companyId?: string
       departmentId?: string
+      roleLabelId?: string
     },
   ) => api.put<EmployeeDetailDto>(`/employees/${id}`, body).then((r) => r.data),
 

@@ -16,10 +16,11 @@ public class GetEmployeeByIdHandler(IApplicationDbContext db, IScopeGuard scope)
         var employee = await db.Employees
             .Include(e => e.Department)
             .Include(e => e.Roles)
+            .Include(e => e.RoleLabel)
             .FirstOrDefaultAsync(e => e.Id == request.Id, ct)
             ?? throw new KeyNotFoundException("ไม่พบข้อมูลพนักงาน");
 
-        scope.ThrowIfCannotAccess(employee.CompanyId);
+        await scope.ThrowIfCannotAccessAsync(employee.CompanyId);
 
         return employee.ToDetailDto(employee.Department?.Name);
     }

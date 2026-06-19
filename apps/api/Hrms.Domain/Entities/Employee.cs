@@ -7,6 +7,7 @@ public class Employee : BaseEntity
     public Guid CompanyId { get; set; }
     public Guid? DepartmentId { get; set; }
     public string EmployeeCode { get; set; } = string.Empty;
+    public Guid? RoleLabelId { get; set; }
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public string? Email { get; set; }
@@ -20,6 +21,7 @@ public class Employee : BaseEntity
 
     public Company Company { get; set; } = null!;
     public Department? Department { get; set; }
+    public RoleLabel? RoleLabel { get; set; }
     public ICollection<EmployeeRole> Roles { get; set; } = new List<EmployeeRole>();
     public ICollection<LeaveRequest> LeaveRequests { get; set; } = new List<LeaveRequest>();
     public ICollection<AttendanceLog> AttendanceLogs { get; set; } = new List<AttendanceLog>();

@@ -1,9 +1,11 @@
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
+using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Employees.Common;
 using Hrms.Application.Features.Employees.Dtos;
 using Hrms.Domain.Entities;
+using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,7 +20,9 @@ public record CreateEmployeeCommand(
     string? NationalId,
     string Password,
     DateOnly? HireDate,
-    Guid? DepartmentId) : IRequest<EmployeeDetailDto>;
+    Guid? DepartmentId,
+    Guid? CompanyId = null,
+    Guid? RoleLabelId = null) : IRequest<EmployeeDetailDto>;
 
 public class CreateEmployeeValidator : AbstractValidator<CreateEmployeeCommand>
 {
@@ -41,8 +45,12 @@ public class CreateEmployeeHandler(
 {
     public async Task<EmployeeDetailDto> Handle(CreateEmployeeCommand request, CancellationToken ct)
     {
-        var companyId = currentUser.CompanyId
-            ?? throw new AppUnauthorizedException("ไม่พบข้อมูล company ของผู้ใช้");
+        Guid companyId;
+        if (request.CompanyId.HasValue && currentUser.HasRole(RoleType.Admin))
+            companyId = request.CompanyId.Value;
+        else
+            companyId = currentUser.CompanyId
+                ?? throw new AppUnauthorizedException("ไม่พบข้อมูล company ของผู้ใช้");
 
         if (await db.Employees.AnyAsync(e => e.CompanyId == companyId && e.EmployeeCode == request.EmployeeCode, ct))
             throw new ConflictException("DUPLICATE_EMPLOYEE_CODE", $"รหัสพนักงาน '{request.EmployeeCode}' มีอยู่แล้วในระบบ");
@@ -71,6 +79,7 @@ public class CreateEmployeeHandler(
             NationalId   = request.NationalId,
             PasswordHash = passwordService.Hash(request.Password),
             HireDate     = request.HireDate,
+            RoleLabelId  = request.RoleLabelId,
             IsActive     = true,
             CreatedAt    = DateTime.UtcNow,
             UpdatedAt    = DateTime.UtcNow,

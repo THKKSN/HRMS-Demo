@@ -19,11 +19,13 @@ public class GetEmployeesHandler(IApplicationDbContext db, IScopeGuard scope)
     public async Task<PagedResult<EmployeeListItemDto>> Handle(GetEmployeesQuery request, CancellationToken ct)
     {
         if (request.CompanyId.HasValue)
-            scope.ThrowIfCannotAccess(request.CompanyId.Value);
+            await scope.ThrowIfCannotAccessAsync(request.CompanyId.Value);
 
         var query = db.Employees
+            .Include(e => e.Company)
             .Include(e => e.Department)
             .Include(e => e.Roles)
+            .Include(e => e.RoleLabel)
             .AsQueryable();
 
         if (request.IsActive.HasValue)
@@ -56,9 +58,12 @@ public class GetEmployeesHandler(IApplicationDbContext db, IScopeGuard scope)
             e.EmployeeCode,
             $"{e.FirstName} {e.LastName}".Trim(),
             e.CompanyId,
+            e.Company.Name,
             e.DepartmentId,
             e.Department?.Name,
             e.Roles.Where(r => r.IsActive).Select(r => r.Role.ToString()).ToList(),
+            e.RoleLabelId,
+            e.RoleLabel?.Name,
             e.IsActive)).ToList();
 
         return new PagedResult<EmployeeListItemDto>(items, totalCount, page, pageSize);

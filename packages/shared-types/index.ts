@@ -109,6 +109,95 @@ export type LeaveBalanceDto = {
   remainingDays: number
 }
 
+// ─── Company ─────────────────────────────────────────────────────────────────
+
+export type OrgType = 'Holding' | 'Subsidiary' | 'Branch'
+
+export type CompanyDto = {
+  id: string
+  name: string
+  nameEn?: string
+  orgType: OrgType
+  parentId?: string
+  parentName?: string
+  isActive: boolean
+}
+
+export type CompanyTreeDto = {
+  id: string
+  name: string
+  nameEn?: string
+  orgType: OrgType
+  isActive: boolean
+  children: CompanyTreeDto[]
+}
+
+// ─── Department ──────────────────────────────────────────────────────────────
+
+export type DepartmentDto = {
+  id: string
+  companyId: string
+  name: string
+  deptType?: string
+  managerEmployeeId?: string
+  managerName?: string
+  isActive: boolean
+}
+
+export type DepartmentListItemDto = DepartmentDto & {
+  employeeCount: number
+}
+
+// ─── Address Reference ───────────────────────────────────────────────────────
+
+export type ProvinceDto = {
+  provinceId: number
+  provinceName?: string
+}
+
+export type DistrictDto = {
+  districtId: number
+  districtName?: string
+  provinceId?: number
+}
+
+export type SubDistrictDto = {
+  subDistrictId: number
+  subDistrictName?: string
+  districtId?: number
+  provinceId?: number
+}
+
+// ─── Location ────────────────────────────────────────────────────────────────
+
+export type LocationDto = {
+  id: string
+  companyId: string
+  name: string
+  latitude: number
+  longitude: number
+  radiusMeters: number
+  address?: string
+  provinceId?: number
+  provinceName?: string
+  districtId?: number
+  districtName?: string
+  subDistrictId?: number
+  subDistrictName?: string
+  isActive: boolean
+}
+
+// ─── Role Label ──────────────────────────────────────────────────────────────
+
+export type RoleType = 'Employee' | 'Supervisor' | 'Hr' | 'SchoolAdmin' | 'Executive' | 'Admin'
+
+export type RoleLabelDto = {
+  id: string
+  companyId: string
+  name: string
+  isActive: boolean
+}
+
 // ─── Common ──────────────────────────────────────────────────────────────────
 
 export type PagedResult<T> = {

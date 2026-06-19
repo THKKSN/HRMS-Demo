@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Employees.Dtos;
@@ -29,9 +29,9 @@ public class AddEmployeeRoleHandler(IApplicationDbContext db, IScopeGuard scope)
     {
         var employee = await db.Employees
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลพนักงาน");
+            ?? throw new KeyNotFoundException("à¹„à¸¡à¹ˆà¸žà¸šà¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸žà¸™à¸±à¸à¸‡à¸²à¸™");
 
-        scope.ThrowIfCannotAccess(employee.CompanyId);
+        await scope.ThrowIfCannotAccessAsync(employee.CompanyId);
 
         var duplicate = await db.EmployeeRoles.AnyAsync(r =>
             r.EmployeeId == request.EmployeeId &&
@@ -41,7 +41,7 @@ public class AddEmployeeRoleHandler(IApplicationDbContext db, IScopeGuard scope)
             r.IsActive, ct);
 
         if (duplicate)
-            throw new ConflictException("DUPLICATE_ROLE", $"พนักงานมีสิทธิ์ {request.Role} นี้อยู่แล้ว");
+            throw new ConflictException("DUPLICATE_ROLE", $"à¸žà¸™à¸±à¸à¸‡à¸²à¸™à¸¡à¸µà¸ªà¸´à¸—à¸˜à¸´à¹Œ {request.Role} à¸™à¸µà¹‰à¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰à¸§");
 
         var role = new EmployeeRole
         {
@@ -60,3 +60,4 @@ public class AddEmployeeRoleHandler(IApplicationDbContext db, IScopeGuard scope)
         return new EmployeeRoleDto(role.Id, role.Role, role.CompanyId ?? employee.CompanyId, role.DepartmentId, role.IsActive);
     }
 }
+

@@ -79,7 +79,9 @@ public class EmployeeController(IMediator mediator) : ControllerBase
             request.NationalId,
             request.Password,
             request.HireDate,
-            request.DepartmentId), ct);
+            request.DepartmentId,
+            request.CompanyId,
+            request.RoleLabelId), ct);
         return CreatedAtAction(nameof(GetEmployeeById), new { id = result.Id }, result);
     }
 
@@ -98,7 +100,9 @@ public class EmployeeController(IMediator mediator) : ControllerBase
             request.Email,
             request.Phone,
             request.HireDate,
-            request.DepartmentId), ct);
+            request.DepartmentId,
+            request.CompanyId,
+            request.RoleLabelId), ct);
         return Ok(result);
     }
 
@@ -166,7 +170,9 @@ public record CreateEmployeeRequest(
     string? NationalId,
     string Password,
     DateOnly? HireDate,
-    Guid? DepartmentId);
+    Guid? DepartmentId,
+    Guid? CompanyId,
+    Guid? RoleLabelId);
 
 public record UpdateEmployeeRequest(
     string FirstName,
@@ -174,7 +180,9 @@ public record UpdateEmployeeRequest(
     string? Email,
     string? Phone,
     DateOnly? HireDate,
-    Guid? DepartmentId);
+    Guid? DepartmentId,
+    Guid? CompanyId,
+    Guid? RoleLabelId);
 
 public record ToggleStatusRequest(bool IsActive);
 public record SetPasswordRequest(string NewPassword);

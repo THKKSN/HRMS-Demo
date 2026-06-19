@@ -178,7 +178,7 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnName("company_id");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("datetime")
                         .HasColumnName("created_at");
 
                     b.Property<Guid?>("CreatedBy")
@@ -186,16 +186,22 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnName("created_by");
 
                     b.Property<string>("DeptType")
-                        .HasColumnType("longtext")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
                         .HasColumnName("dept_type");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)")
                         .HasColumnName("is_active");
 
+                    b.Property<Guid?>("ManagerEmployeeId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("manager_employee_id");
+
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("longtext")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
                         .HasColumnName("name");
 
                     b.Property<Guid?>("ParentDeptId")
@@ -203,7 +209,7 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnName("parent_dept_id");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("datetime")
                         .HasColumnName("updated_at");
 
                     b.Property<Guid?>("UpdatedBy")
@@ -216,10 +222,50 @@ namespace Hrms.Infrastructure.Migrations
                     b.HasIndex("CompanyId")
                         .HasDatabaseName("ix_departments_company_id");
 
+                    b.HasIndex("ManagerEmployeeId")
+                        .HasDatabaseName("ix_departments_manager_employee_id");
+
                     b.HasIndex("ParentDeptId")
                         .HasDatabaseName("ix_departments_parent_dept_id");
 
                     b.ToTable("departments", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.District", b =>
+                {
+                    b.Property<int>("DistrictId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("DISTRICT_ID");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("DistrictId"));
+
+                    b.Property<string>("DistrictCode")
+                        .HasColumnType("longtext")
+                        .HasColumnName("DISTRICT_CODE");
+
+                    b.Property<string>("DistrictName")
+                        .HasColumnType("longtext")
+                        .HasColumnName("DISTRICT_NAME");
+
+                    b.Property<int?>("GeoId")
+                        .HasColumnType("int")
+                        .HasColumnName("GEO_ID");
+
+                    b.Property<int?>("ProvinceId")
+                        .HasColumnType("int")
+                        .HasColumnName("PROVINCE_ID");
+
+                    b.HasKey("DistrictId")
+                        .HasName("pk_district");
+
+                    b.HasIndex("ProvinceId")
+                        .HasDatabaseName("ix_district_province_id");
+
+                    b.ToTable("district", null, t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.Employee", b =>
@@ -300,6 +346,10 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("varchar(20)")
                         .HasColumnName("phone");
 
+                    b.Property<Guid?>("RoleLabelId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("role_label_id");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime")
                         .HasColumnName("updated_at");
@@ -327,6 +377,9 @@ namespace Hrms.Infrastructure.Migrations
 
                     b.HasIndex("NationalId")
                         .HasDatabaseName("ix_employees_national_id");
+
+                    b.HasIndex("RoleLabelId")
+                        .HasDatabaseName("ix_employees_role_label_id");
 
                     b.ToTable("employees", (string)null);
                 });
@@ -631,6 +684,90 @@ namespace Hrms.Infrastructure.Migrations
                     b.ToTable("leave_types", (string)null);
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.Location", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("address");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<int?>("DistrictId")
+                        .HasColumnType("int")
+                        .HasColumnName("district_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("double")
+                        .HasColumnName("latitude");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("double")
+                        .HasColumnName("longitude");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("name");
+
+                    b.Property<int?>("ProvinceId")
+                        .HasColumnType("int")
+                        .HasColumnName("province_id");
+
+                    b.Property<int>("RadiusMeters")
+                        .HasColumnType("int")
+                        .HasColumnName("radius_meters");
+
+                    b.Property<int?>("SubDistrictId")
+                        .HasColumnType("int")
+                        .HasColumnName("sub_district_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_locations");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_locations_company_id");
+
+                    b.HasIndex("DistrictId")
+                        .HasDatabaseName("ix_locations_district_id");
+
+                    b.HasIndex("ProvinceId")
+                        .HasDatabaseName("ix_locations_province_id");
+
+                    b.HasIndex("SubDistrictId")
+                        .HasDatabaseName("ix_locations_sub_district_id");
+
+                    b.ToTable("locations", (string)null);
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.LoginHistory", b =>
                 {
                     b.Property<Guid>("Id")
@@ -666,6 +803,36 @@ namespace Hrms.Infrastructure.Migrations
                         .HasDatabaseName("ix_login_histories_employee_id");
 
                     b.ToTable("login_histories", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.Province", b =>
+                {
+                    b.Property<int>("ProvinceId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("PROVINCE_ID");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("ProvinceId"));
+
+                    b.Property<int?>("GeoId")
+                        .HasColumnType("int")
+                        .HasColumnName("GEO_ID");
+
+                    b.Property<string>("ProvinceCode")
+                        .HasColumnType("longtext")
+                        .HasColumnName("PROVINCE_CODE");
+
+                    b.Property<string>("ProvinceName")
+                        .HasColumnType("longtext")
+                        .HasColumnName("PROVINCE_NAME");
+
+                    b.HasKey("ProvinceId")
+                        .HasName("pk_provinces");
+
+                    b.ToTable("provinces", null, t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.RefreshToken", b =>
@@ -737,6 +904,129 @@ namespace Hrms.Infrastructure.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.RoleLabel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_role_labels");
+
+                    b.HasIndex("CompanyId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ux_role_labels_company_name");
+
+                    b.ToTable("role_labels", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.SubDistrict", b =>
+                {
+                    b.Property<int>("SubDistrictId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("SUB_DISTRICT_ID");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("SubDistrictId"));
+
+                    b.Property<int?>("DistrictId")
+                        .HasColumnType("int")
+                        .HasColumnName("DISTRICT_ID");
+
+                    b.Property<int?>("GeoId")
+                        .HasColumnType("int")
+                        .HasColumnName("GEO_ID");
+
+                    b.Property<int?>("ProvinceId")
+                        .HasColumnType("int")
+                        .HasColumnName("PROVINCE_ID");
+
+                    b.Property<string>("SubDistrictCode")
+                        .HasColumnType("longtext")
+                        .HasColumnName("SUB_DISTRICT_CODE");
+
+                    b.Property<string>("SubDistrictName")
+                        .HasColumnType("longtext")
+                        .HasColumnName("SUB_DISTRICT_NAME");
+
+                    b.HasKey("SubDistrictId")
+                        .HasName("pk_subdistrict");
+
+                    b.HasIndex("DistrictId")
+                        .HasDatabaseName("ix_subdistrict_district_id");
+
+                    b.HasIndex("ProvinceId")
+                        .HasDatabaseName("ix_subdistrict_province_id");
+
+                    b.ToTable("subdistrict", null, t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ZipCode", b =>
+                {
+                    b.Property<int?>("DistrictId")
+                        .HasColumnType("int")
+                        .HasColumnName("DISTRICT_ID");
+
+                    b.Property<int?>("ProvinceId")
+                        .HasColumnType("int")
+                        .HasColumnName("PROVINCE_ID");
+
+                    b.Property<string>("SubDistrictCode")
+                        .HasColumnType("longtext")
+                        .HasColumnName("SUB_DISTRICT_CODE");
+
+                    b.Property<int?>("SubDistrictId")
+                        .HasColumnType("int")
+                        .HasColumnName("SUB_DISTRICT_ID");
+
+                    b.Property<string>("Zipcode")
+                        .HasColumnType("longtext")
+                        .HasColumnName("ZIPCODE");
+
+                    b.Property<int?>("ZipcodeId")
+                        .HasColumnType("int")
+                        .HasColumnName("ZIPCODE_ID");
+
+                    b.ToTable("zip_code", null, t =>
+                        {
+                            t.ExcludeFromMigrations();
+                        });
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.AttendanceLog", b =>
                 {
                     b.HasOne("Hrms.Domain.Entities.Employee", "Employee")
@@ -769,14 +1059,34 @@ namespace Hrms.Infrastructure.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_departments_companies_company_id");
 
+                    b.HasOne("Hrms.Domain.Entities.Employee", "ManagerEmployee")
+                        .WithMany()
+                        .HasForeignKey("ManagerEmployeeId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_departments_employees_manager_employee_id");
+
                     b.HasOne("Hrms.Domain.Entities.Department", "ParentDept")
                         .WithMany()
                         .HasForeignKey("ParentDeptId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_departments_departments_parent_dept_id");
 
                     b.Navigation("Company");
 
+                    b.Navigation("ManagerEmployee");
+
                     b.Navigation("ParentDept");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.District", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.Province", "Province")
+                        .WithMany("Districts")
+                        .HasForeignKey("ProvinceId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_district_provinces_province_id");
+
+                    b.Navigation("Province");
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.Employee", b =>
@@ -794,9 +1104,17 @@ namespace Hrms.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_employees_departments_department_id");
 
+                    b.HasOne("Hrms.Domain.Entities.RoleLabel", "RoleLabel")
+                        .WithMany("Employees")
+                        .HasForeignKey("RoleLabelId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_employees_role_labels_role_label_id");
+
                     b.Navigation("Company");
 
                     b.Navigation("Department");
+
+                    b.Navigation("RoleLabel");
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.EmployeeRole", b =>
@@ -879,6 +1197,42 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("Company");
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.Location", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_locations_companies_company_id");
+
+                    b.HasOne("Hrms.Domain.Entities.District", "District")
+                        .WithMany()
+                        .HasForeignKey("DistrictId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_locations_districts_district_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Province", "Province")
+                        .WithMany()
+                        .HasForeignKey("ProvinceId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_locations_provinces_province_id");
+
+                    b.HasOne("Hrms.Domain.Entities.SubDistrict", "SubDistrict")
+                        .WithMany()
+                        .HasForeignKey("SubDistrictId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_locations_sub_districts_sub_district_id");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("District");
+
+                    b.Navigation("Province");
+
+                    b.Navigation("SubDistrict");
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.LoginHistory", b =>
                 {
                     b.HasOne("Hrms.Domain.Entities.Employee", "Employee")
@@ -903,6 +1257,36 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("Employee");
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.RoleLabel", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_role_labels_companies_company_id");
+
+                    b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.SubDistrict", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.District", "District")
+                        .WithMany("SubDistricts")
+                        .HasForeignKey("DistrictId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .HasConstraintName("fk_subdistrict_district_district_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Province", "Province")
+                        .WithMany()
+                        .HasForeignKey("ProvinceId")
+                        .HasConstraintName("fk_subdistrict_provinces_province_id");
+
+                    b.Navigation("District");
+
+                    b.Navigation("Province");
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.Company", b =>
                 {
                     b.Navigation("Children");
@@ -917,6 +1301,11 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("Employees");
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.District", b =>
+                {
+                    b.Navigation("SubDistricts");
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.Employee", b =>
                 {
                     b.Navigation("AttendanceLogs");
@@ -924,6 +1313,16 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("LeaveRequests");
 
                     b.Navigation("Roles");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.Province", b =>
+                {
+                    b.Navigation("Districts");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.RoleLabel", b =>
+                {
+                    b.Navigation("Employees");
                 });
 #pragma warning restore 612, 618
         }

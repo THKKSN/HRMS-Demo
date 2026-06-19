@@ -16,5 +16,14 @@ public interface IApplicationDbContext
     DbSet<RefreshToken> RefreshTokens  { get; } // table: refresh_tokens
     DbSet<LoginHistory> LoginHistories { get; } // table: login_histories
 
+    DbSet<Location>     Locations      { get; } // table: locations
+    DbSet<RoleLabel>    RoleLabels     { get; } // table: role_labels
+
+    // Address reference data — read-only, imported directly to DB
+    DbSet<Province>    Provinces    { get; }
+    DbSet<District>    Districts    { get; }
+    DbSet<SubDistrict> SubDistricts { get; }
+    DbSet<ZipCode>     ZipCodes     { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
