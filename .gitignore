@@ -2,7 +2,13 @@
 node_modules/
 .pnp
 .pnp.js
-
+.npmrc
+pnpm-lock.yaml
+pnpm-workspace.yaml
+package-lock.json
+package.json
+docker-compose.yml
+.gitignore
 # Environment variables
 .env
 .env.local
