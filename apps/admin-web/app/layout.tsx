@@ -20,7 +20,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="th" className={`${notoSansThai.variable} h-full antialiased`}>
-      <body className="min-h-full bg-background text-foreground font-(family-name:--font-noto-sans-thai)">
+      <body suppressHydrationWarning className="min-h-full bg-background text-foreground font-(family-name:--font-noto-sans-thai)">
         <QueryProvider>
           {children}
           <Toaster position="top-right" richColors closeButton duration={3000} />
