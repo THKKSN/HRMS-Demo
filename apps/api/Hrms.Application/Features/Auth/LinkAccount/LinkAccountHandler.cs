@@ -28,6 +28,8 @@ public class LinkAccountHandler(
             ?? throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND");
 
         employee.LineUserId = profile.UserId;
+        if (profile.PictureUrl is not null)
+            employee.AvatarUrl = profile.PictureUrl;
 
         var (accessToken, accessExpires) = jwt.GenerateAccessToken(employee, employee.Roles);
         var (refreshToken, refreshHash, refreshExpires) = jwt.GenerateRefreshToken();

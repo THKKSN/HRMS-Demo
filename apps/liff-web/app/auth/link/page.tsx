@@ -95,12 +95,12 @@ export default function LinkPage() {
   return (
     <div className="flex flex-1 flex-col justify-center px-6 py-8">
       {/* DEBUG TOKEN — ลบออกหลังทดสอบ */}
-      {debugToken && (
+      {/* {debugToken && (
         <div className="mb-4 rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-xs break-all">
           <p className="font-bold text-yellow-800 mb-1">LINE Token (debug):</p>
           <p className="text-yellow-700 select-all">{debugToken}</p>
         </div>
-      )}
+      )} */}
       <div className="mb-8 text-center">
         <h1 className="text-2xl font-bold text-foreground">ผูกบัญชี LINE</h1>
         <p className="mt-2 text-sm text-muted-foreground">
