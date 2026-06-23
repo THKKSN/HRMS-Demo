@@ -23,7 +23,7 @@ export default function LeaveBalancePage() {
             <p className="mt-4 text-sm text-muted-foreground">ยังไม่มีข้อมูลสิทธิ์การลา</p>
           </div>
         ) : (
-          balances.map(b => {
+          balances.filter(b => b.totalDays > 0 && b.remainingDays > 0).map(b => {
             const used = b.usedDays + b.pendingDays
             const pct = b.totalDays > 0 ? Math.min((used / b.totalDays) * 100, 100) : 0
             const usedPct = b.totalDays > 0 ? Math.min((b.usedDays / b.totalDays) * 100, 100) : 0

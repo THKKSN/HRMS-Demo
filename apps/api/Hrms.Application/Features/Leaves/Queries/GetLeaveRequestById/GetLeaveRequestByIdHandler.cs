@@ -35,6 +35,8 @@ public class GetLeaveRequestByIdHandler(IApplicationDbContext db, ICurrentUser c
             r.DateFrom,
             r.DateTo,
             r.HalfDay,
+            r.TimeFrom,
+            r.TimeTo,
             r.TotalDays,
             r.Reason,
             r.AttachmentUrl,

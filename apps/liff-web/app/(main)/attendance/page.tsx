@@ -77,7 +77,10 @@ function CheckInModal({
     try {
       const pos = await getPosition();
       const { latitude: lat, longitude: lng } = pos.coords;
-      const matched = findNearestLocation(lat, lng, locations);
+      const matched = findNearestLocation(lat, lng, locations) as {
+        location: LocationDto;
+        distanceMeters: number;
+      } | null;
       setGps({ phase: "ready", lat, lng, matched });
     } catch (err) {
       setGps({

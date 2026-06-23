@@ -32,8 +32,8 @@ const STATUS_DOT: Record<string, string> = {
   HalfDay: 'bg-blue-400',
 }
 
-const LEAVE_BG = 'bg-orange-50'
-const LEAVE_DOT = 'bg-orange-400'
+const LEAVE_BG = 'bg-purple-50'
+const LEAVE_DOT = 'bg-purple-400'
 
 const STATUS_BADGE: Record<string, string> = {
   Present: 'bg-green-100 text-green-700',
@@ -152,7 +152,7 @@ function BottomSheet({
         )}
 
         {cell.kind === 'leave' && (
-          <div className="flex items-center gap-2 rounded-xl bg-orange-50 px-4 py-3 text-sm text-orange-700">
+          <div className="flex items-center gap-2 rounded-xl bg-purple-50 px-4 py-3 text-sm text-purple-700">
             <span>📋</span>
             <span className="font-medium">ลางาน — {cell.leaveTypeName}</span>
           </div>
@@ -370,7 +370,7 @@ export default function AttendanceHistoryPage() {
           { dot: 'bg-green-500', label: 'ทำงาน' },
           { dot: 'bg-yellow-400', label: 'สาย' },
           { dot: 'bg-red-500', label: 'ขาด' },
-          { dot: 'bg-orange-400', label: 'ลางาน' },
+          { dot: 'bg-purple-400', label: 'ลางาน' },
           { dot: 'bg-gray-500', label: 'วันหยุด' },
         ].map(({ dot, label }) => (
           <div key={label} className="flex items-center gap-1">
@@ -387,7 +387,7 @@ export default function AttendanceHistoryPage() {
             { label: 'ทำงาน', value: cntPresent, color: 'text-green-600' },
             { label: 'สาย', value: cntLate, color: 'text-yellow-600' },
             { label: 'ขาดงาน', value: cntAbsent, color: 'text-red-600' },
-            { label: 'ลางาน', value: cntLeave, color: 'text-orange-500' },
+            { label: 'ลางาน', value: cntLeave, color: 'text-purple-500' },
             { label: 'วันหยุด', value: cntHoliday, color: 'text-gray-600' },
           ].map(({ label, value, color }) => (
             <div key={label} className="py-3 px-1">

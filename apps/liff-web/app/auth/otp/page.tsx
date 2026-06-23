@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
@@ -13,6 +13,8 @@ const RESEND_COOLDOWN = 60
 
 export default function OtpPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next') ?? '/'
   const setAuth = useAuthStore((s) => s.setAuth)
 
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''))
@@ -100,7 +102,7 @@ export default function OtpPage() {
       sessionStorage.removeItem('liff_access_token')
       const { accessToken, refreshToken, employee } = res.data
       setAuth(accessToken, refreshToken, employee)
-      router.replace('/')
+      router.replace(next)
     } catch (err) {
       if (isAxiosError(err)) {
         const data = err.response?.data as ApiError | undefined

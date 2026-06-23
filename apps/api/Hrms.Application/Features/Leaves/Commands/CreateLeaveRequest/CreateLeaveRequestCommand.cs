@@ -10,6 +10,8 @@ public record CreateLeaveRequestCommand(
     DateOnly DateFrom,
     DateOnly DateTo,
     HalfDayType HalfDay,
+    TimeOnly? TimeFrom,
+    TimeOnly? TimeTo,
     string? Reason,
     string? AttachmentUrl) : IRequest<LeaveRequestDto>;
 
@@ -31,6 +33,17 @@ public class CreateLeaveRequestCommandValidator : AbstractValidator<CreateLeaveR
             .Must(x => x.HalfDay == HalfDayType.Full || x.DateFrom == x.DateTo)
             .WithMessage("การลาครึ่งวันต้องเป็นวันเดียวกัน (DateFrom == DateTo)")
             .OverridePropertyName(nameof(CreateLeaveRequestCommand.HalfDay));
+
+        // ถ้าระบุเวลา ต้องเป็นวันเดียวกันและ TimeTo > TimeFrom
+        RuleFor(x => x)
+            .Must(x => x.TimeFrom == null || x.DateFrom == x.DateTo)
+            .WithMessage("การลาเป็นชั่วโมงต้องเลือกวันเดียวกัน")
+            .OverridePropertyName(nameof(CreateLeaveRequestCommand.TimeFrom));
+
+        RuleFor(x => x)
+            .Must(x => x.TimeFrom == null || x.TimeTo == null || x.TimeTo > x.TimeFrom)
+            .WithMessage("เวลาสิ้นสุดต้องหลังเวลาเริ่มต้น")
+            .OverridePropertyName(nameof(CreateLeaveRequestCommand.TimeTo));
 
         RuleFor(x => x.Reason).MaximumLength(500);
     }

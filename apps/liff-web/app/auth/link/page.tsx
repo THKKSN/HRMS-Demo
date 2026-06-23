@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -22,6 +22,8 @@ type FormValues = z.infer<typeof schema>
 
 export default function LinkPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next') ?? ''
   const { isReady, isLoggedIn } = useLiffContext()
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -75,14 +77,14 @@ export default function LinkPage() {
 
       // เก็บ access token ชั่วคราวไว้ใช้หน้า OTP
       sessionStorage.setItem('liff_access_token', accessToken)
-      router.push('/auth/otp')
+      router.push(next ? `/auth/otp?next=${encodeURIComponent(next)}` : '/auth/otp')
     } catch (err) {
       if (isAxiosError(err)) {
         const data = err.response?.data as ApiError | undefined
         if (err.response?.status === 409) {
           // ผูกแล้ว → ไปหน้า already-linked
           sessionStorage.setItem('liff_access_token', liff.getAccessToken() ?? '')
-          router.push('/auth/already-linked')
+          router.push(next ? `/auth/already-linked?next=${encodeURIComponent(next)}` : '/auth/already-linked')
           return
         }
         setErrorMsg(data?.message ?? 'ไม่พบข้อมูลพนักงาน กรุณาตรวจสอบข้อมูล')

@@ -30,7 +30,28 @@ public class CreateLeaveRequestHandler(
             .FirstOrDefaultAsync(lt => lt.Id == request.LeaveTypeId && lt.IsActive, ct)
             ?? throw new ValidationException("ไม่พบประเภทการลาที่ระบุ");
 
-        var totalDays = workingDayCalc.Calculate(request.DateFrom, request.DateTo, request.HalfDay, WorkDayFlags.MonToFri);
+        decimal totalDays;
+        if (request.TimeFrom.HasValue && request.TimeTo.HasValue)
+        {
+            var hours = (decimal)(request.TimeTo.Value - request.TimeFrom.Value).TotalHours;
+            if (hours <= 0) throw new ValidationException("เวลาสิ้นสุดต้องหลังเวลาเริ่มต้น");
+
+            var shift = await db.Shifts
+                .Where(s => s.CompanyId == employee.CompanyId && s.IsActive)
+                .OrderBy(s => s.StartTime)
+                .FirstOrDefaultAsync(ct);
+
+            var shiftHours = shift is not null
+                ? (decimal)(shift.EndTime - shift.StartTime).TotalHours
+                : 8m;
+
+            totalDays = Math.Round(hours / shiftHours, 2);
+        }
+        else
+        {
+            totalDays = workingDayCalc.Calculate(request.DateFrom, request.DateTo, request.HalfDay, WorkDayFlags.MonToFri);
+        }
+
         if (totalDays == 0)
             throw new ValidationException("ไม่มีวันทำการในช่วงที่เลือก");
 
@@ -61,7 +82,9 @@ public class CreateLeaveRequestHandler(
             LeaveTypeId = request.LeaveTypeId,
             DateFrom = request.DateFrom,
             DateTo = request.DateTo,
-            HalfDay = request.HalfDay,
+            HalfDay = request.TimeFrom.HasValue ? HalfDayType.Full : request.HalfDay,
+            TimeFrom = request.TimeFrom,
+            TimeTo = request.TimeTo,
             TotalDays = totalDays,
             Reason = request.Reason,
             AttachmentUrl = request.AttachmentUrl,
@@ -86,6 +109,8 @@ public class CreateLeaveRequestHandler(
             leaveRequest.DateFrom,
             leaveRequest.DateTo,
             leaveRequest.HalfDay,
+            leaveRequest.TimeFrom,
+            leaveRequest.TimeTo,
             leaveRequest.TotalDays,
             leaveRequest.Reason,
             leaveRequest.AttachmentUrl,

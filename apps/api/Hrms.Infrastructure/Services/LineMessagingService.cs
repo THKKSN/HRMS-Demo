@@ -47,16 +47,77 @@ public class LineMessagingService(
         await PushAsync(lineUserId, new object[] { template }, ct);
     }
 
+    public async Task PushFlexMessageAsync(string lineUserId, string altText, object flexContainer, CancellationToken ct = default)
+    {
+        var message = new { type = "flex", altText, contents = flexContainer };
+        await PushAsync(lineUserId, new object[] { message }, ct);
+    }
+
+    public async Task ReplyAsync(string replyToken, string message, CancellationToken ct = default)
+    {
+        await ReplyAsync(replyToken, new object[] { new { type = "text", text = message } }, ct);
+    }
+
+    public async Task ReplyWithLocationRequestAsync(string replyToken, string promptText, CancellationToken ct = default)
+    {
+        var message = new
+        {
+            type = "text",
+            text = promptText,
+            quickReply = new
+            {
+                items = new[]
+                {
+                    new { type = "action", action = new { type = "location", label = "📍 แชร์ตำแหน่ง" } }
+                }
+            }
+        };
+        await ReplyAsync(replyToken, new object[] { message }, ct);
+    }
+
+    public async Task ReplyFlexMessageAsync(string replyToken, string altText, object flexContainer, CancellationToken ct = default)
+    {
+        var message = new { type = "flex", altText, contents = flexContainer };
+        await ReplyAsync(replyToken, new object[] { message }, ct);
+    }
+
+    public async Task ReplyFlexWithLocationRequestAsync(string replyToken, string altText, object flexContainer, CancellationToken ct = default)
+    {
+        var message = new
+        {
+            type = "flex",
+            altText,
+            contents = flexContainer,
+            quickReply = new
+            {
+                items = new[]
+                {
+                    new { type = "action", action = new { type = "location", label = "📍 แชร์ตำแหน่ง" } }
+                }
+            }
+        };
+        await ReplyAsync(replyToken, new object[] { message }, ct);
+    }
+
     private async Task PushAsync(string lineUserId, object[] messages, CancellationToken ct)
     {
-        httpClient.DefaultRequestHeaders.Authorization =
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _opts.MessagingChannelAccessToken);
-
+        SetAuthHeader();
         var body = new { to = lineUserId, messages };
-
         var response = await httpClient.PostAsJsonAsync(
             "https://api.line.me/v2/bot/message/push", body, ct);
-
         response.EnsureSuccessStatusCode();
     }
+
+    private async Task ReplyAsync(string replyToken, object[] messages, CancellationToken ct)
+    {
+        SetAuthHeader();
+        var body = new { replyToken, messages };
+        var response = await httpClient.PostAsJsonAsync(
+            "https://api.line.me/v2/bot/message/reply", body, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    private void SetAuthHeader() =>
+        httpClient.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _opts.MessagingChannelAccessToken);
 }

@@ -15,6 +15,8 @@ export type CreateLeaveBody = {
   dateFrom: string
   dateTo: string
   halfDay: HalfDayType
+  timeFrom?: string
+  timeTo?: string
   reason?: string
   attachmentUrl?: string
 }

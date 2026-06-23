@@ -74,6 +74,8 @@ export type LeaveRequestDto = {
   dateFrom: string
   dateTo: string
   halfDay: HalfDayType
+  timeFrom?: string
+  timeTo?: string
   totalDays: number
   reason?: string
   attachmentUrl?: string

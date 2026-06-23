@@ -26,7 +26,10 @@ export default function LeavesPage() {
 
   return (
     <>
+      <div className="flex items-center justify-between px-4 py-3">
       <PageHeader title="ประวัติการลา" />
+      <Link className='bg-primary text-white px-3 rounded-full' href='leaves/balance'>ตรวสอบสิทธิ์</Link>
+      </div>
 
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto px-4 py-3 no-scrollbar">

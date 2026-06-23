@@ -10,6 +10,8 @@ public record LeaveRequestDto(
     DateOnly DateFrom,
     DateOnly DateTo,
     HalfDayType HalfDay,
+    TimeOnly? TimeFrom,
+    TimeOnly? TimeTo,
     decimal TotalDays,
     string? Reason,
     string? AttachmentUrl,

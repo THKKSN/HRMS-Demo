@@ -10,6 +10,8 @@ public class LeaveRequest : BaseEntity
     public DateOnly DateFrom { get; set; }
     public DateOnly DateTo { get; set; }
     public HalfDayType HalfDay { get; set; } = HalfDayType.Full;
+    public TimeOnly? TimeFrom { get; set; }
+    public TimeOnly? TimeTo { get; set; }
     public decimal TotalDays { get; set; }
     public string? Reason { get; set; }
     public string? AttachmentUrl { get; set; }
