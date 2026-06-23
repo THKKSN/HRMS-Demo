@@ -12,9 +12,9 @@ namespace Hrms.Api.Controllers;
 [Authorize]
 public class LeaveTypeController(IMediator mediator) : ControllerBase
 {
-    /// <summary>ประเภทการลาที่ active ของ company ตัวเอง (ทุก role)</summary>
+    /// <summary>ประเภทการลาทั้งหมด (master data, ทุก role เรียกได้)</summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll(CancellationToken ct)
+    public async Task<IActionResult> GetAll(CancellationToken ct = default)
     {
         var result = await mediator.Send(new GetLeaveTypesQuery(), ct);
         return Ok(result);

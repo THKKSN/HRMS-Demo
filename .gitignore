@@ -50,6 +50,13 @@ pnpm-debug.log*
 *.user
 *.userosscache
 *.sln.docstates
+
+# Secrets — ห้าม commit ไฟล์เหล่านี้
+.env
+.env.local
+.env.production
+apps/api/Hrms.Api/appsettings.Production.json
+secrets.json
 [Dd]ebug/
 [Rr]elease/
 x64/

@@ -8,4 +8,5 @@ public record GetLeaveBalancesQuery(
     int Page,
     int PageSize,
     int Year,
-    Guid? EmployeeId) : IRequest<PagedResult<LeaveBalanceAdminDto>>;
+    Guid? EmployeeId,
+    Guid? CompanyId) : IRequest<PagedResult<LeaveBalanceAdminDto>>;

@@ -7,6 +7,7 @@ public record EmployeeDetailDto(
     string? Email,
     string? Phone,
     string? NationalIdMasked,
+    string? NationalId,
     Guid CompanyId,
     Guid? DepartmentId,
     string? DepartmentName,

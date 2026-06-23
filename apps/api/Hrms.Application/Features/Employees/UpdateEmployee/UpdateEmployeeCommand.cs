@@ -5,7 +5,6 @@ using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Employees.Common;
 using Hrms.Application.Features.Employees.Dtos;
 using Hrms.Domain.Entities;
-using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,7 +19,8 @@ public record UpdateEmployeeCommand(
     DateOnly? HireDate,
     Guid? DepartmentId,
     Guid? CompanyId = null,
-    Guid? RoleLabelId = null) : IRequest<EmployeeDetailDto>;
+    Guid? RoleLabelId = null,
+    string? NationalId = null) : IRequest<EmployeeDetailDto>;
 
 public class UpdateEmployeeValidator : AbstractValidator<UpdateEmployeeCommand>
 {
@@ -54,7 +54,7 @@ public class UpdateEmployeeHandler(IApplicationDbContext db, IScopeGuard scope, 
         if (request.DepartmentId.HasValue)
             department = await db.Departments.FirstOrDefaultAsync(d => d.Id == request.DepartmentId.Value, ct);
 
-        if (request.CompanyId.HasValue && currentUser.HasRole(RoleType.Admin))
+        if (request.CompanyId.HasValue && await scope.CanAccessCompanyAsync(request.CompanyId.Value, ct))
         {
             employee.CompanyId    = request.CompanyId.Value;
             employee.DepartmentId = null;
@@ -67,10 +67,15 @@ public class UpdateEmployeeHandler(IApplicationDbContext db, IScopeGuard scope, 
         employee.HireDate     = request.HireDate;
         employee.DepartmentId = request.DepartmentId ?? employee.DepartmentId;
         employee.RoleLabelId  = request.RoleLabelId;
-        employee.UpdatedAt    = DateTime.UtcNow;
+
+        // Admin/HR เท่านั้นที่แก้ไข national ID ได้
+        if (!string.IsNullOrEmpty(request.NationalId) && currentUser.IsAdminOrHr())
+            employee.NationalId = request.NationalId;
+
+        employee.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);
 
-        return employee.ToDetailDto(department?.Name ?? employee.Department?.Name);
+        return employee.ToDetailDto(department?.Name ?? employee.Department?.Name, currentUser.IsAdminOrHr());
     }
 }

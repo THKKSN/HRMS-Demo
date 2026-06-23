@@ -65,7 +65,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         defaultDaysPerYear: values.defaultDaysPerYear,
         requiresAttachment: values.requiresAttachment,
       })
-      toast.success(`เพิ่มประเภทลา "${values.nameTh}" สำเร็จ`)
+      toast.success(`เพิ่มประเภทการลา "${values.nameTh}" สำเร็จ`)
       reset()
       onClose()
     } catch (err: unknown) {
@@ -80,7 +80,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="เพิ่มประเภทลาใหม่">
+    <Modal open={open} onClose={onClose} title="เพิ่มประเภทการลาใหม่">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="c-code">รหัส (ตัวพิมพ์ใหญ่) *</Label>
@@ -214,10 +214,10 @@ export default function LeaveTypesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">ประเภทลา</h1>
+        <h1 className="text-xl font-semibold text-foreground">ประเภทการลา</h1>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
-          เพิ่มประเภทลา
+          เพิ่ม
         </Button>
       </div>
 
@@ -246,7 +246,7 @@ export default function LeaveTypesPage() {
             {!isLoading && (!leaveTypes || leaveTypes.length === 0) && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                  ยังไม่มีประเภทลา — กดเพิ่มด้านบน
+                  ยังไม่มีประเภทการลา — กดเพิ่มด้านบน
                 </td>
               </tr>
             )}
@@ -295,7 +295,7 @@ export default function LeaveTypesPage() {
         open={!!toggleTarget}
         onClose={() => setToggleTarget(null)}
         onConfirm={confirmToggle}
-        title={toggleTarget?.isActive ? 'ปิดใช้งานประเภทลา' : 'เปิดใช้งานประเภทลา'}
+        title={toggleTarget?.isActive ? 'ปิดใช้งานประเภทการลา' : 'เปิดใช้งานประเภทการลา'}
         description={`ยืนยัน${toggleTarget?.isActive ? 'ปิด' : 'เปิด'}ใช้งาน "${toggleTarget?.nameTh}"?`}
         confirmLabel={toggleTarget?.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
         variant={toggleTarget?.isActive ? 'destructive' : 'default'}

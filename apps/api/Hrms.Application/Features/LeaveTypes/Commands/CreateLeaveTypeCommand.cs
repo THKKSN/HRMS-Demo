@@ -21,24 +21,20 @@ public class CreateLeaveTypeValidator : AbstractValidator<CreateLeaveTypeCommand
     {
         RuleFor(x => x.Code).NotEmpty().MaximumLength(20);
         RuleFor(x => x.NameTh).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.DefaultDaysPerYear).GreaterThan(0);
+        RuleFor(x => x.DefaultDaysPerYear).GreaterThanOrEqualTo(0);
     }
 }
 
-public class CreateLeaveTypeHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class CreateLeaveTypeHandler(IApplicationDbContext db)
     : IRequestHandler<CreateLeaveTypeCommand, LeaveTypeDto>
 {
     public async Task<LeaveTypeDto> Handle(CreateLeaveTypeCommand request, CancellationToken ct)
     {
-        var companyId = currentUser.CompanyId
-            ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
-
-        if (await db.LeaveTypes.AnyAsync(lt => lt.CompanyId == companyId && lt.Code == request.Code, ct))
-            throw new ConflictException("DUPLICATE_CODE", $"รหัสประเภทลา '{request.Code}' มีอยู่แล้วในระบบ");
+        if (await db.LeaveTypes.AnyAsync(lt => lt.Code == request.Code, ct))
+            throw new ConflictException("DUPLICATE_CODE", $"รหัสประเภทการลา '{request.Code}' มีอยู่แล้วในระบบ");
 
         var leaveType = new LeaveType
         {
-            CompanyId          = companyId,
             Code               = request.Code,
             NameTh             = request.NameTh,
             NameEn             = request.NameEn,

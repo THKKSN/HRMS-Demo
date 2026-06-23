@@ -1,6 +1,5 @@
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
-using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Companies.Dtos;
 using Hrms.Domain.Entities;
@@ -14,7 +13,8 @@ public record CreateCompanyCommand(
     string Name,
     string? NameEn,
     OrgType OrgType,
-    Guid? ParentId) : IRequest<CompanyDto>;
+    Guid? ParentId,
+    bool IsHeadquarters = false) : IRequest<CompanyDto>;
 
 public class CreateCompanyValidator : AbstractValidator<CreateCompanyCommand>
 {
@@ -25,14 +25,11 @@ public class CreateCompanyValidator : AbstractValidator<CreateCompanyCommand>
     }
 }
 
-public class CreateCompanyHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class CreateCompanyHandler(IApplicationDbContext db)
     : IRequestHandler<CreateCompanyCommand, CompanyDto>
 {
     public async Task<CompanyDto> Handle(CreateCompanyCommand request, CancellationToken ct)
     {
-        if (!currentUser.HasRole(RoleType.Admin))
-            throw new AppForbiddenException("เฉพาะ Admin เท่านั้นที่สามารถสร้างบริษัทได้");
-
         Company? parent = null;
         if (request.ParentId.HasValue)
         {
@@ -45,13 +42,14 @@ public class CreateCompanyHandler(IApplicationDbContext db, ICurrentUser current
 
         var company = new Company
         {
-            Name      = request.Name,
-            NameEn    = request.NameEn,
-            OrgType   = request.OrgType,
-            ParentId  = request.ParentId,
-            IsActive  = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
+            Name           = request.Name,
+            NameEn         = request.NameEn,
+            OrgType        = request.OrgType,
+            ParentId       = request.ParentId,
+            IsHeadquarters = request.IsHeadquarters,
+            IsActive       = true,
+            CreatedAt      = DateTime.UtcNow,
+            UpdatedAt      = DateTime.UtcNow,
         };
 
         db.Companies.Add(company);
@@ -64,6 +62,7 @@ public class CreateCompanyHandler(IApplicationDbContext db, ICurrentUser current
             company.OrgType.ToString(),
             company.ParentId,
             parent?.Name,
-            company.IsActive);
+            company.IsActive,
+            company.IsHeadquarters);
     }
 }

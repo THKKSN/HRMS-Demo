@@ -5,7 +5,7 @@ namespace Hrms.Application.Features.Employees.Common;
 
 public static class EmployeeMappingExtensions
 {
-    public static EmployeeDetailDto ToDetailDto(this Employee e, string? departmentName) =>
+    public static EmployeeDetailDto ToDetailDto(this Employee e, string? departmentName, bool includeRealNationalId = false) =>
         new(
             e.Id,
             e.EmployeeCode,
@@ -13,6 +13,7 @@ public static class EmployeeMappingExtensions
             e.Email,
             e.Phone,
             MaskNationalId(e.NationalId),
+            includeRealNationalId ? e.NationalId : null,
             e.CompanyId,
             e.DepartmentId,
             departmentName,

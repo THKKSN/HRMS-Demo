@@ -45,6 +45,18 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
                 fe.Message,
                 (object?)null),
 
+            NotFoundException nfe => (
+                StatusCodes.Status404NotFound,
+                "NOT_FOUND",
+                nfe.Message,
+                (object?)null),
+
+            KeyNotFoundException knfe => (
+                StatusCodes.Status404NotFound,
+                "NOT_FOUND",
+                knfe.Message,
+                (object?)null),
+
             ConflictException ce => (
                 StatusCodes.Status409Conflict,
                 ce.Code,

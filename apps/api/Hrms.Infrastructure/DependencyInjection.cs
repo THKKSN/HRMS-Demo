@@ -52,6 +52,7 @@ public static class DependencyInjection
         services.AddHttpClient<ILineMessagingService, LineMessagingService>();
         services.AddScoped<ILineWebhookService, LineWebhookService>();
         services.AddScoped<ILeaveNotificationService, HangfireLeaveNotificationService>();
+        services.AddSingleton<IGeofenceService, GeofenceService>();
 
         // Hangfire (InMemory — swap to MySqlStorage for production)
         services.AddHangfire(cfg => cfg

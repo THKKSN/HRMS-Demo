@@ -1,5 +1,6 @@
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
+using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Leaves.Dtos;
 using Hrms.Domain.Entities;
@@ -26,8 +27,8 @@ public class CreateLeaveRequestHandler(
             ?? throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND");
 
         var leaveType = await db.LeaveTypes
-            .FirstOrDefaultAsync(lt => lt.Id == request.LeaveTypeId && lt.IsActive && lt.CompanyId == employee.CompanyId, ct)
-            ?? throw new ValidationException("ไม่พบประเภทการลาที่ระบุหรือไม่อยู่ในบริษัทของคุณ");
+            .FirstOrDefaultAsync(lt => lt.Id == request.LeaveTypeId && lt.IsActive, ct)
+            ?? throw new ValidationException("ไม่พบประเภทการลาที่ระบุ");
 
         var totalDays = workingDayCalc.Calculate(request.DateFrom, request.DateTo, request.HalfDay, WorkDayFlags.MonToFri);
         if (totalDays == 0)
@@ -50,6 +51,10 @@ public class CreateLeaveRequestHandler(
         if (balance is null || balance.RemainingDays < totalDays)
             throw new ConflictException("INSUFFICIENT_BALANCE", "วันลาคงเหลือไม่เพียงพอ");
 
+        // Supervisor ขึ้นไป → ข้าม Supervisor stage ไปเลย เข้า PendingHr ทันที
+        var isSupervisorOrAbove = currentUser.IsSupervisorOrAbove();
+        var initialStatus = isSupervisorOrAbove ? LeaveStatus.PendingHr : LeaveStatus.PendingSupervisor;
+
         var leaveRequest = new LeaveRequest
         {
             EmployeeId = employeeId,
@@ -60,7 +65,10 @@ public class CreateLeaveRequestHandler(
             TotalDays = totalDays,
             Reason = request.Reason,
             AttachmentUrl = request.AttachmentUrl,
-            Status = LeaveStatus.PendingSupervisor
+            Status = initialStatus,
+            SupervisorId = isSupervisorOrAbove ? employeeId : null,
+            SupervisorApprovedAt = isSupervisorOrAbove ? DateTime.UtcNow : null,
+            SupervisorComment = isSupervisorOrAbove ? "อนุมัติอัตโนมัติ (ผู้ยื่นมีสิทธิ์ Supervisor)" : null,
         };
 
         balance.PendingDays += totalDays;

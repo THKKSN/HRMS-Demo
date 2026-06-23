@@ -12,7 +12,10 @@ public interface IApplicationDbContext
     DbSet<LeaveType>    LeaveTypes     { get; } // table: leave_types
     DbSet<LeaveRequest> LeaveRequests  { get; } // table: leave_requests
     DbSet<LeaveBalance> LeaveBalances  { get; } // table: leave_balances
-    DbSet<AttendanceLog> AttendanceLogs { get; } // table: attendance_logs
+    DbSet<AttendanceRecord> AttendanceRecords { get; } // table: attendance_records
+    DbSet<Shift>            Shifts            { get; } // table: shifts
+    DbSet<Holiday>                 Holidays                 { get; } // table: holidays
+    DbSet<WeeklyHolidaySchedule>  WeeklyHolidaySchedules   { get; } // table: weekly_holiday_schedules
     DbSet<RefreshToken> RefreshTokens  { get; } // table: refresh_tokens
     DbSet<LoginHistory> LoginHistories { get; } // table: login_histories
 

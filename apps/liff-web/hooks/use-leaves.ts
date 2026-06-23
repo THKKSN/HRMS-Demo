@@ -18,7 +18,7 @@ export function useLeaveTypes() {
   })
 }
 
-export function useMyLeaves(params?: { page?: number; status?: LeaveStatus }) {
+export function useMyLeaves(params?: { page?: number; pageSize?: number; status?: LeaveStatus }) {
   return useQuery({
     queryKey: leaveKeys.list(params),
     queryFn: () => leavesApi.getMyLeaves(params),

@@ -44,6 +44,7 @@ export function useUpdateCompany() {
       orgType: string
       parentId?: string
       isActive: boolean
+      isHeadquarters: boolean
     }) => companiesApi.update(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: companyKeys.all }),
   })

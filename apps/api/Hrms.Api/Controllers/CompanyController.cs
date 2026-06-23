@@ -10,11 +10,12 @@ namespace Hrms.Api.Controllers;
 
 [ApiController]
 [Route("v1/companies")]
-[Authorize(Policy = AuthPolicies.RequireAdmin)]
+[Authorize]
 public class CompanyController(IMediator mediator) : ControllerBase
 {
-    /// <summary>รายการบริษัททั้งหมดเป็น tree structure (Admin)</summary>
+    /// <summary>รายการบริษัทเป็น tree structure (HR / Admin)</summary>
     [HttpGet]
+    [Authorize(Policy = AuthPolicies.RequireHr)]
     public async Task<IActionResult> GetAll(
         [FromQuery] bool includeInactive = false,
         CancellationToken ct = default)
@@ -23,16 +24,18 @@ public class CompanyController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>รายละเอียดบริษัท (Admin)</summary>
+    /// <summary>รายละเอียดบริษัท (HR / Admin)</summary>
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = AuthPolicies.RequireHr)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await mediator.Send(new GetCompanyByIdQuery(id), ct);
         return Ok(result);
     }
 
-    /// <summary>สร้างบริษัทใหม่ (Admin)</summary>
+    /// <summary>สร้างบริษัทใหม่ (Admin เท่านั้น)</summary>
     [HttpPost]
+    [Authorize(Policy = AuthPolicies.RequireAdmin)]
     public async Task<IActionResult> Create(
         [FromBody] CreateCompanyRequest request,
         CancellationToken ct)
@@ -41,12 +44,14 @@ public class CompanyController(IMediator mediator) : ControllerBase
             request.Name,
             request.NameEn,
             request.OrgType,
-            request.ParentId), ct);
+            request.ParentId,
+            request.IsHeadquarters), ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
-    /// <summary>แก้ไขบริษัท (Admin)</summary>
+    /// <summary>แก้ไขบริษัท (HR / Admin — เฉพาะในสังกัด)</summary>
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = AuthPolicies.RequireHr)]
     public async Task<IActionResult> Update(
         Guid id,
         [FromBody] UpdateCompanyRequest request,
@@ -57,7 +62,8 @@ public class CompanyController(IMediator mediator) : ControllerBase
             request.Name,
             request.NameEn,
             request.ParentId,
-            request.IsActive), ct);
+            request.IsActive,
+            request.IsHeadquarters), ct);
         return Ok(result);
     }
 }
@@ -66,10 +72,12 @@ public record CreateCompanyRequest(
     string Name,
     string? NameEn,
     OrgType OrgType,
-    Guid? ParentId);
+    Guid? ParentId,
+    bool IsHeadquarters = false);
 
 public record UpdateCompanyRequest(
     string Name,
     string? NameEn,
     Guid? ParentId,
-    bool IsActive);
+    bool IsActive,
+    bool IsHeadquarters = false);

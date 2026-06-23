@@ -67,11 +67,13 @@ function CreateLocationModal({
   companies: { id: string; name: string }[]
 }) {
   const create = useCreateLocation()
-  const { register, handleSubmit, setError, reset, control, setValue, formState: { errors, isSubmitting } } =
+  const { register, handleSubmit, setError, reset, control, setValue, watch, formState: { errors, isSubmitting } } =
     useForm<LocationFormValues>({
       resolver: zodResolver(locationSchema),
       defaultValues: { companyId: defaultCompanyId ?? '', radiusMeters: 100 },
     })
+
+  const [watchProvinceId, watchDistrictId, watchSubDistrictId] = watch(['provinceId', 'districtId', 'subDistrictId'])
 
   function useCurrentPosition() {
     if (!navigator.geolocation) {
@@ -168,12 +170,12 @@ function CreateLocationModal({
         <Controller
           control={control}
           name="provinceId"
-          render={({ field: { value } }) => (
+          render={() => (
             <AddressSelector
               value={{
-                provinceId:    value,
-                districtId:    undefined,
-                subDistrictId: undefined,
+                provinceId:    watchProvinceId,
+                districtId:    watchDistrictId,
+                subDistrictId: watchSubDistrictId,
               }}
               onChange={(v) => {
                 setValue('provinceId',    v.provinceId)
@@ -209,7 +211,7 @@ function EditLocationModal({
   const update = useUpdateLocation()
   const [deactivateConfirm, setDeactivateConfirm] = useState(false)
 
-  const { register, handleSubmit, setError, getValues, control, setValue, formState: { errors, isSubmitting, isDirty } } =
+  const { register, handleSubmit, setError, getValues, control, setValue, watch, formState: { errors, isSubmitting, isDirty } } =
     useForm<EditLocationFormValues>({
       resolver: zodResolver(editLocationSchema),
       defaultValues: {
@@ -223,6 +225,8 @@ function EditLocationModal({
         subDistrictId: location.subDistrictId,
       },
     })
+
+  const [watchProvinceId, watchDistrictId, watchSubDistrictId] = watch(['provinceId', 'districtId', 'subDistrictId'])
 
   function useCurrentPosition() {
     if (!navigator.geolocation) { toast.error('เบราว์เซอร์นี้ไม่รองรับ Geolocation'); return }
@@ -300,12 +304,12 @@ function EditLocationModal({
           <Controller
             control={control}
             name="provinceId"
-            render={({ field: { value } }) => (
+            render={() => (
               <AddressSelector
                 value={{
-                  provinceId:    value,
-                  districtId:    getValues('districtId'),
-                  subDistrictId: getValues('subDistrictId'),
+                  provinceId:    watchProvinceId,
+                  districtId:    watchDistrictId,
+                  subDistrictId: watchSubDistrictId,
                 }}
                 onChange={(v) => {
                   setValue('provinceId',    v.provinceId,    { shouldDirty: true })
@@ -379,7 +383,7 @@ export default function LocationsPage() {
           onChange={(e) => setCompanyFilter(e.target.value)}
           className="w-56"
         >
-          <option value="">— ทุกบริษัท —</option>
+          <option value="">ทุกบริษัท</option>
           {companies.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}

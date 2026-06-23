@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.LeaveBalances.Queries.GetLeaveBalances;
 
-public class GetLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class GetLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser currentUser, IScopeGuard scope)
     : IRequestHandler<GetLeaveBalancesQuery, PagedResult<LeaveBalanceAdminDto>>
 {
     public async Task<PagedResult<LeaveBalanceAdminDto>> Handle(GetLeaveBalancesQuery request, CancellationToken ct)
@@ -16,11 +16,20 @@ public class GetLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser curr
         if (!currentUser.IsAdminOrHr())
             throw new AppForbiddenException("ต้องมีสิทธิ์ HR หรือ Admin จึงจะดูวันลาของพนักงานได้");
 
-        var companyId = currentUser.CompanyId
-            ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
+        Guid companyId;
+        if (request.CompanyId.HasValue)
+        {
+            await scope.ThrowIfCannotAccessAsync(request.CompanyId.Value);
+            companyId = request.CompanyId.Value;
+        }
+        else
+        {
+            companyId = currentUser.CompanyId
+                ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
+        }
 
         var query = db.LeaveBalances
-            .Include(b => b.Employee)
+            .Include(b => b.Employee).ThenInclude(e => e.Department)
             .Include(b => b.LeaveType)
             .Where(b => b.Year == request.Year && b.Employee.CompanyId == companyId);
 
@@ -30,7 +39,7 @@ public class GetLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser curr
         var totalCount = await query.CountAsync(ct);
 
         var page = Math.Max(1, request.Page);
-        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var pageSize = Math.Clamp(request.PageSize, 1, 2000);
 
         var items = await query
             .OrderBy(b => b.Employee.EmployeeCode)
@@ -40,7 +49,9 @@ public class GetLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser curr
             .Select(b => new LeaveBalanceAdminDto(
                 b.Id,
                 b.EmployeeId,
+                b.Employee.EmployeeCode,
                 $"{b.Employee.FirstName} {b.Employee.LastName}".Trim(),
+                b.Employee.Department != null ? b.Employee.Department.Name : null,
                 b.LeaveTypeId,
                 b.LeaveType.NameTh,
                 b.Year,

@@ -19,6 +19,9 @@ public class GetMeHandler(IApplicationDbContext db, ICurrentUser currentUser)
 
         var employee = await db.Employees
             .Include(e => e.Roles.Where(r => r.IsActive))
+            .Include(e => e.Company)
+            .Include(e => e.Department)
+            .Include(e => e.RoleLabel)
             .FirstOrDefaultAsync(e => e.Id == employeeId && e.IsActive, ct)
             ?? throw new AppUnauthorizedException("Employee not found.");
 
@@ -34,7 +37,10 @@ public class GetMeHandler(IApplicationDbContext db, ICurrentUser currentUser)
             employee.Phone,
             employee.AvatarUrl,
             employee.CompanyId,
+            employee.Company?.Name,
             employee.DepartmentId,
+            employee.Department?.Name,
+            employee.RoleLabel?.Name,
             employee.HireDate,
             roles);
     }

@@ -1,9 +1,7 @@
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
-using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Companies.Dtos;
-using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,7 +12,8 @@ public record UpdateCompanyCommand(
     string Name,
     string? NameEn,
     Guid? ParentId,
-    bool IsActive) : IRequest<CompanyDto>;
+    bool IsActive,
+    bool IsHeadquarters) : IRequest<CompanyDto>;
 
 public class UpdateCompanyValidator : AbstractValidator<UpdateCompanyCommand>
 {
@@ -25,13 +24,12 @@ public class UpdateCompanyValidator : AbstractValidator<UpdateCompanyCommand>
     }
 }
 
-public class UpdateCompanyHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class UpdateCompanyHandler(IApplicationDbContext db, IScopeGuard scope)
     : IRequestHandler<UpdateCompanyCommand, CompanyDto>
 {
     public async Task<CompanyDto> Handle(UpdateCompanyCommand request, CancellationToken ct)
     {
-        if (!currentUser.HasRole(RoleType.Admin))
-            throw new AppForbiddenException("เฉพาะ Admin เท่านั้นที่สามารถแก้ไขบริษัทได้");
+        await scope.ThrowIfCannotAccessAsync(request.Id, ct);
 
         var company = await db.Companies
             .FirstOrDefaultAsync(c => c.Id == request.Id, ct)
@@ -61,11 +59,12 @@ public class UpdateCompanyHandler(IApplicationDbContext db, ICurrentUser current
             parentName = parent.Name;
         }
 
-        company.Name      = request.Name;
-        company.NameEn    = request.NameEn;
-        company.ParentId  = request.ParentId;
-        company.IsActive  = request.IsActive;
-        company.UpdatedAt = DateTime.UtcNow;
+        company.Name           = request.Name;
+        company.NameEn         = request.NameEn;
+        company.ParentId       = request.ParentId;
+        company.IsActive       = request.IsActive;
+        company.IsHeadquarters = request.IsHeadquarters;
+        company.UpdatedAt      = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);
 
@@ -76,6 +75,7 @@ public class UpdateCompanyHandler(IApplicationDbContext db, ICurrentUser current
             company.OrgType.ToString(),
             company.ParentId,
             parentName,
-            company.IsActive);
+            company.IsActive,
+            company.IsHeadquarters);
     }
 }

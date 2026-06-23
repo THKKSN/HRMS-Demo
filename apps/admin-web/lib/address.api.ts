@@ -17,6 +17,10 @@ export const addressApi = {
 
   getZipCode: (subDistrictId: number) =>
     api
-      .get<{ zipCode: string | null }>('/address/zipcode', { params: { subDistrictId } })
-      .then((r) => r.data.zipCode),
+      .get<Record<string, string | null>>('/address/zipcode', { params: { subDistrictId } })
+      .then((r) => r.data.zipcode ?? r.data.zipCode ?? null)
+      .catch((err: { response?: { status?: number } }) => {
+        if (err?.response?.status === 404) return null
+        throw err
+      }),
 }

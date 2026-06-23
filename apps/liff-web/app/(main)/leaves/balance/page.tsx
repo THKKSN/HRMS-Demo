@@ -10,7 +10,7 @@ export default function LeaveBalancePage() {
 
   return (
     <>
-      <PageHeader title={`โควตาการลา ${year + 543}`} backHref="/leaves" />
+      <PageHeader title={`สิทธิ์การลา ${year + 543}`} backHref="/leaves" />
 
       <div className="flex flex-col gap-4 px-4 pb-24 pt-4">
         {isLoading ? (
@@ -20,7 +20,7 @@ export default function LeaveBalancePage() {
         ) : !balances?.length ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <BarChart2 className="h-12 w-12 text-muted-foreground" />
-            <p className="mt-4 text-sm text-muted-foreground">ยังไม่มีข้อมูลโควตาการลา</p>
+            <p className="mt-4 text-sm text-muted-foreground">ยังไม่มีข้อมูลสิทธิ์การลา</p>
           </div>
         ) : (
           balances.map(b => {

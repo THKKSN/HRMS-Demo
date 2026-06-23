@@ -39,9 +39,9 @@ public class EmployeeController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>รายการพนักงานทั้งหมด (HR / Admin เท่านั้น)</summary>
+    /// <summary>รายการพนักงาน (Supervisor / HR / Admin)</summary>
     [HttpGet]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = AuthPolicies.RequireSupervisor)]
     public async Task<IActionResult> GetEmployees(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
@@ -54,9 +54,9 @@ public class EmployeeController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>รายละเอียดพนักงานรายคน (HR / Admin เท่านั้น)</summary>
+    /// <summary>รายละเอียดพนักงานรายคน (Supervisor / HR / Admin)</summary>
     [HttpGet("{id:guid}")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = AuthPolicies.RequireSupervisor)]
     public async Task<IActionResult> GetEmployeeById(Guid id, CancellationToken ct)
     {
         var result = await mediator.Send(new GetEmployeeByIdQuery(id), ct);
@@ -118,9 +118,9 @@ public class EmployeeController(IMediator mediator) : ControllerBase
         return NoContent();
     }
 
-    /// <summary>รายการ role ของพนักงาน (HR / Admin เท่านั้น)</summary>
+    /// <summary>รายการ role ของพนักงาน (Supervisor / HR / Admin)</summary>
     [HttpGet("{id:guid}/roles")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = AuthPolicies.RequireSupervisor)]
     public async Task<IActionResult> GetRoles(Guid id, CancellationToken ct)
     {
         var result = await mediator.Send(new GetEmployeeRolesQuery(id), ct);

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { ClipboardList } from 'lucide-react'
+import { ClipboardList, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { LeaveStatusBadge } from '@/components/shared/leave-status-badge'
 import { useMyLeaves } from '@/hooks/use-leaves'
@@ -26,14 +26,7 @@ export default function LeavesPage() {
 
   return (
     <>
-      <PageHeader title="ประวัติการลา" action={
-        <Link
-          href="/leaves/new"
-          className="rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground"
-        >
-          ขอลา
-        </Link>
-      } />
+      <PageHeader title="ประวัติการลา" />
 
       {/* Filter tabs */}
       <div className="flex gap-2 overflow-x-auto px-4 py-3 no-scrollbar">
@@ -88,6 +81,14 @@ export default function LeavesPage() {
           ))
         )}
       </div>
+
+      {/* FAB */}
+      <Link
+        href="/leaves/new"
+        className="fixed bottom-24 right-5 flex h-14 w-14 items-center justify-center rounded-full bg-primary shadow-lg active:opacity-90 transition-opacity"
+      >
+        <Plus className="h-6 w-6 text-primary-foreground" />
+      </Link>
     </>
   )
 }

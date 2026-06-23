@@ -1,4 +1,4 @@
-﻿using Hrms.Application.Common.Exceptions;
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -7,17 +7,14 @@ namespace Hrms.Application.Features.LeaveTypes.Commands;
 
 public record ToggleLeaveTypeStatusCommand(Guid Id, bool IsActive) : IRequest;
 
-public class ToggleLeaveTypeStatusHandler(IApplicationDbContext db, IScopeGuard scope)
+public class ToggleLeaveTypeStatusHandler(IApplicationDbContext db)
     : IRequestHandler<ToggleLeaveTypeStatusCommand>
 {
     public async Task Handle(ToggleLeaveTypeStatusCommand request, CancellationToken ct)
     {
         var leaveType = await db.LeaveTypes.FirstOrDefaultAsync(lt => lt.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("à¹„à¸¡à¹ˆà¸žà¸šà¸›à¸£à¸°à¹€à¸ à¸—à¸à¸²à¸£à¸¥à¸²");
+            ?? throw new KeyNotFoundException("ไม่พบประเภทการลา");
 
-        await scope.ThrowIfCannotAccessAsync(leaveType.CompanyId);
-
-        // à¸›à¹‰à¸­à¸‡à¸à¸±à¸™ deactivate à¸–à¹‰à¸²à¸¡à¸µ leave request / balance active à¸­à¸¢à¸¹à¹ˆ
         if (!request.IsActive)
         {
             var hasActive = await db.LeaveRequests.AnyAsync(r =>
@@ -26,7 +23,7 @@ public class ToggleLeaveTypeStatusHandler(IApplicationDbContext db, IScopeGuard 
                  r.Status == Domain.Enums.LeaveStatus.PendingHr), ct);
 
             if (hasActive)
-                throw new ConflictException("IN_USE", "à¹„à¸¡à¹ˆà¸ªà¸²à¸¡à¸²à¸£à¸–à¸›à¸´à¸”à¸›à¸£à¸°à¹€à¸ à¸—à¸¥à¸²à¸™à¸µà¹‰à¹„à¸”à¹‰ à¹€à¸™à¸·à¹ˆà¸­à¸‡à¸ˆà¸²à¸à¸¡à¸µà¸„à¸³à¸‚à¸­à¸¥à¸²à¸—à¸µà¹ˆà¸£à¸­à¸­à¸™à¸¸à¸¡à¸±à¸•à¸´à¸­à¸¢à¸¹à¹ˆ");
+                throw new ConflictException("IN_USE", "ไม่สามารถปิดประเภทการลานี้ได้ เนื่องจากมีคำขอลาที่รออนุมัติอยู่");
         }
 
         leaveType.IsActive  = request.IsActive;
@@ -35,4 +32,3 @@ public class ToggleLeaveTypeStatusHandler(IApplicationDbContext db, IScopeGuard 
         await db.SaveChangesAsync(ct);
     }
 }
-

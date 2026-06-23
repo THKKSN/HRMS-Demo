@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronRight, ChevronDown, Plus, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
@@ -39,6 +39,7 @@ function flattenTree(nodes: CompanyTreeDto[]): CompanyDto[] {
       result.push({
         id: n.id, name: n.name, nameEn: n.nameEn,
         orgType: n.orgType, isActive: n.isActive,
+        isHeadquarters: n.isHeadquarters,
         parentId: undefined, parentName: undefined,
       })
       walk(n.children)
@@ -56,10 +57,11 @@ function FieldError({ message }: { message?: string }) {
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
 const companySchema = z.object({
-  name:     z.string().min(1, 'กรุณากรอกชื่อบริษัท').max(200),
-  nameEn:   z.string().max(200).optional().or(z.literal('')),
-  orgType:  z.enum(['Holding', 'Subsidiary', 'Branch']),
-  parentId: z.string().optional().or(z.literal('')),
+  name:           z.string().min(1, 'กรุณากรอกชื่อบริษัท').max(200),
+  nameEn:         z.string().max(200).optional().or(z.literal('')),
+  orgType:        z.enum(['Holding', 'Subsidiary', 'Branch']),
+  parentId:       z.string().optional().or(z.literal('')),
+  isHeadquarters: z.boolean().default(false),
 })
 
 type CompanyFormValues = z.infer<typeof companySchema>
@@ -79,16 +81,17 @@ function CreateCompanyModal({
   const { register, handleSubmit, setError, reset, formState: { errors, isSubmitting } } =
     useForm<CompanyFormValues>({
       resolver: zodResolver(companySchema),
-      defaultValues: { orgType: 'Subsidiary' },
+      defaultValues: { orgType: 'Subsidiary', isHeadquarters: false },
     })
 
   async function onSubmit(values: CompanyFormValues) {
     try {
       await create.mutateAsync({
-        name:     values.name,
-        nameEn:   values.nameEn || undefined,
-        orgType:  values.orgType,
-        parentId: values.parentId || undefined,
+        name:           values.name,
+        nameEn:         values.nameEn || undefined,
+        orgType:        values.orgType,
+        parentId:       values.parentId || undefined,
+        isHeadquarters: values.isHeadquarters,
       })
       toast.success(`เพิ่มบริษัท "${values.name}" สำเร็จ`)
       reset()
@@ -138,6 +141,11 @@ function CreateCompanyModal({
           <FieldError message={errors.parentId?.message} />
         </div>
 
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input type="checkbox" className="rounded border-border" {...register('isHeadquarters')} />
+          <span>บริษัทสำนักงานใหญ่ (HQ) — HR ในบริษัทนี้จัดการข้อมูลทุกบริษัทในระบบได้</span>
+        </label>
+
         {errors.root && <p className="text-sm text-destructive">{errors.root.message}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={() => { reset(); onClose() }}>ยกเลิก</Button>
@@ -166,22 +174,24 @@ function EditCompanyModal({
     useForm<CompanyFormValues>({
       resolver: zodResolver(companySchema),
       defaultValues: {
-        name:     company.name,
-        nameEn:   company.nameEn ?? '',
-        orgType:  company.orgType as OrgType,
-        parentId: company.parentId ?? '',
+        name:           company.name,
+        nameEn:         company.nameEn ?? '',
+        orgType:        company.orgType as OrgType,
+        parentId:       company.parentId ?? '',
+        isHeadquarters: company.isHeadquarters,
       },
     })
 
   async function doUpdate(values: CompanyFormValues, isActive: boolean) {
     try {
       await update.mutateAsync({
-        id:       company.id,
-        name:     values.name,
-        nameEn:   values.nameEn || undefined,
-        orgType:  values.orgType,
-        parentId: values.parentId || undefined,
+        id:             company.id,
+        name:           values.name,
+        nameEn:         values.nameEn || undefined,
+        orgType:        values.orgType,
+        parentId:       values.parentId || undefined,
         isActive,
+        isHeadquarters: values.isHeadquarters,
       })
       toast.success('อัปเดตข้อมูลบริษัทสำเร็จ')
       setDeactivateConfirm(false)
@@ -230,6 +240,11 @@ function EditCompanyModal({
             </Select>
             <FieldError message={errors.parentId?.message} />
           </div>
+
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input type="checkbox" className="rounded border-border" {...register('isHeadquarters')} />
+            <span>บริษัทสำนักงานใหญ่ (HQ)</span>
+          </label>
 
           {errors.root && <p className="text-sm text-destructive">{errors.root.message}</p>}
 
@@ -310,6 +325,9 @@ function CompanyTreeNode({
         <Badge variant={ORG_TYPE_VARIANT[node.orgType as OrgType]} className="text-xs">
           {ORG_TYPE_LABEL[node.orgType as OrgType]}
         </Badge>
+        {node.isHeadquarters && (
+          <Badge variant="default" className="text-white-xs bg-amber-500 hover:bg-amber-500">HQ</Badge>
+        )}
         {!node.isActive && (
           <Badge variant="secondary" className="text-xs">ปิดใช้งาน</Badge>
         )}
@@ -319,7 +337,7 @@ function CompanyTreeNode({
           size="icon"
           variant="ghost"
           className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={() => onEdit({ id: node.id, name: node.name, nameEn: node.nameEn, orgType: node.orgType, isActive: node.isActive, parentId: undefined, parentName: undefined })}
+          onClick={() => onEdit({ id: node.id, name: node.name, nameEn: node.nameEn, orgType: node.orgType, isActive: node.isActive, isHeadquarters: node.isHeadquarters, parentId: undefined, parentName: undefined })}
         >
           <Pencil className="h-3.5 w-3.5" />
         </Button>
@@ -342,6 +360,7 @@ export default function CompaniesPage() {
   const router = useRouter()
   const employee = useAuthStore((s) => s.employee)
   const isAdmin = employee?.roles.some((r) => r.role === 'Admin') ?? false
+  const isHr = employee?.roles.some((r) => r.role === 'Hr') ?? false
 
   const [showInactive, setShowInactive] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -350,19 +369,21 @@ export default function CompaniesPage() {
   const { data: tree = [], isLoading } = useCompanies(showInactive)
   const allFlat = flattenTree(tree).filter((c) => c.isActive)
 
-  // Admin guard (client-side — middleware covers the hard block)
-  if (!isAdmin) {
-    router.replace('/dashboard')
-    return null
-  }
+  useEffect(() => {
+    if (!isAdmin && !isHr) router.replace('/dashboard')
+  }, [isAdmin, isHr, router])
+
+  if (!isAdmin && !isHr) return null
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">โครงสร้างบริษัท</h1>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" />เพิ่มบริษัท
-        </Button>
+        {isAdmin && (
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" />เพิ่มบริษัท
+          </Button>
+        )}
       </div>
 
       <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer w-fit">

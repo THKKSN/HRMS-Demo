@@ -18,8 +18,12 @@ public class GetEmployeesHandler(IApplicationDbContext db, IScopeGuard scope)
 {
     public async Task<PagedResult<EmployeeListItemDto>> Handle(GetEmployeesQuery request, CancellationToken ct)
     {
-        if (request.CompanyId.HasValue)
-            await scope.ThrowIfCannotAccessAsync(request.CompanyId.Value);
+        var accessibleIds = await scope.GetAccessibleCompanyIdsAsync(ct);
+
+        // ถ้า companyId ระบุมา ตรวจสิทธิ์ก่อน
+        if (request.CompanyId.HasValue &&
+            accessibleIds != null && !accessibleIds.Contains(request.CompanyId.Value))
+            throw new Hrms.Application.Common.Exceptions.AppForbiddenException("ไม่มีสิทธิ์เข้าถึงบริษัทนี้");
 
         var query = db.Employees
             .Include(e => e.Company)
@@ -33,6 +37,8 @@ public class GetEmployeesHandler(IApplicationDbContext db, IScopeGuard scope)
 
         if (request.CompanyId.HasValue)
             query = query.Where(e => e.CompanyId == request.CompanyId.Value);
+        else if (accessibleIds != null)
+            query = query.Where(e => accessibleIds.Contains(e.CompanyId));
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {

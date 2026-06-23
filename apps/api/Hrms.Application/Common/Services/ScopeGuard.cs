@@ -8,8 +8,8 @@ namespace Hrms.Application.Common.Services;
 /// <summary>
 /// กฎ scope:
 ///   Admin → เข้าได้ทุก company (system-wide)
+///   HR ใน HQ company (IsHeadquarters = true) → เข้าได้ทุก company (system-wide)
 ///   HR ของ company X → เข้าได้ company X และ descendant ทั้งหมด
-///   SchoolAdmin → เข้าได้เฉพาะ company ตัวเอง
 /// </summary>
 public class ScopeGuard(ICurrentUser currentUser, IApplicationDbContext db) : IScopeGuard
 {
@@ -28,16 +28,19 @@ public class ScopeGuard(ICurrentUser currentUser, IApplicationDbContext db) : IS
 
         if (hrCompanyIds.Count == 0)
         {
-            // SchoolAdmin / Supervisor → เฉพาะ company ตัวเอง
-            return currentUser.Roles.Any(r =>
-                r.CompanyId == companyId &&
-                r.Role == RoleType.SchoolAdmin.ToString());
+            // Supervisor / Employee → เฉพาะ company ตัวเอง
+            return currentUser.CompanyId == companyId;
         }
+
+        // HR ใน HQ company → เข้าได้ทุก company
+        var isHqHr = await db.Companies
+            .AnyAsync(c => hrCompanyIds.Contains(c.Id) && c.IsHeadquarters, ct);
+
+        if (isHqHr) return true;
 
         // HR: เช็คว่า targetCompany เป็น companyId ตรงๆ หรือ descendant ของ HR company
         if (hrCompanyIds.Contains(companyId)) return true;
 
-        // โหลด company tree สำหรับ ancestor check
         var allCompanies = await db.Companies
             .Select(c => new { c.Id, c.ParentId })
             .ToListAsync(ct);
@@ -57,6 +60,55 @@ public class ScopeGuard(ICurrentUser currentUser, IApplicationDbContext db) : IS
     public async Task ThrowIfCannotAccessAsync(Guid companyId, CancellationToken ct = default)
     {
         if (!await CanAccessCompanyAsync(companyId, ct))
-            throw new AppForbiddenException($"Access to company {companyId} is not permitted.");
+            throw new AppForbiddenException($"ไม่มีสิทธิ์เข้าถึงบริษัทนี้");
+    }
+
+    public async Task<IReadOnlySet<Guid>?> GetAccessibleCompanyIdsAsync(CancellationToken ct = default)
+    {
+        if (!currentUser.IsAuthenticated)
+            return new HashSet<Guid>();
+
+        // Admin → system-wide
+        if (currentUser.Roles.Any(r => r.Role == RoleType.Admin.ToString()))
+            return null;
+
+        var hrCompanyIds = currentUser.Roles
+            .Where(r => r.Role == RoleType.Hr.ToString() && r.CompanyId.HasValue)
+            .Select(r => r.CompanyId!.Value)
+            .ToHashSet();
+
+        if (hrCompanyIds.Count == 0)
+        {
+            return currentUser.CompanyId.HasValue
+                ? new HashSet<Guid> { currentUser.CompanyId.Value }
+                : new HashSet<Guid>();
+        }
+
+        // HQ HR → system-wide
+        var isHqHr = await db.Companies
+            .AnyAsync(c => hrCompanyIds.Contains(c.Id) && c.IsHeadquarters, ct);
+        if (isHqHr) return null;
+
+        // HR ปกติ → company ของตัวเอง + descendants ทั้งหมด
+        var allCompanies = await db.Companies
+            .Select(c => new { c.Id, c.ParentId })
+            .ToListAsync(ct);
+
+        var result = new HashSet<Guid>(hrCompanyIds);
+        bool changed;
+        do
+        {
+            changed = false;
+            foreach (var c in allCompanies)
+            {
+                if (!result.Contains(c.Id) && c.ParentId.HasValue && result.Contains(c.ParentId.Value))
+                {
+                    result.Add(c.Id);
+                    changed = true;
+                }
+            }
+        } while (changed);
+
+        return result;
     }
 }

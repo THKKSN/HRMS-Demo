@@ -18,6 +18,8 @@ export type RoleClaim = {
 export type EmployeeSummaryDto = {
   id: string
   employeeCode: string
+  national_id: string
+  phone: string
   fullName: string
   email?: string
   avatarUrl?: string
@@ -27,7 +29,10 @@ export type EmployeeSummaryDto = {
 
 export type EmployeeProfileDto = EmployeeSummaryDto & {
   phone?: string
+  companyName?: string
   departmentId?: string
+  departmentName?: string
+  roleLabelName?: string
   hireDate?: string
 }
 
@@ -121,6 +126,7 @@ export type CompanyDto = {
   parentId?: string
   parentName?: string
   isActive: boolean
+  isHeadquarters: boolean
 }
 
 export type CompanyTreeDto = {
@@ -129,6 +135,7 @@ export type CompanyTreeDto = {
   nameEn?: string
   orgType: OrgType
   isActive: boolean
+  isHeadquarters: boolean
   children: CompanyTreeDto[]
 }
 
@@ -195,6 +202,63 @@ export type RoleLabelDto = {
   id: string
   companyId: string
   name: string
+  isActive: boolean
+}
+
+// ─── Attendance ──────────────────────────────────────────────────────────────
+
+export type AttendanceStatus = 'Present' | 'Late' | 'Absent' | 'HalfDay'
+
+export type AttendanceTodayDto = {
+  id?: string
+  date: string
+  checkInTime?: string
+  checkOutTime?: string
+  checkInLatitude?: number
+  checkInLongitude?: number
+  checkInSelfieUrl?: string
+  checkOutSelfieUrl?: string
+  locationId?: string
+  locationName?: string
+  isLate: boolean
+  lateMinutes: number
+  status?: AttendanceStatus
+  remark?: string
+  canCheckIn: boolean
+  canCheckOut: boolean
+  shiftName?: string
+  shiftStart?: string
+  shiftEnd?: string
+}
+
+export type AttendanceRecordDto = {
+  id: string
+  employeeId: string
+  employeeFullName: string
+  employeeCode: string
+  date: string
+  checkInTime?: string
+  checkOutTime?: string
+  checkInLatitude?: number
+  checkInLongitude?: number
+  checkInSelfieUrl?: string
+  checkOutSelfieUrl?: string
+  locationId?: string
+  locationName?: string
+  isLate: boolean
+  lateMinutes: number
+  status: AttendanceStatus
+  remark?: string
+}
+
+// ─── Holiday ─────────────────────────────────────────────────────────────────
+
+export type HolidayDto = {
+  id: string
+  companyId?: string
+  companyName?: string
+  name: string
+  date: string      // "YYYY-MM-DD"
   isActive: boolean
 }
 

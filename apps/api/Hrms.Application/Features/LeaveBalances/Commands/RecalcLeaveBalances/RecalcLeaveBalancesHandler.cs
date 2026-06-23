@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.LeaveBalances.Commands.RecalcLeaveBalances;
 
-public class RecalcLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class RecalcLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser currentUser, IScopeGuard scope)
     : IRequestHandler<RecalcLeaveBalancesCommand, int>
 {
     public async Task<int> Handle(RecalcLeaveBalancesCommand request, CancellationToken ct)
@@ -15,17 +15,37 @@ public class RecalcLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser c
         if (!currentUser.IsAdminOrHr())
             throw new AppForbiddenException("ต้องมีสิทธิ์ HR หรือ Admin จึงจะคำนวณวันลาได้");
 
-        var companyId = currentUser.HasRole(Domain.Enums.RoleType.Admin) && request.CompanyId.HasValue
-            ? request.CompanyId.Value
-            : currentUser.CompanyId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
+        Guid companyId;
+        if (request.CompanyId.HasValue)
+        {
+            await scope.ThrowIfCannotAccessAsync(request.CompanyId.Value);
+            companyId = request.CompanyId.Value;
+        }
+        else if (request.EmployeeId.HasValue)
+        {
+            // resolve company from employee
+            var emp = await db.Employees
+                .Where(e => e.Id == request.EmployeeId.Value)
+                .Select(e => new { e.CompanyId })
+                .FirstOrDefaultAsync(ct)
+                ?? throw new KeyNotFoundException("ไม่พบพนักงาน");
+            await scope.ThrowIfCannotAccessAsync(emp.CompanyId);
+            companyId = emp.CompanyId;
+        }
+        else
+        {
+            companyId = currentUser.CompanyId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
+        }
 
-        var employees = await db.Employees
-            .Where(e => e.IsActive && e.CompanyId == companyId)
-            .Select(e => e.Id)
-            .ToListAsync(ct);
+        var employeeQuery = db.Employees.Where(e => e.IsActive && e.CompanyId == companyId);
+
+        if (request.EmployeeId.HasValue)
+            employeeQuery = employeeQuery.Where(e => e.Id == request.EmployeeId.Value);
+
+        var employees = await employeeQuery.Select(e => e.Id).ToListAsync(ct);
 
         var leaveTypes = await db.LeaveTypes
-            .Where(lt => lt.IsActive && lt.CompanyId == companyId)
+            .Where(lt => lt.IsActive)
             .Select(lt => new { lt.Id, lt.DefaultDaysPerYear })
             .ToListAsync(ct);
 

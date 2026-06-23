@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Calendar, Clock, FileText, User } from 'lucide-react'
+import { Home, Calendar, Clock, History, User } from 'lucide-react'
 import { usePendingApprovals } from '@/hooks/use-leaves'
 import { isSupervisorOrAbove } from '@/lib/auth-utils'
 import { useAuthStore } from '@/stores/auth.store'
@@ -11,7 +11,7 @@ const tabs = [
   { label: 'หน้าแรก', href: '/', icon: Home },
   { label: 'ลางาน', href: '/leaves', icon: Calendar },
   { label: 'ลงเวลา', href: '/attendance', icon: Clock },
-  { label: 'สลิปเงินเดือน', href: '/payslips', icon: FileText },
+  { label: 'ปฎิทิน', href: '/attendance/history', icon: Calendar },
   { label: 'โปรไฟล์', href: '/profile', icon: User },
 ]
 
@@ -37,7 +37,11 @@ export function BottomNav() {
       <ul className="flex h-16 items-stretch">
         {tabs.map(({ label, href, icon: Icon }) => {
           const isActive =
-            href === '/' ? pathname === '/' : pathname.startsWith(href)
+            href === '/'
+              ? pathname === '/'
+              : href === '/attendance'
+                ? pathname === '/attendance'
+                : pathname.startsWith(href)
 
           return (
             <li key={href} className="flex flex-1">

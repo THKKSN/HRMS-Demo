@@ -40,17 +40,24 @@ public class CreateEmployeeValidator : AbstractValidator<CreateEmployeeCommand>
 public class CreateEmployeeHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
+    IScopeGuard scope,
     IPasswordService passwordService)
     : IRequestHandler<CreateEmployeeCommand, EmployeeDetailDto>
 {
     public async Task<EmployeeDetailDto> Handle(CreateEmployeeCommand request, CancellationToken ct)
     {
         Guid companyId;
-        if (request.CompanyId.HasValue && currentUser.HasRole(RoleType.Admin))
+        if (request.CompanyId.HasValue)
+        {
+            await scope.ThrowIfCannotAccessAsync(request.CompanyId.Value, ct);
             companyId = request.CompanyId.Value;
+        }
         else
+        {
             companyId = currentUser.CompanyId
                 ?? throw new AppUnauthorizedException("ไม่พบข้อมูล company ของผู้ใช้");
+            await scope.ThrowIfCannotAccessAsync(companyId, ct);
+        }
 
         if (await db.Employees.AnyAsync(e => e.CompanyId == companyId && e.EmployeeCode == request.EmployeeCode, ct))
             throw new ConflictException("DUPLICATE_EMPLOYEE_CODE", $"รหัสพนักงาน '{request.EmployeeCode}' มีอยู่แล้วในระบบ");

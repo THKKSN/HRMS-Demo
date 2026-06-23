@@ -75,7 +75,7 @@ export default function EditLeaveTypePage({
   async function handleToggle() {
     if (!lt) return
     const action = lt.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'
-    if (!confirm(`ยืนยัน${action}ประเภทลานี้?`)) return
+    if (!confirm(`ยืนยัน${action}ประเภทการลานี้?`)) return
     try {
       await toggle.mutateAsync({ id, isActive: !lt.isActive })
     } catch (err: unknown) {
@@ -93,7 +93,7 @@ export default function EditLeaveTypePage({
   }
 
   if (!lt) {
-    return <div className="py-20 text-center text-muted-foreground">ไม่พบข้อมูลประเภทลา</div>
+    return <div className="py-20 text-center text-muted-foreground">ไม่พบข้อมูลประเภทการลา</div>
   }
 
   return (

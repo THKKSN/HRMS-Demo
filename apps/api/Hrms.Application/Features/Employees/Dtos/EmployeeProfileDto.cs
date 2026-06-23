@@ -10,6 +10,9 @@ public record EmployeeProfileDto(
     string? Phone,
     string? AvatarUrl,
     Guid CompanyId,
+    string? CompanyName,
     Guid? DepartmentId,
+    string? DepartmentName,
+    string? RoleLabelName,
     DateOnly? HireDate,
     IReadOnlyList<RoleClaim> Roles);

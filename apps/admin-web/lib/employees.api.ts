@@ -39,6 +39,7 @@ export const employeesApi = {
       companyId?: string
       departmentId?: string
       roleLabelId?: string
+      nationalId?: string
     },
   ) => api.put<EmployeeDetailDto>(`/employees/${id}`, body).then((r) => r.data),
 

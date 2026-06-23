@@ -22,7 +22,7 @@ export function AddressSelector({ value, onChange, disabled }: Props) {
   const { data: provinces = [], isLoading: loadingProvinces } = useProvinces()
   const { data: districts = [], isLoading: loadingDistricts } = useDistricts(value.provinceId)
   const { data: subDistricts = [], isLoading: loadingSubs } = useSubDistricts(value.districtId)
-  const { data: zipCode } = useZipCode(value.subDistrictId)
+  const { data: zipCode = null, isLoading: loadingZip } = useZipCode(value.subDistrictId)
 
   // auto-fill zipcode when subDistrict resolves
   useEffect(() => {
@@ -45,7 +45,7 @@ export function AddressSelector({ value, onChange, disabled }: Props) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-3">
       {/* Province */}
       <div className="space-y-1.5">
         <Label>จังหวัด</Label>
@@ -101,6 +101,16 @@ export function AddressSelector({ value, onChange, disabled }: Props) {
             </option>
           ))}
         </Select>
+      </div>
+
+      {/* ZipCode — auto-filled when subdistrict is selected */}
+      <div className="space-y-1.5">
+        <Label>รหัสไปรษณีย์</Label>
+        <p className="flex h-9 items-center rounded-md border border-border bg-muted/50 px-3 text-sm text-muted-foreground">
+          {value.subDistrictId
+            ? (loadingZip ? <span className="animate-pulse">...</span> : (zipCode ?? '—'))
+            : '—'}
+        </p>
       </div>
     </div>
   )

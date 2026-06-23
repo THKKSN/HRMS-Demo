@@ -20,8 +20,23 @@ public class RefreshTokenHandler(
             .Include(t => t.Employee).ThenInclude(e => e.Roles.Where(r => r.IsActive))
             .FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
 
-        if (stored is null || stored.RevokedAt is not null || stored.ExpiresAt <= DateTime.UtcNow)
-            throw new AppUnauthorizedException("Invalid or expired refresh token.");
+        if (stored is null)
+            throw new AppUnauthorizedException("Invalid refresh token.");
+
+        // Token reuse detected — revoke ทุก session ของ employee นี้ทันที (token theft response)
+        if (stored.RevokedAt is not null)
+        {
+            var allActive = await db.RefreshTokens
+                .Where(t => t.EmployeeId == stored.EmployeeId && t.RevokedAt == null)
+                .ToListAsync(ct);
+            foreach (var t in allActive)
+                t.RevokedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+            throw new AppUnauthorizedException("REFRESH_TOKEN_REUSE_DETECTED");
+        }
+
+        if (stored.ExpiresAt <= DateTime.UtcNow)
+            throw new AppUnauthorizedException("Refresh token has expired.");
 
         var employee = stored.Employee;
         if (!employee.IsActive)

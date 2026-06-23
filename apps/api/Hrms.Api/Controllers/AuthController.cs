@@ -9,6 +9,7 @@ using Hrms.Application.Features.Auth.RequestOtp;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Hrms.Api.Controllers;
 
@@ -18,6 +19,7 @@ public class AuthController(IMediator mediator) : ControllerBase
 {
     /// <summary>Login ด้วย LINE access token → คืน JWT</summary>
     [HttpPost("line")]
+    [EnableRateLimiting("auth_strict")]
     public async Task<IActionResult> LoginWithLine([FromBody] LineLoginRequest request, CancellationToken ct)
     {
         try
@@ -54,6 +56,7 @@ public class AuthController(IMediator mediator) : ControllerBase
 
     /// <summary>ขอ OTP เพื่อเริ่มผูก LINE กับบัญชีพนักงาน</summary>
     [HttpPost("otp/request")]
+    [EnableRateLimiting("auth_strict")]
     public async Task<IActionResult> RequestOtp([FromBody] OtpRequest request, CancellationToken ct)
     {
         try
@@ -74,6 +77,7 @@ public class AuthController(IMediator mediator) : ControllerBase
 
     /// <summary>ยืนยัน OTP → ผูกบัญชี LINE + คืน JWT (auto-login)</summary>
     [HttpPost("link")]
+    [EnableRateLimiting("auth_strict")]
     public async Task<IActionResult> LinkAccount([FromBody] LinkRequest request, CancellationToken ct)
     {
         try
@@ -90,6 +94,7 @@ public class AuthController(IMediator mediator) : ControllerBase
 
     /// <summary>Login ด้วย Email + Password (Desktop / Admin)</summary>
     [HttpPost("login")]
+    [EnableRateLimiting("auth_strict")]
     public async Task<IActionResult> LoginWithPassword([FromBody] PasswordLoginRequest request, CancellationToken ct)
     {
         try

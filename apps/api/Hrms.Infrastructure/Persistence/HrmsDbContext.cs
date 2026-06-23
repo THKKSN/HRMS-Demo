@@ -12,7 +12,10 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
     public DbSet<EmployeeRole> EmployeeRoles => Set<EmployeeRole>();
     public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
     public DbSet<LeaveRequest> LeaveRequests => Set<LeaveRequest>();
-    public DbSet<AttendanceLog> AttendanceLogs => Set<AttendanceLog>();
+    public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+    public DbSet<Shift>            Shifts            => Set<Shift>();
+    public DbSet<Holiday>                Holidays                => Set<Holiday>();
+    public DbSet<WeeklyHolidaySchedule>  WeeklyHolidaySchedules  => Set<WeeklyHolidaySchedule>();
     public DbSet<LeaveBalance> LeaveBalances => Set<LeaveBalance>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<LoginHistory> LoginHistories => Set<LoginHistory>();
@@ -37,7 +40,7 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
         foreach (var entry in ChangeTracker.Entries<Domain.Common.BaseEntity>())
         {
             if (entry.State == EntityState.Modified)
-                entry.Entity.UpdatedAt = DateTime.UtcNow;
+                entry.Entity.UpdatedAt = DateTime.UtcNow.AddHours(7);
         }
         return base.SaveChangesAsync(cancellationToken);
     }

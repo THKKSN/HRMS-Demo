@@ -7,7 +7,8 @@ public record CompanyDto(
     string OrgType,
     Guid? ParentId,
     string? ParentName,
-    bool IsActive);
+    bool IsActive,
+    bool IsHeadquarters);
 
 public record CompanyTreeDto(
     Guid Id,
@@ -15,4 +16,5 @@ public record CompanyTreeDto(
     string? NameEn,
     string OrgType,
     bool IsActive,
+    bool IsHeadquarters,
     List<CompanyTreeDto> Children);

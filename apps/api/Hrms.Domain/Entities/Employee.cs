@@ -24,5 +24,5 @@ public class Employee : BaseEntity
     public RoleLabel? RoleLabel { get; set; }
     public ICollection<EmployeeRole> Roles { get; set; } = new List<EmployeeRole>();
     public ICollection<LeaveRequest> LeaveRequests { get; set; } = new List<LeaveRequest>();
-    public ICollection<AttendanceLog> AttendanceLogs { get; set; } = new List<AttendanceLog>();
+    public ICollection<AttendanceRecord> AttendanceRecords { get; set; } = new List<AttendanceRecord>();
 }

@@ -33,7 +33,8 @@ public class RemoveEmployeeRoleHandler(IApplicationDbContext db, IScopeGuard sco
                 throw new ConflictException("LAST_ADMIN", "à¹„à¸¡à¹ˆà¸ªà¸²à¸¡à¸²à¸£à¸–à¸¥à¸š Admin à¸„à¸™à¸ªà¸¸à¸”à¸—à¹‰à¸²à¸¢à¸‚à¸­à¸‡à¸šà¸£à¸´à¸©à¸±à¸—à¹„à¸”à¹‰");
         }
 
-        db.EmployeeRoles.Remove(role);
+        role.IsActive  = false;
+        role.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
 }

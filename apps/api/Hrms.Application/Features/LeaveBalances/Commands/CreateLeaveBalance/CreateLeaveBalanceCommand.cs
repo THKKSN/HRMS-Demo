@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.LeaveBalances.Dtos;
@@ -29,14 +29,15 @@ public class CreateLeaveBalanceHandler(IApplicationDbContext db, IScopeGuard sco
     public async Task<LeaveBalanceAdminDto> Handle(CreateLeaveBalanceCommand request, CancellationToken ct)
     {
         var employee = await db.Employees
+            .Include(e => e.Department)
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, ct)
-            ?? throw new KeyNotFoundException("à¹„à¸¡à¹ˆà¸žà¸šà¸žà¸™à¸±à¸à¸‡à¸²à¸™");
+            ?? throw new KeyNotFoundException("ไม่พบพนักงาน");
 
         await scope.ThrowIfCannotAccessAsync(employee.CompanyId);
 
         var leaveType = await db.LeaveTypes
             .FirstOrDefaultAsync(lt => lt.Id == request.LeaveTypeId && lt.IsActive, ct)
-            ?? throw new KeyNotFoundException("à¹„à¸¡à¹ˆà¸žà¸šà¸›à¸£à¸°à¹€à¸ à¸—à¸¥à¸²");
+            ?? throw new KeyNotFoundException("ไม่พบประเภทการลา");
 
         var exists = await db.LeaveBalances.AnyAsync(
             b => b.EmployeeId == request.EmployeeId &&
@@ -44,7 +45,7 @@ public class CreateLeaveBalanceHandler(IApplicationDbContext db, IScopeGuard sco
                  b.Year == request.Year, ct);
 
         if (exists)
-            throw new ConflictException("BALANCE_ALREADY_EXISTS", "à¸¡à¸µà¹‚à¸„à¸§à¸•à¸²à¸‚à¸­à¸‡à¸žà¸™à¸±à¸à¸‡à¸²à¸™à¹à¸¥à¸°à¸›à¸£à¸°à¹€à¸ à¸—à¸¥à¸²à¸™à¸µà¹‰à¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰à¸§");
+            throw new ConflictException("BALANCE_ALREADY_EXISTS", "มีสิทธิ์ของพนักงานและประเภทการลานี้อยู่แล้ว");
 
         var balance = new LeaveBalance
         {
@@ -62,7 +63,9 @@ public class CreateLeaveBalanceHandler(IApplicationDbContext db, IScopeGuard sco
         return new LeaveBalanceAdminDto(
             balance.Id,
             balance.EmployeeId,
+            employee.EmployeeCode,
             $"{employee.FirstName} {employee.LastName}".Trim(),
+            employee.Department?.Name,
             balance.LeaveTypeId,
             leaveType.NameTh,
             balance.Year,
@@ -72,4 +75,3 @@ public class CreateLeaveBalanceHandler(IApplicationDbContext db, IScopeGuard sco
             balance.TotalDays);
     }
 }
-

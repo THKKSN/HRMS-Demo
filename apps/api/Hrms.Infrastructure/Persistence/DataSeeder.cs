@@ -86,9 +86,9 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
     {
         var leaveTypes = new[]
         {
-            new LeaveType { Id = LeaveTypeAL, CompanyId = CompanyId, Code = "AL", NameTh = "ลาพักร้อน",  NameEn = "Annual Leave",   DefaultDaysPerYear = 10, RequiresAttachment = false, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new LeaveType { Id = LeaveTypeSL, CompanyId = CompanyId, Code = "SL", NameTh = "ลาป่วย",      NameEn = "Sick Leave",     DefaultDaysPerYear = 30, RequiresAttachment = false, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new LeaveType { Id = LeaveTypePL, CompanyId = CompanyId, Code = "PL", NameTh = "ลากิจ",       NameEn = "Personal Leave", DefaultDaysPerYear = 3,  RequiresAttachment = false, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new LeaveType { Id = LeaveTypeAL, Code = "AL", NameTh = "ลาพักร้อน",  NameEn = "Annual Leave",   DefaultDaysPerYear = 10, RequiresAttachment = false, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new LeaveType { Id = LeaveTypeSL, Code = "SL", NameTh = "ลาป่วย",      NameEn = "Sick Leave",     DefaultDaysPerYear = 30, RequiresAttachment = false, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new LeaveType { Id = LeaveTypePL, Code = "PL", NameTh = "ลากิจ",       NameEn = "Personal Leave", DefaultDaysPerYear = 3,  RequiresAttachment = false, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
         };
         var existingIds = await db.LeaveTypes.Where(lt => leaveTypes.Select(x => x.Id).Contains(lt.Id)).Select(lt => lt.Id).ToListAsync(ct);
         db.LeaveTypes.AddRange(leaveTypes.Where(lt => !existingIds.Contains(lt.Id)));
@@ -151,14 +151,35 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
 
     private async Task SeedEmployeeRoleAsync(CancellationToken ct)
     {
-        var roles = new[]
+        var seedRoles = new[]
         {
-            new EmployeeRole { Id = RoleId,  EmployeeId = EmployeeId,  Role = RoleType.Hr,         CompanyId = CompanyId, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new EmployeeRole { Id = Role2Id, EmployeeId = Employee2Id, Role = RoleType.Employee,   CompanyId = CompanyId, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new EmployeeRole { Id = Role3Id, EmployeeId = Employee3Id, Role = RoleType.Supervisor, CompanyId = CompanyId, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            (Id: RoleId,  EmployeeId: EmployeeId,  Role: RoleType.Hr),
+            (Id: Role2Id, EmployeeId: Employee2Id, Role: RoleType.Employee),
+            (Id: Role3Id, EmployeeId: Employee3Id, Role: RoleType.Supervisor),
         };
-        var existingIds = await db.EmployeeRoles.Where(r => roles.Select(x => x.Id).Contains(r.Id)).Select(r => r.Id).ToListAsync(ct);
-        db.EmployeeRoles.AddRange(roles.Where(r => !existingIds.Contains(r.Id)));
+
+        foreach (var seed in seedRoles)
+        {
+            // เช็ค EmployeeId + Role โดยไม่สนใจ IsActive
+            // ถ้าเคยมี record (แม้ inactive = ถูก remove แล้ว) → ไม่ restore
+            var alreadySeeded = await db.EmployeeRoles.AnyAsync(
+                r => r.EmployeeId == seed.EmployeeId && r.Role == seed.Role, ct);
+
+            if (!alreadySeeded)
+            {
+                db.EmployeeRoles.Add(new EmployeeRole
+                {
+                    Id          = seed.Id,
+                    EmployeeId  = seed.EmployeeId,
+                    Role        = seed.Role,
+                    CompanyId   = CompanyId,
+                    IsActive    = true,
+                    CreatedAt   = DateTime.UtcNow,
+                    UpdatedAt   = DateTime.UtcNow,
+                });
+            }
+        }
+
         await db.SaveChangesAsync(ct);
     }
 
@@ -192,7 +213,7 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
 
         var leaveTypes = await db.LeaveTypes
             .Where(lt => lt.IsActive)
-            .Select(lt => new { lt.Id, lt.CompanyId, lt.DefaultDaysPerYear })
+            .Select(lt => new { lt.Id, lt.DefaultDaysPerYear })
             .ToListAsync(ct);
 
         var existingKeys = await db.LeaveBalances
@@ -207,7 +228,7 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
         var toAdd = new List<LeaveBalance>();
         foreach (var emp in employees)
         {
-            foreach (var lt in leaveTypes.Where(l => l.CompanyId == emp.CompanyId))
+            foreach (var lt in leaveTypes)
             {
                 if (!existingSet.Contains((emp.Id, lt.Id)))
                 {

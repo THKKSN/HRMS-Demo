@@ -22,44 +22,58 @@ namespace Hrms.Infrastructure.Migrations
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
-            modelBuilder.Entity("Hrms.Domain.Entities.AttendanceLog", b =>
+            modelBuilder.Entity("Hrms.Domain.Entities.AttendanceRecord", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)")
                         .HasColumnName("id");
 
-                    b.Property<DateTime>("CheckInAt")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("check_in_at");
+                    b.Property<double?>("CheckInLatitude")
+                        .HasColumnType("double")
+                        .HasColumnName("check_in_latitude");
 
-                    b.Property<decimal?>("CheckInLat")
-                        .HasColumnType("decimal(65,30)")
-                        .HasColumnName("check_in_lat");
+                    b.Property<double?>("CheckInLongitude")
+                        .HasColumnType("double")
+                        .HasColumnName("check_in_longitude");
 
-                    b.Property<decimal?>("CheckInLng")
-                        .HasColumnType("decimal(65,30)")
-                        .HasColumnName("check_in_lng");
+                    b.Property<string>("CheckInSelfieUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("check_in_selfie_url");
 
-                    b.Property<DateTime?>("CheckOutAt")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("check_out_at");
+                    b.Property<DateTime?>("CheckInTime")
+                        .HasColumnType("datetime")
+                        .HasColumnName("check_in_time");
 
-                    b.Property<decimal?>("CheckOutLat")
-                        .HasColumnType("decimal(65,30)")
-                        .HasColumnName("check_out_lat");
+                    b.Property<double?>("CheckOutLatitude")
+                        .HasColumnType("double")
+                        .HasColumnName("check_out_latitude");
 
-                    b.Property<decimal?>("CheckOutLng")
-                        .HasColumnType("decimal(65,30)")
-                        .HasColumnName("check_out_lng");
+                    b.Property<double?>("CheckOutLongitude")
+                        .HasColumnType("double")
+                        .HasColumnName("check_out_longitude");
+
+                    b.Property<string>("CheckOutSelfieUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("check_out_selfie_url");
+
+                    b.Property<DateTime?>("CheckOutTime")
+                        .HasColumnType("datetime")
+                        .HasColumnName("check_out_time");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("datetime")
                         .HasColumnName("created_at");
 
                     b.Property<Guid?>("CreatedBy")
                         .HasColumnType("char(36)")
                         .HasColumnName("created_by");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
 
                     b.Property<Guid>("EmployeeId")
                         .HasColumnType("char(36)")
@@ -69,29 +83,46 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("tinyint(1)")
                         .HasColumnName("is_late");
 
-                    b.Property<string>("SelfieUrl")
-                        .HasColumnType("longtext")
-                        .HasColumnName("selfie_url");
+                    b.Property<int>("LateMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("late_minutes");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("location_id");
+
+                    b.Property<string>("Remark")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("remark");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)")
+                        .HasColumnType("datetime")
                         .HasColumnName("updated_at");
 
                     b.Property<Guid?>("UpdatedBy")
                         .HasColumnType("char(36)")
                         .HasColumnName("updated_by");
 
-                    b.Property<int?>("WorkMinutes")
-                        .HasColumnType("int")
-                        .HasColumnName("work_minutes");
-
                     b.HasKey("Id")
-                        .HasName("pk_attendance_logs");
+                        .HasName("pk_attendance_records");
 
-                    b.HasIndex("EmployeeId")
-                        .HasDatabaseName("ix_attendance_logs_employee_id");
+                    b.HasIndex("LocationId")
+                        .HasDatabaseName("ix_attendance_records_location_id");
 
-                    b.ToTable("attendance_logs", (string)null);
+                    b.HasIndex("EmployeeId", "Date")
+                        .IsUnique()
+                        .HasDatabaseName("ix_attendance_records_employee_date");
+
+                    b.ToTable("attendance_records", (string)null);
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.Company", b =>
@@ -112,6 +143,10 @@ namespace Hrms.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("tinyint(1)")
                         .HasColumnName("is_active");
+
+                    b.Property<bool>("IsHeadquarters")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_headquarters");
 
                     b.Property<bool>("IsHrManagedByParent")
                         .HasColumnType("tinyint(1)")
@@ -456,6 +491,59 @@ namespace Hrms.Infrastructure.Migrations
                     b.ToTable("employee_roles", (string)null);
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.Holiday", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_holidays");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_holidays_company_id");
+
+                    b.HasIndex("Date", "CompanyId")
+                        .HasDatabaseName("ix_holidays_date_company_id");
+
+                    b.ToTable("holidays", (string)null);
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.LeaveBalance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -634,10 +722,6 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("longtext")
                         .HasColumnName("code");
 
-                    b.Property<Guid>("CompanyId")
-                        .HasColumnType("char(36)")
-                        .HasColumnName("company_id");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("created_at");
@@ -677,9 +761,6 @@ namespace Hrms.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_leave_types");
-
-                    b.HasIndex("CompanyId")
-                        .HasDatabaseName("ix_leave_types_company_id");
 
                     b.ToTable("leave_types", (string)null);
                 });
@@ -951,6 +1032,66 @@ namespace Hrms.Infrastructure.Migrations
                     b.ToTable("role_labels", (string)null);
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.Shift", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<TimeOnly>("EndTime")
+                        .HasColumnType("time")
+                        .HasColumnName("end_time");
+
+                    b.Property<int>("GracePeriodMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("grace_period_minutes");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("name");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time")
+                        .HasColumnName("start_time");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_shifts");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_shifts_company_id");
+
+                    b.ToTable("shifts", (string)null);
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.SubDistrict", b =>
                 {
                     b.Property<int>("SubDistrictId")
@@ -995,6 +1136,61 @@ namespace Hrms.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.WeeklyHolidaySchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<sbyte>("DayOfWeek")
+                        .HasColumnType("tinyint")
+                        .HasColumnName("day_of_week");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("WorkDayOccurrences")
+                        .IsRequired()
+                        .HasColumnType("json")
+                        .HasColumnName("work_day_occurrences");
+
+                    b.HasKey("Id")
+                        .HasName("pk_weekly_holiday_schedules");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_weekly_holiday_schedules_company_id");
+
+                    b.ToTable("weekly_holiday_schedules", (string)null);
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.ZipCode", b =>
                 {
                     b.Property<int?>("DistrictId")
@@ -1027,16 +1223,24 @@ namespace Hrms.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Hrms.Domain.Entities.AttendanceLog", b =>
+            modelBuilder.Entity("Hrms.Domain.Entities.AttendanceRecord", b =>
                 {
                     b.HasOne("Hrms.Domain.Entities.Employee", "Employee")
-                        .WithMany("AttendanceLogs")
+                        .WithMany("AttendanceRecords")
                         .HasForeignKey("EmployeeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_attendance_logs_employees_employee_id");
+                        .HasConstraintName("fk_attendance_records_employees_employee_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_attendance_records_locations_location_id");
 
                     b.Navigation("Employee");
+
+                    b.Navigation("Location");
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.Company", b =>
@@ -1143,6 +1347,17 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("Employee");
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.Holiday", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_holidays_companies_company_id");
+
+                    b.Navigation("Company");
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.LeaveBalance", b =>
                 {
                     b.HasOne("Hrms.Domain.Entities.Employee", "Employee")
@@ -1183,18 +1398,6 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("Employee");
 
                     b.Navigation("LeaveType");
-                });
-
-            modelBuilder.Entity("Hrms.Domain.Entities.LeaveType", b =>
-                {
-                    b.HasOne("Hrms.Domain.Entities.Company", "Company")
-                        .WithMany()
-                        .HasForeignKey("CompanyId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_leave_types_companies_company_id");
-
-                    b.Navigation("Company");
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.Location", b =>
@@ -1269,6 +1472,18 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("Company");
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.Shift", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_shifts_companies_company_id");
+
+                    b.Navigation("Company");
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.SubDistrict", b =>
                 {
                     b.HasOne("Hrms.Domain.Entities.District", "District")
@@ -1285,6 +1500,17 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("District");
 
                     b.Navigation("Province");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.WeeklyHolidaySchedule", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_weekly_holiday_schedules_companies_company_id");
+
+                    b.Navigation("Company");
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.Company", b =>
@@ -1308,7 +1534,7 @@ namespace Hrms.Infrastructure.Migrations
 
             modelBuilder.Entity("Hrms.Domain.Entities.Employee", b =>
                 {
-                    b.Navigation("AttendanceLogs");
+                    b.Navigation("AttendanceRecords");
 
                     b.Navigation("LeaveRequests");
 

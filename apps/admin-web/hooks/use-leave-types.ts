@@ -9,7 +9,7 @@ export const leaveTypeKeys = {
 export function useLeaveTypes() {
   return useQuery({
     queryKey: leaveTypeKeys.list(),
-    queryFn: leaveTypesApi.getAll,
+    queryFn: () => leaveTypesApi.getAll(),
   })
 }
 

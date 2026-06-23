@@ -261,7 +261,7 @@ export default function DepartmentsPage() {
           onChange={(e) => setCompanyFilter(e.target.value)}
           className="w-56"
         >
-          <option value="">— ทุกบริษัท —</option>
+          <option value="">ทุกบริษัท</option>
           {activeCompanies.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}

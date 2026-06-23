@@ -24,6 +24,7 @@ public class GetCompanyByIdHandler(IApplicationDbContext db)
             company.OrgType.ToString(),
             company.ParentId,
             company.Parent?.Name,
-            company.IsActive);
+            company.IsActive,
+            company.IsHeadquarters);
     }
 }

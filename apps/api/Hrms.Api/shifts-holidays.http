@@ -1,0 +1,278 @@
+### ============================================================
+### SHIFTS & HOLIDAYS — Manual Test Guide
+### ============================================================
+### วิธีใช้:
+###   1. เปิดไฟล์นี้ใน VS Code (REST Client extension) หรือ Rider
+###   2. ทำ Step 0 ก่อนเสมอ — copy accessToken ไปวางใน @token
+###   3. ทำตามลำดับ Step 1 → Step 2 → ...
+### ============================================================
+
+@base = http://localhost:5134
+@token = PASTE_ACCESS_TOKEN_HERE
+@companyId = c89cb0d1-7548-4c1b-a36a-929f094f0b30
+
+### ============================================================
+### STEP 0: Login (Admin) → copy accessToken ใส่ @token ด้านบน
+### ============================================================
+
+POST {{base}}/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@hrms.com",
+  "password": "Admin@1234"
+}
+
+###
+
+### ============================================================
+### STEP 1: ดู Company ที่มีอยู่ → copy companyId ไปใช้ใน Step 2
+### ============================================================
+
+GET {{base}}/v1/companies
+Authorization: Bearer {{token}}
+
+###
+
+### ============================================================
+### SHIFT — กะงาน
+### ============================================================
+
+### [S1] สร้างกะงานเช้า (แทนที่ companyId ด้วยค่าจริง)
+# @name createShift
+POST {{base}}/v1/shifts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "name": "กะเช้า",
+  "startTime": "08:00:00",
+  "endTime": "17:00:00",
+  "gracePeriodMinutes": 15
+}
+
+###
+
+### [S2] สร้างกะบ่าย
+POST {{base}}/v1/shifts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "name": "กะบ่าย",
+  "startTime": "13:00:00",
+  "endTime": "22:00:00",
+  "gracePeriodMinutes": 10
+}
+
+###
+
+### [S3] ดูรายการกะงานทั้งหมด
+GET {{base}}/v1/shifts
+Authorization: Bearer {{token}}
+
+###
+
+### [S4] กรองเฉพาะ company
+GET {{base}}/v1/shifts?companyId=00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+### [S5] ดูกะงานตัวเดียว (แทนที่ {shiftId})
+GET {{base}}/v1/shifts/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+### [S6] แก้ไขกะงาน (แทนที่ {shiftId})
+PUT {{base}}/v1/shifts/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "กะเช้า (ปรับใหม่)",
+  "startTime": "07:30:00",
+  "endTime": "16:30:00",
+  "gracePeriodMinutes": 10,
+  "isActive": true
+}
+
+###
+
+### [S7] ปิดกะงาน (soft delete)
+PATCH {{base}}/v1/shifts/00000000-0000-0000-0000-000000000000/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "isActive": false
+}
+
+###
+
+### [S8] เปิดกะงานกลับ
+PATCH {{base}}/v1/shifts/00000000-0000-0000-0000-000000000000/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "isActive": true
+}
+
+###
+
+### [S9] ดูรายการรวม inactive ด้วย
+GET {{base}}/v1/shifts?includeInactive=true
+Authorization: Bearer {{token}}
+
+###
+
+### ---- Error cases ----
+
+### [S-ERR1] startTime >= endTime → ต้องได้ 400
+POST {{base}}/v1/shifts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "name": "กะผิดพลาด",
+  "startTime": "17:00:00",
+  "endTime": "08:00:00",
+  "gracePeriodMinutes": 0
+}
+
+###
+
+### [S-ERR2] GracePeriodMinutes เกิน 120 → ต้องได้ 400
+POST {{base}}/v1/shifts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "name": "กะเกิน",
+  "startTime": "08:00:00",
+  "endTime": "17:00:00",
+  "gracePeriodMinutes": 150
+}
+
+###
+
+### [S-ERR3] ชื่อซ้ำใน company เดียวกัน → ต้องได้ 409
+POST {{base}}/v1/shifts
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "name": "กะเช้า",
+  "startTime": "08:00:00",
+  "endTime": "17:00:00",
+  "gracePeriodMinutes": 15
+}
+
+###
+
+### ============================================================
+### HOLIDAY — วันหยุด
+### ============================================================
+
+### [H1] เพิ่มวันหยุดแห่งชาติ (companyId = null)
+POST {{base}}/v1/holidays
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": null,
+  "name": "วันปีใหม่",
+  "date": "2026-01-01"
+}
+
+###
+
+### [H2] เพิ่มวันหยุดแห่งชาติเพิ่มเติม
+POST {{base}}/v1/holidays
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": null,
+  "name": "วันสงกรานต์",
+  "date": "2026-04-13"
+}
+
+###
+
+### [H3] เพิ่มวันหยุดเฉพาะ company
+POST {{base}}/v1/holidays
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": "{{companyId}}",
+  "name": "วันก่อตั้งบริษัท",
+  "date": "2026-03-15"
+}
+
+###
+
+### [H4] ดูวันหยุดปี 2026 (ทุก role ดูได้)
+GET {{base}}/v1/holidays?year=2026
+Authorization: Bearer {{token}}
+
+###
+
+### [H5] กรองเฉพาะ company
+GET {{base}}/v1/holidays?year=2026&companyId=00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+
+###
+
+### [H6] แก้ไขวันหยุด (แทนที่ {holidayId})
+PUT {{base}}/v1/holidays/00000000-0000-0000-0000-000000000000
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "วันปีใหม่ (แก้ไข)",
+  "date": "2026-01-01",
+  "isActive": true
+}
+
+###
+
+### [H7] ปิดวันหยุด (soft delete)
+PATCH {{base}}/v1/holidays/00000000-0000-0000-0000-000000000000/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "isActive": false
+}
+
+###
+
+### [H8] ดูรวม inactive
+GET {{base}}/v1/holidays?year=2026&includeInactive=true
+Authorization: Bearer {{token}}
+
+###
+
+### ---- Error cases ----
+
+### [H-ERR1] วันซ้ำ scope เดียวกัน → ต้องได้ 409
+POST {{base}}/v1/holidays
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "companyId": null,
+  "name": "วันปีใหม่ซ้ำ",
+  "date": "2026-01-01"
+}
+
+###

@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.LeaveTypes.Dtos;
 using MediatR;
@@ -18,19 +18,17 @@ public class UpdateLeaveTypeValidator : AbstractValidator<UpdateLeaveTypeCommand
     public UpdateLeaveTypeValidator()
     {
         RuleFor(x => x.NameTh).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.DefaultDaysPerYear).GreaterThan(0);
+        RuleFor(x => x.DefaultDaysPerYear).GreaterThanOrEqualTo(0);
     }
 }
 
-public class UpdateLeaveTypeHandler(IApplicationDbContext db, IScopeGuard scope)
+public class UpdateLeaveTypeHandler(IApplicationDbContext db)
     : IRequestHandler<UpdateLeaveTypeCommand, LeaveTypeDto>
 {
     public async Task<LeaveTypeDto> Handle(UpdateLeaveTypeCommand request, CancellationToken ct)
     {
         var leaveType = await db.LeaveTypes.FirstOrDefaultAsync(lt => lt.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("à¹„à¸¡à¹ˆà¸žà¸šà¸›à¸£à¸°à¹€à¸ à¸—à¸à¸²à¸£à¸¥à¸²");
-
-        await scope.ThrowIfCannotAccessAsync(leaveType.CompanyId);
+            ?? throw new KeyNotFoundException("ไม่พบประเภทการลา");
 
         leaveType.NameTh             = request.NameTh;
         leaveType.NameEn             = request.NameEn;
@@ -44,4 +42,3 @@ public class UpdateLeaveTypeHandler(IApplicationDbContext db, IScopeGuard scope)
             leaveType.DefaultDaysPerYear, leaveType.RequiresAttachment, leaveType.IsActive);
     }
 }
-

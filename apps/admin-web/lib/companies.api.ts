@@ -8,11 +8,11 @@ export const companiesApi = {
   getById: (id: string) =>
     api.get<CompanyDto>(`/companies/${id}`).then((r) => r.data),
 
-  create: (body: { name: string; nameEn?: string; orgType: string; parentId?: string }) =>
+  create: (body: { name: string; nameEn?: string; orgType: string; parentId?: string; isHeadquarters?: boolean }) =>
     api.post<CompanyDto>('/companies', body).then((r) => r.data),
 
   update: (
     id: string,
-    body: { name: string; nameEn?: string; orgType: string; parentId?: string; isActive: boolean },
+    body: { name: string; nameEn?: string; orgType: string; parentId?: string; isActive: boolean; isHeadquarters: boolean },
   ) => api.put<CompanyDto>(`/companies/${id}`, body).then((r) => r.data),
 }
