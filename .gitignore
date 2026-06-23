@@ -16,6 +16,8 @@ docker-compose.yml
 .env.development
 .env.production
 
+CLAUDE.md
+
 # Build outputs
 .next/
 out/
