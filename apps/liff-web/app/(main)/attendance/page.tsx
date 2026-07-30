@@ -141,7 +141,7 @@ function CheckInModal({
 
         {/* Map */}
         {(locationsLoading || gps.phase === "gps") && (
-          <div className="h-40 w-full rounded-xl bg-muted animate-pulse flex items-center justify-center">
+          <div className="h-40 w-full rounded-xl bg-whited animate-pulse flex items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
@@ -161,7 +161,7 @@ function CheckInModal({
           </>
         )}
         {gps.phase === "error" && (
-          <div className="h-40 w-full rounded-xl bg-muted flex items-center justify-center">
+          <div className="h-40 w-full rounded-xl bg-whited flex items-center justify-center">
             <p className="text-sm text-destructive text-center px-4">
               {gps.message}
             </p>
@@ -285,13 +285,13 @@ function CheckOutModal({ onClose }: { onClose: () => void }) {
         <h2 className="text-base font-semibold text-center">ยืนยันออกงาน</h2>
 
         {(gps.phase === "idle" || gps.phase === "gps") && (
-          <div className="h-40 w-full rounded-xl bg-muted animate-pulse flex items-center justify-center">
+          <div className="h-40 w-full rounded-xl bg-whited animate-pulse flex items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
         {ready && <AttendanceMap userLat={gps.lat} userLng={gps.lng} />}
         {gps.phase === "error" && (
-          <div className="h-40 w-full rounded-xl bg-muted flex items-center justify-center">
+          <div className="h-40 w-full rounded-xl bg-whited flex items-center justify-center">
             <p className="text-sm text-destructive text-center px-4">
               {gps.message}
             </p>
@@ -347,11 +347,11 @@ export default function AttendancePage() {
 
       <div className="px-4 py-6 space-y-4">
         {/* สถานะวันนี้ */}
-        <div className="rounded-2xl border border-border bg-card p-4 space-y-3">
+        <div className="rounded-2xl border border-border bg-white p-4 space-y-3">
           {isLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-5 rounded bg-muted animate-pulse" />
+                <div key={i} className="h-5 rounded bg-whited animate-pulse" />
               ))}
             </div>
           ) : (
@@ -432,7 +432,7 @@ export default function AttendancePage() {
         {/* ปุ่มประวัติ */}
         <button
           onClick={() => router.push("/attendance/history")}
-          className="w-full flex items-center justify-center gap-2 rounded-2xl border border-border py-3 text-sm font-medium text-muted-foreground active:bg-muted"
+          className="w-full flex items-center justify-center gap-2 rounded-2xl border border-border py-3 text-sm font-medium text-muted-foreground active:bg-whited"
         >
           <History className="h-4 w-4" />
           ดูประวัติการลงเวลา

@@ -16,7 +16,8 @@ public record HandleLineCheckInCommand(
 public class HandleLineCheckInHandler(
     IApplicationDbContext db,
     ILineMessagingService line,
-    IGeofenceService geofence)
+    IGeofenceService geofence,
+    IShiftResolver shiftResolver)
     : IRequestHandler<HandleLineCheckInCommand, Unit>
 {
     public async Task<Unit> Handle(HandleLineCheckInCommand request, CancellationToken ct)
@@ -61,10 +62,7 @@ public class HandleLineCheckInHandler(
             return Unit.Value;
         }
 
-        var shift = await db.Shifts
-            .Where(s => s.CompanyId == employee.CompanyId && s.IsActive)
-            .OrderBy(s => s.StartTime)
-            .FirstOrDefaultAsync(ct);
+        var shift = await shiftResolver.ResolveAsync(employee.Id, today, ct);
 
         var checkInTime = TimeOnly.FromDateTime(now);
         var isLate      = shift != null && checkInTime > shift.StartTime.AddMinutes(shift.GracePeriodMinutes);

@@ -21,8 +21,8 @@ import type { CompanyDto, CompanyTreeDto, OrgType } from '@hrms/shared-types'
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 const ORG_TYPE_LABEL: Record<OrgType, string> = {
-  Holding: 'บริษัทแม่',
-  Subsidiary: 'บริษัทลูก',
+  Holding: 'บริษัทหลัก',
+  Subsidiary: 'บริษัทในเครือ',
   Branch: 'สาขา',
 }
 
@@ -61,7 +61,7 @@ const companySchema = z.object({
   nameEn:         z.string().max(200).optional().or(z.literal('')),
   orgType:        z.enum(['Holding', 'Subsidiary', 'Branch']),
   parentId:       z.string().optional().or(z.literal('')),
-  isHeadquarters: z.boolean().default(false),
+  isHeadquarters: z.boolean(),
 })
 
 type CompanyFormValues = z.infer<typeof companySchema>
@@ -299,7 +299,7 @@ function CompanyTreeNode({
   return (
     <div>
       <div
-        className="group flex items-center gap-2 rounded-md px-2 py-2 hover:bg-muted/50 transition-colors"
+        className="group flex items-center gap-2 rounded-md px-2 py-2 hover:bg-whited/50 transition-colors"
         style={{ paddingLeft: `${depth * 20 + 8}px` }}
       >
         {/* expand/collapse */}
@@ -400,7 +400,7 @@ export default function CompaniesPage() {
         {isLoading ? (
           <div className="space-y-1 p-3">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-9 animate-pulse rounded-md bg-muted" style={{ marginLeft: `${(i % 3) * 20}px` }} />
+              <div key={i} className="h-9 animate-pulse rounded-md bg-whited" style={{ marginLeft: `${(i % 3) * 20}px` }} />
             ))}
           </div>
         ) : tree.length === 0 ? (

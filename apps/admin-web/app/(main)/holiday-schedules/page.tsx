@@ -55,7 +55,7 @@ const scheduleSchema = z
     name: z.string().min(1, 'กรุณาระบุชื่อกฎ').max(200),
     scope: z.enum(['global', 'company']),
     companyId: z.string().optional(),
-    dayOfWeek: z.coerce.number().min(0).max(6),
+    dayOfWeek: z.number().min(0).max(6),
     workDayOccurrences: z.array(z.number().min(1).max(5)),
     isActive: z.boolean().optional(),
   })
@@ -152,7 +152,7 @@ function ScheduleForm({
         <select
           id="s-dow"
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          {...register('dayOfWeek')}
+          {...register('dayOfWeek', { valueAsNumber: true })}
         >
           {Object.entries(DAY_NAMES).map(([v, label]) => (
             <option key={v} value={v}>

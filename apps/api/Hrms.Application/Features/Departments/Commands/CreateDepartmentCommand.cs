@@ -26,13 +26,12 @@ public class CreateDepartmentValidator : AbstractValidator<CreateDepartmentComma
     }
 }
 
-public class CreateDepartmentHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class CreateDepartmentHandler(IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permService, IAuditLogService auditLog)
     : IRequestHandler<CreateDepartmentCommand, DepartmentDto>
 {
     public async Task<DepartmentDto> Handle(CreateDepartmentCommand request, CancellationToken ct)
     {
-        if (!currentUser.IsAdminOrHr())
-            throw new AppForbiddenException("เฉพาะ HR / Admin เท่านั้นที่สร้างแผนกได้");
+        await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-departments", ct);
 
         if (!currentUser.CanManageCompany(request.CompanyId))
             throw new AppForbiddenException("ไม่มีสิทธิ์จัดการแผนกใน company นี้");
@@ -55,12 +54,22 @@ public class CreateDepartmentHandler(IApplicationDbContext db, ICurrentUser curr
             DeptType          = request.DeptType,
             ManagerEmployeeId = request.ManagerEmployeeId,
             IsActive          = true,
-            CreatedAt         = DateTime.UtcNow,
-            UpdatedAt         = DateTime.UtcNow,
+            CreatedAt         = DateTime.UtcNow.AddHours(7),
+            UpdatedAt         = DateTime.UtcNow.AddHours(7),
         };
 
         db.Departments.Add(dept);
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "department",
+            entityType:  "Department",
+            entityId:    dept.Id.ToString(),
+            action:      "create",
+            description: $"สร้างแผนก '{dept.Name}' ใน company {dept.CompanyId}",
+            oldValues:   null,
+            newValues:   new { dept.Name, dept.DeptType, dept.CompanyId, dept.ManagerEmployeeId },
+            ct:          ct);
 
         return new DepartmentDto(
             dept.Id,
@@ -69,6 +78,8 @@ public class CreateDepartmentHandler(IApplicationDbContext db, ICurrentUser curr
             dept.DeptType,
             dept.ManagerEmployeeId,
             manager is null ? null : $"{manager.FirstName} {manager.LastName}".Trim(),
+            null,
+            null,
             dept.IsActive);
     }
 }

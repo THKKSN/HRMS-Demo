@@ -33,13 +33,12 @@ public class UpdateLocationValidator : AbstractValidator<UpdateLocationCommand>
     }
 }
 
-public class UpdateLocationHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class UpdateLocationHandler(IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permService, IAuditLogService auditLog)
     : IRequestHandler<UpdateLocationCommand, LocationDto>
 {
     public async Task<LocationDto> Handle(UpdateLocationCommand request, CancellationToken ct)
     {
-        if (!currentUser.IsAdminOrHr())
-            throw new AppForbiddenException("เฉพาะ HR / Admin เท่านั้นที่แก้ไข Location ได้");
+        await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-locations", ct);
 
         var location = await db.Locations
             .Include(l => l.Province)
@@ -55,6 +54,8 @@ public class UpdateLocationHandler(IApplicationDbContext db, ICurrentUser curren
             l => l.CompanyId == location.CompanyId && l.Name == request.Name && l.Id != location.Id, ct))
             throw new ConflictException("DUPLICATE_LOCATION", $"ชื่อ Location '{request.Name}' มีอยู่แล้วใน company นี้");
 
+        var oldValues = new { location.Name, location.Latitude, location.Longitude, location.RadiusMeters, location.IsActive };
+
         location.Name          = request.Name;
         location.Latitude      = request.Latitude;
         location.Longitude     = request.Longitude;
@@ -64,9 +65,19 @@ public class UpdateLocationHandler(IApplicationDbContext db, ICurrentUser curren
         location.SubDistrictId = request.SubDistrictId;
         location.Address       = request.Address;
         location.IsActive      = request.IsActive;
-        location.UpdatedAt     = DateTime.UtcNow;
+        location.UpdatedAt     = DateTime.UtcNow.AddHours(7);
 
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "location",
+            entityType:  "Location",
+            entityId:    location.Id.ToString(),
+            action:      "update",
+            description: $"แก้ไข Location '{location.Name}'",
+            oldValues:   oldValues,
+            newValues:   new { location.Name, location.Latitude, location.Longitude, location.RadiusMeters, location.IsActive },
+            ct:          ct);
 
         // reload navigations if address changed
         if (request.ProvinceId != location.Province?.ProvinceId)

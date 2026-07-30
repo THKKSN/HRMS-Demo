@@ -25,7 +25,7 @@ public class CreateLeaveTypeValidator : AbstractValidator<CreateLeaveTypeCommand
     }
 }
 
-public class CreateLeaveTypeHandler(IApplicationDbContext db)
+public class CreateLeaveTypeHandler(IApplicationDbContext db, IAuditLogService auditLog)
     : IRequestHandler<CreateLeaveTypeCommand, LeaveTypeDto>
 {
     public async Task<LeaveTypeDto> Handle(CreateLeaveTypeCommand request, CancellationToken ct)
@@ -47,6 +47,16 @@ public class CreateLeaveTypeHandler(IApplicationDbContext db)
 
         db.LeaveTypes.Add(leaveType);
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "leave-type",
+            entityType:  "LeaveType",
+            entityId:    leaveType.Id.ToString(),
+            action:      "create",
+            description: $"สร้างประเภทการลา '{leaveType.NameTh}' (Code: {leaveType.Code})",
+            oldValues:   null,
+            newValues:   new { leaveType.Code, leaveType.NameTh, leaveType.DefaultDaysPerYear, leaveType.RequiresAttachment },
+            ct:          ct);
 
         return new LeaveTypeDto(leaveType.Id, leaveType.Code, leaveType.NameTh, leaveType.NameEn,
             leaveType.DefaultDaysPerYear, leaveType.RequiresAttachment, leaveType.IsActive);

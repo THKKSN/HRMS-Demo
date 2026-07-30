@@ -4,6 +4,7 @@ export type { RoleType }
 
 export type EmployeeRoleDto = {
   id: string
+  roleId: string
   role: RoleType
   companyId: string
   departmentId?: string

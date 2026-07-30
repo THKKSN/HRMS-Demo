@@ -10,7 +10,9 @@ namespace Hrms.Application.Features.Leaves.Commands.RejectLeaveRequest;
 public class RejectLeaveRequestHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
-    ILeaveNotificationService notification)
+    IPermissionService permService,
+    ILeaveNotificationService notification,
+    IAuditLogService auditLog)
     : IRequestHandler<RejectLeaveRequestCommand, Unit>
 {
     public async Task<Unit> Handle(RejectLeaveRequestCommand request, CancellationToken ct)
@@ -19,6 +21,8 @@ public class RejectLeaveRequestHandler(
             ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
 
         var r = await db.LeaveRequests
+            .Include(x => x.Employee)
+            .Include(x => x.LeaveType)
             .FirstOrDefaultAsync(x => x.Id == request.LeaveRequestId, ct)
             ?? throw new KeyNotFoundException("ไม่พบคำขอลาที่ระบุ");
 
@@ -27,16 +31,14 @@ public class RejectLeaveRequestHandler(
         switch (r.Status)
         {
             case LeaveStatus.PendingSupervisor:
-                if (!currentUser.IsSupervisorOrAbove())
-                    throw new AppForbiddenException("ต้องมีสิทธิ์ Supervisor ขึ้นไปจึงจะปฏิเสธในขั้นตอนนี้ได้");
+                await currentUser.ThrowIfNoPermissionAsync(permService, "leave:approve-supervisor", ct);
 
                 r.SupervisorId = actorId;
                 r.SupervisorComment = request.Comment;
                 break;
 
             case LeaveStatus.PendingHr:
-                if (!currentUser.IsAdminOrHr())
-                    throw new AppForbiddenException("ต้องมีสิทธิ์ HR ขึ้นไปจึงจะปฏิเสธในขั้นตอนนี้ได้");
+                await currentUser.ThrowIfNoPermissionAsync(permService, "leave:approve-hr", ct);
 
                 r.HrId = actorId;
                 r.HrComment = request.Comment;
@@ -59,6 +61,16 @@ public class RejectLeaveRequestHandler(
             balance.PendingDays -= r.TotalDays;
 
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "leave",
+            entityType:  "LeaveRequest",
+            entityId:    r.Id.ToString(),
+            action:      "reject",
+            description: $"ปฏิเสธคำขอลาของ {r.Employee.FirstName} {r.Employee.LastName} ({r.LeaveType.NameTh} {r.DateFrom:yyyy-MM-dd} ถึง {r.DateTo:yyyy-MM-dd})",
+            oldValues:   null,
+            newValues:   new { status = LeaveStatus.Rejected.ToString(), comment = request.Comment },
+            ct:          ct);
 
         await notification.EnqueueResultAsync(r.Id);
 

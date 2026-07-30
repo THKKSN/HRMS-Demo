@@ -12,7 +12,7 @@ public class EmployeeRoleConfiguration : IEntityTypeConfiguration<EmployeeRole>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.EmployeeId).HasColumnType("char(36)").IsRequired();
-        builder.Property(x => x.Role).HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.RoleId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.CompanyId).HasColumnType("char(36)");
         builder.Property(x => x.DepartmentId).HasColumnType("char(36)");
         builder.Property(x => x.IsActive).HasColumnType("tinyint(1)");
@@ -22,11 +22,16 @@ public class EmployeeRoleConfiguration : IEntityTypeConfiguration<EmployeeRole>
         builder.Property(x => x.CreatedAt).HasColumnType("datetime");
         builder.Property(x => x.UpdatedAt).HasColumnType("datetime");
 
-        builder.HasIndex(x => new { x.EmployeeId, x.Role, x.CompanyId, x.IsActive });
+        builder.HasIndex(x => new { x.EmployeeId, x.RoleId, x.CompanyId, x.IsActive });
 
         builder.HasOne(x => x.Employee)
             .WithMany(x => x.Roles)
             .HasForeignKey(x => x.EmployeeId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(x => x.Role)
+            .WithMany(x => x.EmployeeRoles)
+            .HasForeignKey(x => x.RoleId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

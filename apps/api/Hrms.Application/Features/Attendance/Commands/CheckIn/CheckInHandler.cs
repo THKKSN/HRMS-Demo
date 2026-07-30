@@ -13,7 +13,8 @@ namespace Hrms.Application.Features.Attendance.Commands.CheckIn;
 public class CheckInHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
-    IGeofenceService geofence)
+    IGeofenceService geofence,
+    IShiftResolver shiftResolver)
     : IRequestHandler<CheckInCommand, AttendanceTodayDto>
 {
     public async Task<AttendanceTodayDto> Handle(CheckInCommand request, CancellationToken ct)
@@ -44,10 +45,7 @@ public class CheckInHandler(
                 request.Latitude, request.Longitude))
             throw new ConflictException("OUT_OF_GEOFENCE", "ตำแหน่งปัจจุบันอยู่นอกพื้นที่ที่กำหนด");
 
-        var shift = await db.Shifts
-            .Where(s => s.CompanyId == employee.CompanyId && s.IsActive)
-            .OrderBy(s => s.StartTime)
-            .FirstOrDefaultAsync(ct);
+        var shift = await shiftResolver.ResolveAsync(employeeId, today, ct);
 
         var checkInTimeOnly = TimeOnly.FromDateTime(now);
         var isLate = false;

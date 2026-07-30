@@ -3,7 +3,6 @@ using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Attendance.Common;
 using Hrms.Application.Features.Attendance.Dtos;
-using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,14 +11,14 @@ namespace Hrms.Application.Features.Attendance.Queries.GetAttendanceByDate;
 public class GetAttendanceByDateHandler(
     IApplicationDbContext db,
     IScopeGuard scope,
-    ICurrentUser currentUser)
+    ICurrentUser currentUser,
+    IPermissionService permService)
     : IRequestHandler<GetAttendanceByDateQuery, List<AttendanceRecordDto>>
 {
     public async Task<List<AttendanceRecordDto>> Handle(
         GetAttendanceByDateQuery request, CancellationToken ct)
     {
-        if (!currentUser.IsSupervisorOrAbove())
-            throw new AppForbiddenException("ต้องมีสิทธิ์ Supervisor ขึ้นไปจึงจะดูรายงานได้");
+        await currentUser.ThrowIfNoPermissionAsync(permService, "attendance:view-team", ct);
 
         var companyId = currentUser.CompanyId
             ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
@@ -32,11 +31,12 @@ public class GetAttendanceByDateHandler(
             .Where(r => r.Date == request.Date && r.Employee.CompanyId == companyId)
             .AsQueryable();
 
-        // Supervisor เห็นเฉพาะ department ที่ตัวเองดูแล
-        if (!currentUser.IsAdminOrHr())
+        // ผู้ที่ไม่มี attendance:view-all เห็นเฉพาะ department ที่ตัวเองดูแล
+        var canViewAll = await permService.HasPermissionAsync(currentUser, "attendance:view-all", ct);
+        if (!canViewAll)
         {
             var supervisorDeptId = currentUser.Roles
-                .Where(r => r.Role == RoleType.Supervisor.ToString() && r.CompanyId == companyId)
+                .Where(r => r.CompanyId == companyId)
                 .Select(r => r.DepartmentId)
                 .FirstOrDefault();
 

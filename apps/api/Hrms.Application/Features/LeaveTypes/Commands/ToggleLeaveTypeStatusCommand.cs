@@ -7,7 +7,7 @@ namespace Hrms.Application.Features.LeaveTypes.Commands;
 
 public record ToggleLeaveTypeStatusCommand(Guid Id, bool IsActive) : IRequest;
 
-public class ToggleLeaveTypeStatusHandler(IApplicationDbContext db)
+public class ToggleLeaveTypeStatusHandler(IApplicationDbContext db, IAuditLogService auditLog)
     : IRequestHandler<ToggleLeaveTypeStatusCommand>
 {
     public async Task Handle(ToggleLeaveTypeStatusCommand request, CancellationToken ct)
@@ -26,9 +26,20 @@ public class ToggleLeaveTypeStatusHandler(IApplicationDbContext db)
                 throw new ConflictException("IN_USE", "ไม่สามารถปิดประเภทการลานี้ได้ เนื่องจากมีคำขอลาที่รออนุมัติอยู่");
         }
 
+        var oldIsActive = leaveType.IsActive;
         leaveType.IsActive  = request.IsActive;
-        leaveType.UpdatedAt = DateTime.UtcNow;
+        leaveType.UpdatedAt = DateTime.UtcNow.AddHours(7);
 
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "leave-type",
+            entityType:  "LeaveType",
+            entityId:    leaveType.Id.ToString(),
+            action:      request.IsActive ? "activate" : "deactivate",
+            description: $"{(request.IsActive ? "เปิด" : "ปิด")}ใช้งานประเภทการลา '{leaveType.NameTh}'",
+            oldValues:   new { isActive = oldIsActive },
+            newValues:   new { isActive = request.IsActive },
+            ct:          ct);
     }
 }

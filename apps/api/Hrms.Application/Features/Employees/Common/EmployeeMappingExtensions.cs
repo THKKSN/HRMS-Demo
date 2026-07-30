@@ -19,7 +19,13 @@ public static class EmployeeMappingExtensions
             departmentName,
             e.HireDate,
             e.IsActive,
-            e.Roles.Select(r => new EmployeeRoleDto(r.Id, r.Role, r.CompanyId ?? e.CompanyId, r.DepartmentId, r.IsActive)).ToList(),
+            e.Roles.Select(r => new EmployeeRoleDto(
+                r.Id,
+                r.RoleId,
+                r.Role.Code,
+                r.CompanyId ?? e.CompanyId,
+                r.DepartmentId,
+                r.IsActive)).ToList(),
             e.RoleLabelId,
             e.RoleLabel?.Name
         );

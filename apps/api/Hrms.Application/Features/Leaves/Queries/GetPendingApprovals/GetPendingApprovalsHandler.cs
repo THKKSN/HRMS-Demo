@@ -1,5 +1,4 @@
 using Hrms.Application.Common.Exceptions;
-using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Common.Models;
 using Hrms.Application.Features.Leaves.Dtos;
@@ -9,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.Leaves.Queries.GetPendingApprovals;
 
-public class GetPendingApprovalsHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class GetPendingApprovalsHandler(IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permService)
     : IRequestHandler<GetPendingApprovalsQuery, PagedResult<PendingLeaveItemDto>>
 {
     public async Task<PagedResult<PendingLeaveItemDto>> Handle(GetPendingApprovalsQuery request, CancellationToken ct)
@@ -17,11 +16,13 @@ public class GetPendingApprovalsHandler(IApplicationDbContext db, ICurrentUser c
         var companyId = currentUser.CompanyId
             ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
 
-        LeaveStatus pendingStatus;
+        var canApproveHr         = await permService.HasPermissionAsync(currentUser, "leave:approve-hr", ct);
+        var canApproveSupervisor = await permService.HasPermissionAsync(currentUser, "leave:approve-supervisor", ct);
 
-        if (currentUser.IsAdminOrHr())
+        LeaveStatus pendingStatus;
+        if (canApproveHr)
             pendingStatus = LeaveStatus.PendingHr;
-        else if (currentUser.IsSupervisorOrAbove())
+        else if (canApproveSupervisor)
             pendingStatus = LeaveStatus.PendingSupervisor;
         else
             throw new AppForbiddenException("ต้องมีสิทธิ์ Supervisor หรือ HR จึงจะดูรายการรออนุมัติได้");

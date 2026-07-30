@@ -60,14 +60,14 @@ export default function ProfilePage() {
           {avatar ? (
             <img src={avatar} alt={name} className="h-20 w-20 rounded-full object-cover" />
           ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-whited">
               <User className="h-10 w-10 text-muted-foreground" />
             </div>
           )}
           {isLoading ? (
             <div className="space-y-2 flex flex-col items-center">
-              <div className="h-5 w-36 rounded bg-muted animate-pulse" />
-              <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+              <div className="h-5 w-36 rounded bg-whited animate-pulse" />
+              <div className="h-4 w-24 rounded bg-whited animate-pulse" />
             </div>
           ) : (
             <div className="text-center">
@@ -87,8 +87,8 @@ export default function ProfilePage() {
           <div className="rounded-2xl border border-border divide-y divide-border">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="flex items-center justify-between px-4 py-3">
-                <div className="h-4 w-20 rounded bg-muted animate-pulse" />
-                <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                <div className="h-4 w-20 rounded bg-whited animate-pulse" />
+                <div className="h-4 w-28 rounded bg-whited animate-pulse" />
               </div>
             ))}
           </div>

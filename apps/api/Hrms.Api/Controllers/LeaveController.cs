@@ -1,8 +1,12 @@
 using Hrms.Application.Common.Exceptions;
+using Hrms.Application.Features.Leaves.Commands.ApproveLeaveCancellation;
 using Hrms.Application.Features.Leaves.Commands.ApproveLeaveRequest;
 using Hrms.Application.Features.Leaves.Commands.CancelLeaveRequest;
 using Hrms.Application.Features.Leaves.Commands.CreateLeaveRequest;
+using Hrms.Application.Features.Leaves.Commands.RejectLeaveCancellation;
 using Hrms.Application.Features.Leaves.Commands.RejectLeaveRequest;
+using Hrms.Application.Features.Leaves.Commands.RequestLeaveCancellation;
+using Hrms.Application.Features.Leaves.Queries.GetCancellationPending;
 using Hrms.Application.Features.Leaves.Queries.GetLeaveRequestById;
 using Hrms.Application.Features.Leaves.Queries.GetLeaveRequests;
 using Hrms.Application.Features.Leaves.Queries.GetPendingApprovals;
@@ -63,18 +67,23 @@ public class LeaveController(IMediator mediator) : ControllerBase
         }
     }
 
-    /// <summary>รายการคำขอลา (Employee เห็นแค่ของตัวเอง, Supervisor/HR filter ด้วย employeeId ได้)</summary>
+    /// <summary>รายการคำขอลา (myOnly=true บังคับเห็นแค่ของตัวเอง, Supervisor/HR filter ด้วย employeeId/search/date ได้)</summary>
     [HttpGet]
     public async Task<IActionResult> GetList(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] LeaveStatus? status = null,
         [FromQuery] Guid? employeeId = null,
+        [FromQuery] bool myOnly = false,
+        [FromQuery] string? search = null,
+        [FromQuery] DateOnly? dateFrom = null,
+        [FromQuery] DateOnly? dateTo = null,
         CancellationToken ct = default)
     {
         try
         {
-            var result = await mediator.Send(new GetLeaveRequestsQuery(page, pageSize, status, employeeId), ct);
+            var result = await mediator.Send(
+                new GetLeaveRequestsQuery(page, pageSize, status, employeeId, myOnly, search, dateFrom, dateTo), ct);
             return Ok(result);
         }
         catch (AppUnauthorizedException ex)
@@ -160,7 +169,7 @@ public class LeaveController(IMediator mediator) : ControllerBase
         }
     }
 
-    /// <summary>ยกเลิกคำขอลา</summary>
+    /// <summary>ยกเลิกคำขอลา (เฉพาะ PendingSupervisor/PendingHr)</summary>
     [HttpPost("{id:guid}/cancel")]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
     {
@@ -186,6 +195,110 @@ public class LeaveController(IMediator mediator) : ControllerBase
             return Unauthorized(new { error = ex.Message });
         }
     }
+
+    /// <summary>พนักงานยื่นขอยกเลิกการลาที่อนุมัติแล้ว</summary>
+    [HttpPost("{id:guid}/request-cancel")]
+    public async Task<IActionResult> RequestCancel(Guid id, [FromBody] CancelReasonRequest body, CancellationToken ct)
+    {
+        try
+        {
+            await mediator.Send(new RequestLeaveCancellationCommand(id, body.Reason), ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (AppForbiddenException ex)
+        {
+            return StatusCode(403, new { error = ex.Message });
+        }
+        catch (ConflictException ex)
+        {
+            return Conflict(new { error = ex.Code, message = ex.Message });
+        }
+        catch (AppUnauthorizedException ex)
+        {
+            return Unauthorized(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>รายการคำขอยกเลิกที่รอ HR ดำเนินการ</summary>
+    [HttpGet("cancellation-pending")]
+    public async Task<IActionResult> GetCancellationPending(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await mediator.Send(new GetCancellationPendingQuery(page, pageSize), ct);
+            return Ok(result);
+        }
+        catch (AppForbiddenException ex)
+        {
+            return StatusCode(403, new { error = ex.Message });
+        }
+        catch (AppUnauthorizedException ex)
+        {
+            return Unauthorized(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>HR อนุมัติการยกเลิก → status Cancelled + คืนวันลา</summary>
+    [HttpPost("{id:guid}/approve-cancel")]
+    public async Task<IActionResult> ApproveCancel(Guid id, [FromBody] ApproveRejectRequest body, CancellationToken ct)
+    {
+        try
+        {
+            await mediator.Send(new ApproveLeaveCancellationCommand(id, body.Comment), ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (AppForbiddenException ex)
+        {
+            return StatusCode(403, new { error = ex.Message });
+        }
+        catch (ConflictException ex)
+        {
+            return Conflict(new { error = ex.Code, message = ex.Message });
+        }
+        catch (AppUnauthorizedException ex)
+        {
+            return Unauthorized(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>HR ปฏิเสธการยกเลิก → คืนกลับ Approved</summary>
+    [HttpPost("{id:guid}/reject-cancel")]
+    public async Task<IActionResult> RejectCancel(Guid id, [FromBody] ApproveRejectRequest body, CancellationToken ct)
+    {
+        try
+        {
+            await mediator.Send(new RejectLeaveCancellationCommand(id, body.Comment), ct);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (AppForbiddenException ex)
+        {
+            return StatusCode(403, new { error = ex.Message });
+        }
+        catch (ConflictException ex)
+        {
+            return Conflict(new { error = ex.Code, message = ex.Message });
+        }
+        catch (AppUnauthorizedException ex)
+        {
+            return Unauthorized(new { error = ex.Message });
+        }
+    }
 }
 
 public record ApproveRejectRequest(string? Comment);
+public record CancelReasonRequest(string? Reason);

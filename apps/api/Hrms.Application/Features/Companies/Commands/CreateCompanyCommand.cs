@@ -25,7 +25,7 @@ public class CreateCompanyValidator : AbstractValidator<CreateCompanyCommand>
     }
 }
 
-public class CreateCompanyHandler(IApplicationDbContext db)
+public class CreateCompanyHandler(IApplicationDbContext db, IAuditLogService auditLog)
     : IRequestHandler<CreateCompanyCommand, CompanyDto>
 {
     public async Task<CompanyDto> Handle(CreateCompanyCommand request, CancellationToken ct)
@@ -48,12 +48,22 @@ public class CreateCompanyHandler(IApplicationDbContext db)
             ParentId       = request.ParentId,
             IsHeadquarters = request.IsHeadquarters,
             IsActive       = true,
-            CreatedAt      = DateTime.UtcNow,
-            UpdatedAt      = DateTime.UtcNow,
+            CreatedAt      = DateTime.UtcNow.AddHours(7),
+            UpdatedAt      = DateTime.UtcNow.AddHours(7),
         };
 
         db.Companies.Add(company);
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "company",
+            entityType:  "Company",
+            entityId:    company.Id.ToString(),
+            action:      "create",
+            description: $"สร้างบริษัท '{company.Name}'",
+            oldValues:   null,
+            newValues:   new { company.Name, company.NameEn, company.OrgType, company.ParentId, company.IsHeadquarters },
+            ct:          ct);
 
         return new CompanyDto(
             company.Id,

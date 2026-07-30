@@ -7,5 +7,6 @@ public enum LeaveStatus
     PendingHr,
     Approved,
     Rejected,
-    Cancelled
+    Cancelled,
+    CancellationRequested
 }

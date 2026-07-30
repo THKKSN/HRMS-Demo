@@ -22,7 +22,7 @@ public class BulkCreateHolidaysValidator : AbstractValidator<BulkCreateHolidaysC
     }
 }
 
-public class BulkCreateHolidaysHandler(IApplicationDbContext db, IScopeGuard scope)
+public class BulkCreateHolidaysHandler(IApplicationDbContext db, IScopeGuard scope, IAuditLogService auditLog)
     : IRequestHandler<BulkCreateHolidaysCommand, BulkCreateHolidaysResult>
 {
     public async Task<BulkCreateHolidaysResult> Handle(BulkCreateHolidaysCommand request, CancellationToken ct)
@@ -73,7 +73,19 @@ public class BulkCreateHolidaysHandler(IApplicationDbContext db, IScopeGuard sco
         }
 
         if (created > 0)
+        {
             await db.SaveChangesAsync(ct);
+
+            await auditLog.LogAsync(
+                module:      "holiday",
+                entityType:  "Holiday",
+                entityId:    "bulk",
+                action:      "bulk-create",
+                description: $"สร้างวันหยุดแบบ bulk: สร้างใหม่ {created} รายการ, ข้าม {skipped} รายการ",
+                oldValues:   null,
+                newValues:   new { created, skipped, totalRequested = request.Holidays.Count },
+                ct:          ct);
+        }
 
         return new BulkCreateHolidaysResult(created, skipped);
     }

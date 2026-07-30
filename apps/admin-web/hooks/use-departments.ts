@@ -35,6 +35,7 @@ export function useUpdateDepartment() {
       name: string
       deptType?: string
       managerEmployeeId?: string
+      shiftId?: string | null
       isActive: boolean
     }) => departmentsApi.update(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: deptKeys.all }),

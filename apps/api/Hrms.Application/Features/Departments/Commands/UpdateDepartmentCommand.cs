@@ -14,6 +14,7 @@ public record UpdateDepartmentCommand(
     string Name,
     string? DeptType,
     Guid? ManagerEmployeeId,
+    Guid? ShiftId,
     bool IsActive) : IRequest<DepartmentDto>;
 
 public class UpdateDepartmentValidator : AbstractValidator<UpdateDepartmentCommand>
@@ -25,13 +26,12 @@ public class UpdateDepartmentValidator : AbstractValidator<UpdateDepartmentComma
     }
 }
 
-public class UpdateDepartmentHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class UpdateDepartmentHandler(IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permService, IAuditLogService auditLog)
     : IRequestHandler<UpdateDepartmentCommand, DepartmentDto>
 {
     public async Task<DepartmentDto> Handle(UpdateDepartmentCommand request, CancellationToken ct)
     {
-        if (!currentUser.IsAdminOrHr())
-            throw new AppForbiddenException("เฉพาะ HR / Admin เท่านั้นที่แก้ไขแผนกได้");
+        await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-departments", ct);
 
         var dept = await db.Departments
             .FirstOrDefaultAsync(d => d.Id == request.Id, ct)
@@ -62,13 +62,35 @@ public class UpdateDepartmentHandler(IApplicationDbContext db, ICurrentUser curr
             managerName = $"{manager.FirstName} {manager.LastName}".Trim();
         }
 
+        string? shiftName = null;
+        if (request.ShiftId.HasValue)
+        {
+            var shift = await db.Shifts.FirstOrDefaultAsync(
+                s => s.Id == request.ShiftId.Value && s.IsActive, ct)
+                ?? throw new KeyNotFoundException("ไม่พบข้อมูลกะการทำงาน");
+            shiftName = shift.Name;
+        }
+
+        var oldValues = new { dept.Name, dept.DeptType, dept.ManagerEmployeeId, dept.ShiftId, dept.IsActive };
+
         dept.Name              = request.Name;
         dept.DeptType          = request.DeptType;
         dept.ManagerEmployeeId = request.ManagerEmployeeId;
+        dept.ShiftId           = request.ShiftId;
         dept.IsActive          = request.IsActive;
-        dept.UpdatedAt         = DateTime.UtcNow;
+        dept.UpdatedAt         = DateTime.UtcNow.AddHours(7);
 
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "department",
+            entityType:  "Department",
+            entityId:    dept.Id.ToString(),
+            action:      "update",
+            description: $"แก้ไขแผนก '{dept.Name}'",
+            oldValues:   oldValues,
+            newValues:   new { dept.Name, dept.DeptType, dept.ManagerEmployeeId, dept.ShiftId, dept.IsActive },
+            ct:          ct);
 
         return new DepartmentDto(
             dept.Id,
@@ -77,6 +99,8 @@ public class UpdateDepartmentHandler(IApplicationDbContext db, ICurrentUser curr
             dept.DeptType,
             dept.ManagerEmployeeId,
             managerName,
+            dept.ShiftId,
+            shiftName,
             dept.IsActive);
     }
 }

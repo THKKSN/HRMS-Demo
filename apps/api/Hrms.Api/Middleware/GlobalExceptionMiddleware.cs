@@ -2,6 +2,7 @@ using System.Text.Json;
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Api.Middleware;
 
@@ -31,7 +32,7 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
                 StatusCodes.Status400BadRequest,
                 "VALIDATION_ERROR",
                 "ข้อมูลไม่ถูกต้อง",
-                (object?)ve.Errors.Select(e => new { field = e.PropertyName, error = e.ErrorMessage })),
+                ValidationDetails(ve)),
 
             AppUnauthorizedException ue => (
                 StatusCodes.Status401Unauthorized,
@@ -63,6 +64,12 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
                 ce.Message,
                 (object?)null),
 
+            DbUpdateConcurrencyException => (
+                StatusCodes.Status409Conflict,
+                "TICKET_CONCURRENCY_CONFLICT",
+                "ข้อมูลรายการนี้ถูกเปลี่ยนแปลงแล้ว กรุณาโหลดข้อมูลล่าสุดและลองอีกครั้ง",
+                (object?)null),
+
             _ => (
                 StatusCodes.Status500InternalServerError,
                 "INTERNAL_ERROR",
@@ -78,5 +85,15 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
 
         var body = new { traceId, error = code, message, details };
         await context.Response.WriteAsync(JsonSerializer.Serialize(body, _json));
+    }
+
+    private static object ValidationDetails(ValidationException exception)
+    {
+        var errors = exception.Errors
+            .Select(error => new { field = error.PropertyName, error = error.ErrorMessage })
+            .ToArray();
+        return errors.Length > 0
+            ? errors
+            : [new { field = string.Empty, error = exception.Message }];
     }
 }

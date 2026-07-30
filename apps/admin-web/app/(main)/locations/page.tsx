@@ -1,11 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { Plus, Pencil, Navigation } from 'lucide-react'
 import { toast } from 'sonner'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +18,85 @@ import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { AddressSelector } from '@/components/shared/address-selector'
 import { useCompanies } from '@/hooks/use-companies'
 import { useLocations, useCreateLocation, useUpdateLocation } from '@/hooks/use-locations'
-import type { LocationDto } from '@hrms/shared-types'
+import { addressKeys } from '@/hooks/use-address'
+import { addressApi } from '@/lib/address.api'
+import type { LocationDto, ProvinceDto, DistrictDto, SubDistrictDto } from '@hrms/shared-types'
+import type { ResolvedAddress } from '@/components/shared/map-picker'
+
+const MapPicker = dynamic(
+  () => import('@/components/shared/map-picker').then((m) => m.MapPicker),
+  { ssr: false, loading: () => <div className="h-80 animate-pulse rounded-lg bg-whited" /> },
+)
+
+// ── Address auto-fill hook ────────────────────────────────────────────────────
+
+const THAI_PREFIX = /^(จังหวัด|อำเภอ|เขต|แขวง|ตำบล)\s*/u
+
+function normalizeStr(s: string) {
+  return s.replace(THAI_PREFIX, '').replace(/\s+/g, '').toLowerCase()
+}
+
+function findByName<T>(list: T[], getName: (item: T) => string | undefined, name: string): T | undefined {
+  const target = normalizeStr(name)
+  return list.find((item) => normalizeStr(getName(item) ?? '') === target)
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function useAddressAutoFill(setValue: (field: any, value: any, opts?: any) => void) {
+  const queryClient = useQueryClient()
+
+  return useCallback(async (resolved: ResolvedAddress) => {
+    const { provinceName, districtName, subDistrictName } = resolved
+
+    // [debug] แสดงค่าที่ parse ได้จาก Nominatim
+    toast.info(`Nominatim → จ.${provinceName ?? '?'} อ.${districtName ?? '?'} ต.${subDistrictName ?? '?'}`, { duration: 5000 })
+
+    if (!provinceName) return
+
+    // 1. Provinces — usually already cached by AddressSelector
+    const provinces = await queryClient.fetchQuery<ProvinceDto[]>({
+      queryKey: addressKeys.provinces,
+      queryFn: addressApi.getProvinces,
+      staleTime: Infinity,
+    })
+    const province = findByName(provinces, (p) => p.provinceName, provinceName)
+    if (!province) {
+      toast.error(`ไม่พบจังหวัด "${provinceName}" ใน DB`)
+      return
+    }
+    setValue('provinceId', province.provinceId, { shouldDirty: true })
+
+    if (!districtName) return
+
+    // 2. Districts for matched province
+    const districts = await queryClient.fetchQuery<DistrictDto[]>({
+      queryKey: addressKeys.districts(province.provinceId),
+      queryFn: () => addressApi.getDistricts(province.provinceId),
+      staleTime: Infinity,
+    })
+    const district = findByName(districts, (d) => d.districtName, districtName)
+    if (!district) {
+      toast.error(`ไม่พบอำเภอ/เขต "${districtName}" ใน DB`)
+      return
+    }
+    setValue('districtId', district.districtId, { shouldDirty: true })
+
+    if (!subDistrictName) return
+
+    // 3. SubDistricts for matched district
+    const subDistricts = await queryClient.fetchQuery<SubDistrictDto[]>({
+      queryKey: addressKeys.subDistricts(district.districtId),
+      queryFn: () => addressApi.getSubDistricts(district.districtId),
+      staleTime: Infinity,
+    })
+    const sub = findByName(subDistricts, (s) => s.subDistrictName, subDistrictName)
+    if (!sub) {
+      toast.error(`ไม่พบตำบล/แขวง "${subDistrictName}" ใน DB`)
+      return
+    }
+    setValue('subDistrictId', sub.subDistrictId, { shouldDirty: true })
+  }, [queryClient, setValue])
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -67,13 +147,16 @@ function CreateLocationModal({
   companies: { id: string; name: string }[]
 }) {
   const create = useCreateLocation()
+  const [showMap, setShowMap] = useState(true)
   const { register, handleSubmit, setError, reset, control, setValue, watch, formState: { errors, isSubmitting } } =
     useForm<LocationFormValues>({
       resolver: zodResolver(locationSchema),
       defaultValues: { companyId: defaultCompanyId ?? '', radiusMeters: 100 },
     })
+  const autoFill = useAddressAutoFill(setValue)
 
-  const [watchProvinceId, watchDistrictId, watchSubDistrictId] = watch(['provinceId', 'districtId', 'subDistrictId'])
+  const [watchLat, watchLng, watchRadius, watchProvinceId, watchDistrictId, watchSubDistrictId] =
+    watch(['latitude', 'longitude', 'radiusMeters', 'provinceId', 'districtId', 'subDistrictId'])
 
   function useCurrentPosition() {
     if (!navigator.geolocation) {
@@ -115,13 +198,13 @@ function CreateLocationModal({
   }
 
   return (
-    <Modal open={open} onClose={() => { reset(); onClose() }} title="เพิ่มสถานที่ใหม่">
+    <Modal open={open} onClose={() => { reset(); setShowMap(false); onClose() }} title="เพิ่มสถานที่ใหม่">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Company */}
         <div className="space-y-1.5">
           <Label htmlFor="cl-company">บริษัท *</Label>
           <Select id="cl-company" {...register('companyId')}>
-            <option value="">— เลือกบริษัท —</option>
+            <option value="">เลือกบริษัท</option>
             {companies.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -136,22 +219,37 @@ function CreateLocationModal({
           <FieldError message={errors.name?.message} />
         </div>
 
+
+          <MapPicker
+            lat={isNaN(watchLat) ? undefined : watchLat}
+            lng={isNaN(watchLng) ? undefined : watchLng}
+            radius={isNaN(watchRadius) ? 100 : watchRadius}
+            onSelect={(lat, lng) => {
+              setValue('latitude', lat, { shouldValidate: true })
+              setValue('longitude', lng, { shouldValidate: true })
+            }}
+            onAddressResolve={autoFill}
+          />
+
+        <div className="flex gap-2 justify-center">
+          <Button type="button" variant="outline" size="sm" onClick={useCurrentPosition}>
+            <Navigation className="h-3.5 w-3.5" />ใช้พิกัดปัจจุบัน
+          </Button>
+        </div>
+
         {/* Lat / Lng */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="cl-lat">Latitude *</Label>
-            <Input id="cl-lat" type="number" step="any" {...register('latitude', { valueAsNumber: true })} placeholder="13.756331" />
+            <Input id="cl-lat" type="number" step="any" {...register('latitude', { valueAsNumber: true })} placeholder="13.756331" disabled/>
             <FieldError message={errors.latitude?.message} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="cl-lng">Longitude *</Label>
-            <Input id="cl-lng" type="number" step="any" {...register('longitude', { valueAsNumber: true })} placeholder="100.501762" />
+            <Input id="cl-lng" type="number" step="any" {...register('longitude', { valueAsNumber: true })} placeholder="100.501762" disabled/>
             <FieldError message={errors.longitude?.message} />
           </div>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={useCurrentPosition}>
-          <Navigation className="h-3.5 w-3.5" />ใช้พิกัดปัจจุบัน
-        </Button>
 
         {/* Radius */}
         <div className="space-y-1.5">
@@ -188,7 +286,7 @@ function CreateLocationModal({
 
         {errors.root && <p className="text-sm text-destructive">{errors.root.message}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => { reset(); onClose() }}>ยกเลิก</Button>
+          <Button type="button" variant="outline" onClick={() => { reset(); setShowMap(false); onClose() }}>ยกเลิก</Button>
           <Button type="submit" loading={isSubmitting}>บันทึก</Button>
         </div>
       </form>
@@ -210,9 +308,11 @@ function EditLocationModal({
 }) {
   const update = useUpdateLocation()
   const [deactivateConfirm, setDeactivateConfirm] = useState(false)
+  const [showMap, setShowMap] = useState(false)
 
   const { register, handleSubmit, setError, getValues, control, setValue, watch, formState: { errors, isSubmitting, isDirty } } =
     useForm<EditLocationFormValues>({
+
       resolver: zodResolver(editLocationSchema),
       defaultValues: {
         name:          location.name,
@@ -226,7 +326,10 @@ function EditLocationModal({
       },
     })
 
-  const [watchProvinceId, watchDistrictId, watchSubDistrictId] = watch(['provinceId', 'districtId', 'subDistrictId'])
+  const [watchLat, watchLng, watchRadius, watchProvinceId, watchDistrictId, watchSubDistrictId] =
+    watch(['latitude', 'longitude', 'radiusMeters', 'provinceId', 'districtId', 'subDistrictId'])
+
+  const autoFill = useAddressAutoFill(setValue)
 
   function useCurrentPosition() {
     if (!navigator.geolocation) { toast.error('เบราว์เซอร์นี้ไม่รองรับ Geolocation'); return }
@@ -286,9 +389,28 @@ function EditLocationModal({
               <FieldError message={errors.longitude?.message} />
             </div>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={useCurrentPosition}>
-            <Navigation className="h-3.5 w-3.5" />ใช้พิกัดปัจจุบัน
-          </Button>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={useCurrentPosition}>
+              <Navigation className="h-3.5 w-3.5" />ใช้พิกัดปัจจุบัน
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setShowMap((v) => !v)}>
+              {showMap ? 'ซ่อน Map' : 'เปิด Map'}
+            </Button>
+          </div>
+
+          {/* Map Picker */}
+          {showMap && (
+            <MapPicker
+              lat={isNaN(watchLat) ? undefined : watchLat}
+              lng={isNaN(watchLng) ? undefined : watchLng}
+              radius={isNaN(watchRadius) ? 100 : watchRadius}
+              onSelect={(lat, lng) => {
+                setValue('latitude', lat, { shouldValidate: true, shouldDirty: true })
+                setValue('longitude', lng, { shouldValidate: true, shouldDirty: true })
+              }}
+              onAddressResolve={autoFill}
+            />
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="el-radius">รัศมี (เมตร) *</Label>
@@ -404,7 +526,7 @@ export default function LocationsPage() {
       <div className="rounded-lg border border-border bg-background overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/40">
+            <tr className="border-b border-border bg-whited/40">
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อสถานที่</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">บริษัท</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">พิกัด</th>
@@ -420,7 +542,7 @@ export default function LocationsPage() {
                 <tr key={i} className="border-b border-border last:border-0">
                   {Array.from({ length: 7 }).map((_, j) => (
                     <td key={j} className="px-4 py-3">
-                      <div className="h-4 animate-pulse rounded bg-muted" />
+                      <div className="h-4 animate-pulse rounded bg-whited" />
                     </td>
                   ))}
                 </tr>
@@ -435,7 +557,7 @@ export default function LocationsPage() {
               locations.map((loc) => (
                 <tr
                   key={loc.id}
-                  className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                  className="border-b border-border last:border-0 hover:bg-whited/30 transition-colors"
                 >
                   <td className="px-4 py-3">
                     <span className={loc.isActive ? 'text-foreground font-medium' : 'text-muted-foreground line-through'}>

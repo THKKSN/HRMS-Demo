@@ -13,9 +13,9 @@ namespace Hrms.Api.Controllers;
 [Route("v1/leave-balances")]
 public class LeaveBalanceController(IMediator mediator) : ControllerBase
 {
-    /// <summary>ดู balance วันลาของพนักงานทุกคน — Supervisor ขึ้นไปดูได้</summary>
+    /// <summary>ดู balance วันลาของพนักงานทุกคน (ต้องมี leave:manage-balance permission)</summary>
     [HttpGet]
-    [Authorize(Policy = AuthPolicies.RequireSupervisor)]
+    [Authorize]
     public async Task<IActionResult> GetAll(
         [FromQuery] int year,
         [FromQuery] int page = 1,
@@ -53,9 +53,9 @@ public class LeaveBalanceController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>Seed balance ทุกคน × ทุก leave type ในปีที่ระบุ</summary>
+    /// <summary>Seed balance ทุกคน × ทุก leave type ในปีที่ระบุ (ต้องมี leave:manage-balance permission)</summary>
     [HttpPost("seed")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize]
     public async Task<IActionResult> Seed(
         [FromBody] SeedLeaveBalanceRequest request,
         CancellationToken ct)
@@ -67,9 +67,9 @@ public class LeaveBalanceController(IMediator mediator) : ControllerBase
         return Ok(new { created });
     }
 
-    /// <summary>Seed balance ให้พนักงาน 1 คน × ทุก leave type ของบริษัทนั้น</summary>
+    /// <summary>Seed balance ให้พนักงาน 1 คน × ทุก leave type ของบริษัทนั้น (ต้องมี leave:manage-balance permission)</summary>
     [HttpPost("seed/employee/{employeeId:guid}")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize]
     public async Task<IActionResult> SeedForEmployee(
         Guid employeeId,
         [FromBody] SeedForEmployeeRequest request,

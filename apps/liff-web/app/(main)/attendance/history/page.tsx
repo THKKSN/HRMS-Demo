@@ -120,7 +120,7 @@ function BottomSheet({
           <p className="text-sm font-semibold">
             {dayName}. {day} {monthName} {year}
           </p>
-          <button onClick={onClose} className="rounded-full p-1 active:bg-muted">
+          <button onClick={onClose} className="rounded-full p-1 active:bg-whited">
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
         </div>
@@ -128,7 +128,7 @@ function BottomSheet({
         {/* Content */}
         {cell.kind === 'record' && (
           <div className="space-y-3">
-            <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold ${STATUS_BADGE[cell.rec.status] ?? 'bg-muted text-muted-foreground'}`}>
+            <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold ${STATUS_BADGE[cell.rec.status] ?? 'bg-whited text-muted-foreground'}`}>
               {STATUS_LABEL[cell.rec.status] ?? cell.rec.status}
               {cell.rec.isLate && cell.rec.lateMinutes > 0 && ` · สาย ${formatLate(cell.rec.lateMinutes)}`}
             </span>
@@ -241,9 +241,12 @@ export default function AttendanceHistoryPage() {
     else setMonth(m => m - 1)
   }
 
+  const maxFutureMonths = now.getFullYear() * 12 + now.getMonth() + 12
+  const viewingMonthIdx = year * 12 + (month - 1)
+  const canGoNext = viewingMonthIdx < maxFutureMonths
+
   function nextMonth() {
-    const isCurrent = year === now.getFullYear() && month === now.getMonth() + 1
-    if (isCurrent) return
+    if (!canGoNext) return
     if (month === 12) { setYear(y => y + 1); setMonth(1) }
     else setMonth(m => m + 1)
   }
@@ -257,13 +260,11 @@ export default function AttendanceHistoryPage() {
     setSelected({ day, dateStr, cell })
   }
 
-  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1
-
   return (
     <>
       {/* Header */}
       <div className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-background px-4 py-3">
-        <button onClick={() => router.back()} className="rounded-full p-1 active:bg-muted">
+        <button onClick={() => router.back()} className="rounded-full p-1 active:bg-whited">
           <ArrowLeft className="h-5 w-5" />
         </button>
         <h1 className="flex-1 text-base font-semibold">ปฎิทิน</h1>
@@ -271,7 +272,7 @@ export default function AttendanceHistoryPage() {
 
       {/* Month selector */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <button onClick={prevMonth} className="rounded-full p-2 active:bg-muted">
+        <button onClick={prevMonth} className="rounded-full p-2 active:bg-whited">
           <ChevronLeft className="h-5 w-5" />
         </button>
         <span className="text-sm font-semibold">
@@ -279,8 +280,8 @@ export default function AttendanceHistoryPage() {
         </span>
         <button
           onClick={nextMonth}
-          disabled={isCurrentMonth}
-          className="rounded-full p-2 active:bg-muted disabled:opacity-30"
+          disabled={!canGoNext}
+          className="rounded-full p-2 active:bg-whited disabled:opacity-30"
         >
           <ChevronRight className="h-5 w-5" />
         </button>
@@ -321,7 +322,7 @@ export default function AttendanceHistoryPage() {
 
             // bg color
             let bg = ''
-            if (cell.kind === 'weekend') bg = 'bg-muted/40'
+            if (cell.kind === 'weekend') bg = 'bg-whited/40'
             else if (cell.kind === 'holiday') bg = 'bg-gray-50'
             else if (cell.kind === 'leave') bg = LEAVE_BG
 
@@ -329,7 +330,7 @@ export default function AttendanceHistoryPage() {
               <button
                 key={idx}
                 onClick={() => handleCellClick(day)}
-                className={`relative flex flex-col items-center justify-start pt-1.5 pb-1 aspect-square border-b border-r border-border/50 active:bg-muted/60 ${bg}`}
+                className={`relative flex flex-col items-center justify-start pt-1.5 pb-1 aspect-square border-b border-r border-border/50 active:bg-whited/60 ${bg}`}
               >
                 {/* วันที่ */}
                 <span
@@ -345,7 +346,7 @@ export default function AttendanceHistoryPage() {
                 {/* indicator */}
                 <div className="mt-1 flex items-center justify-center">
                   {cell.kind === 'record' && (
-                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[cell.rec.status] ?? 'bg-muted-foreground'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[cell.rec.status] ?? 'bg-whited-foreground'}`} />
                   )}
                   {cell.kind === 'leave' && (
                     <span className={`w-1.5 h-1.5 rounded-full ${LEAVE_DOT}`} />
@@ -355,7 +356,7 @@ export default function AttendanceHistoryPage() {
                     </span>
                   )}
                   {cell.kind === 'noRecord' && (
-                    <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+                    <span className="w-1 h-1 rounded-full bg-whited-foreground/30" />
                   )}
                 </div>
               </button>
@@ -382,7 +383,7 @@ export default function AttendanceHistoryPage() {
 
       {/* Summary */}
       {!isLoading && (
-        <div className="mx-4 mb-4 rounded-2xl border border-border bg-card grid grid-cols-5 divide-x divide-border text-center">
+        <div className="mx-4 mb-4 rounded-2xl border border-border bg-white grid grid-cols-5 divide-x divide-border text-center">
           {[
             { label: 'ทำงาน', value: cntPresent, color: 'text-green-600' },
             { label: 'สาย', value: cntLate, color: 'text-yellow-600' },

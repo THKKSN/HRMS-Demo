@@ -5,7 +5,7 @@ export const AttendanceMap = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-40 w-full rounded-xl bg-muted animate-pulse" />
+      <div className="h-40 w-full rounded-xl bg-whited animate-pulse" />
     ),
   },
 )

@@ -9,4 +9,5 @@ public record LeaveRequestListItemDto(
     DateOnly DateTo,
     decimal TotalDays,
     LeaveStatus Status,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    string? EmployeeName = null);

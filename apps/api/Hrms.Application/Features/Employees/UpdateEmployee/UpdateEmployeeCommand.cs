@@ -1,6 +1,5 @@
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
-using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Employees.Common;
 using Hrms.Application.Features.Employees.Dtos;
@@ -32,14 +31,19 @@ public class UpdateEmployeeValidator : AbstractValidator<UpdateEmployeeCommand>
     }
 }
 
-public class UpdateEmployeeHandler(IApplicationDbContext db, IScopeGuard scope, ICurrentUser currentUser)
+public class UpdateEmployeeHandler(
+    IApplicationDbContext db,
+    IScopeGuard scope,
+    ICurrentUser currentUser,
+    IPermissionService permService,
+    IAuditLogService auditLog)
     : IRequestHandler<UpdateEmployeeCommand, EmployeeDetailDto>
 {
     public async Task<EmployeeDetailDto> Handle(UpdateEmployeeCommand request, CancellationToken ct)
     {
         var employee = await db.Employees
             .Include(e => e.Department)
-            .Include(e => e.Roles)
+            .Include(e => e.Roles).ThenInclude(r => r.Role)
             .Include(e => e.RoleLabel)
             .FirstOrDefaultAsync(e => e.Id == request.Id, ct)
             ?? throw new KeyNotFoundException("ไม่พบข้อมูลพนักงาน");
@@ -68,14 +72,25 @@ public class UpdateEmployeeHandler(IApplicationDbContext db, IScopeGuard scope, 
         employee.DepartmentId = request.DepartmentId ?? employee.DepartmentId;
         employee.RoleLabelId  = request.RoleLabelId;
 
-        // Admin/HR เท่านั้นที่แก้ไข national ID ได้
-        if (!string.IsNullOrEmpty(request.NationalId) && currentUser.IsAdminOrHr())
+        // เฉพาะคนที่มี employee:edit จึงแก้ national ID ได้
+        var canEdit = await permService.HasPermissionAsync(currentUser, "employee:edit", ct);
+        if (!string.IsNullOrEmpty(request.NationalId) && canEdit)
             employee.NationalId = request.NationalId;
 
         employee.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync(ct);
 
-        return employee.ToDetailDto(department?.Name ?? employee.Department?.Name, currentUser.IsAdminOrHr());
+        await auditLog.LogAsync(
+            module:      "employee",
+            entityType:  "Employee",
+            entityId:    employee.Id.ToString(),
+            action:      "update",
+            description: $"แก้ไขข้อมูลพนักงาน {employee.FirstName} {employee.LastName} รหัส {employee.EmployeeCode}",
+            oldValues:   null,
+            newValues:   new { employee.FirstName, employee.LastName, employee.Email, employee.Phone, employee.DepartmentId, employee.RoleLabelId },
+            ct:          ct);
+
+        return employee.ToDetailDto(department?.Name ?? employee.Department?.Name, canEdit);
     }
 }

@@ -56,7 +56,7 @@ export function AddressSelector({ value, onChange, disabled }: Props) {
           }
           disabled={disabled || loadingProvinces}
         >
-          <option value="">— เลือกจังหวัด —</option>
+          <option value="">เลือกจังหวัด</option>
           {provinces.map((p) => (
             <option key={p.provinceId} value={p.provinceId}>
               {p.provinceName}
@@ -75,7 +75,7 @@ export function AddressSelector({ value, onChange, disabled }: Props) {
           }
           disabled={disabled || !value.provinceId || loadingDistricts}
         >
-          <option value="">— เลือกอำเภอ —</option>
+          <option value="">เลือกอำเภอ</option>
           {districts.map((d) => (
             <option key={d.districtId} value={d.districtId}>
               {d.districtName}
@@ -94,7 +94,7 @@ export function AddressSelector({ value, onChange, disabled }: Props) {
           }
           disabled={disabled || !value.districtId || loadingSubs}
         >
-          <option value="">— เลือกตำบล —</option>
+          <option value="">เลือกตำบล</option>
           {subDistricts.map((s) => (
             <option key={s.subDistrictId} value={s.subDistrictId}>
               {s.subDistrictName}
@@ -106,10 +106,10 @@ export function AddressSelector({ value, onChange, disabled }: Props) {
       {/* ZipCode — auto-filled when subdistrict is selected */}
       <div className="space-y-1.5">
         <Label>รหัสไปรษณีย์</Label>
-        <p className="flex h-9 items-center rounded-md border border-border bg-muted/50 px-3 text-sm text-muted-foreground">
+        <p className="flex h-9 items-center rounded-md border border-border bg-whited/50 px-3 text-sm text-muted-foreground">
           {value.subDistrictId
-            ? (loadingZip ? <span className="animate-pulse">...</span> : (zipCode ?? '—'))
-            : '—'}
+            ? (loadingZip ? <span className="animate-pulse">...</span> : (zipCode ?? ''))
+            : ''}
         </p>
       </div>
     </div>

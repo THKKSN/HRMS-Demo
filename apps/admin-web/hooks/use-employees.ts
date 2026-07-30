@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { employeesApi } from '@/lib/employees.api'
-import type { RoleType } from '@/types/admin'
 
 export const employeeKeys = {
   all: ['employees'] as const,
@@ -64,7 +63,7 @@ export function useSetPassword(id: string) {
 export function useAddEmployeeRole(employeeId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (body: { role: RoleType; departmentId?: string }) =>
+    mutationFn: (body: { roleId: string; departmentId?: string }) =>
       employeesApi.addRole(employeeId, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: employeeKeys.detail(employeeId) }),
   })

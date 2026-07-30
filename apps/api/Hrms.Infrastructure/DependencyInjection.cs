@@ -1,5 +1,6 @@
+using System.Transactions;
 using Hangfire;
-using Hangfire.InMemory;
+using Hangfire.MySql;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Infrastructure.Jobs;
 using Hrms.Application.Common.Options;
@@ -42,8 +43,11 @@ public static class DependencyInjection
 
         // Seeder
         services.AddScoped<DataSeeder>();
+        services.AddScoped<PermissionSeeder>();
 
         // Services
+        services.AddScoped<IPermissionService, PermissionService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IOtpService, OtpService>();
         services.AddScoped<IPasswordService, PasswordService>();
@@ -52,15 +56,39 @@ public static class DependencyInjection
         services.AddHttpClient<ILineMessagingService, LineMessagingService>();
         services.AddScoped<ILineWebhookService, LineWebhookService>();
         services.AddScoped<ILeaveNotificationService, HangfireLeaveNotificationService>();
+        services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddScoped<ITicketNumberGenerator, TicketNumberGenerator>();
+        services.AddScoped<IShiftResolver, ShiftResolverService>();
+        services.AddScoped<DailyAttendanceReportJob>();
+        services.AddScoped<TicketUploadCleanupJob>();
+        services.AddScoped<NotificationDeliveryJob>();
         services.AddSingleton<IGeofenceService, GeofenceService>();
 
-        // Hangfire (InMemory — swap to MySqlStorage for production)
+        var hangfireConnectionString = new MySqlConnector.MySqlConnectionStringBuilder(connectionString)
+        {
+            AllowUserVariables = true
+        }.ConnectionString;
+
         services.AddHangfire(cfg => cfg
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
             .UseSimpleAssemblyNameTypeSerializer()
             .UseRecommendedSerializerSettings()
-            .UseInMemoryStorage());
-        services.AddHangfireServer();
+            .UseStorage(new MySqlStorage(
+                hangfireConnectionString,
+                new MySqlStorageOptions
+                {
+                    TransactionIsolationLevel = IsolationLevel.ReadCommitted,
+                    QueuePollInterval = TimeSpan.FromSeconds(15),
+                    JobExpirationCheckInterval = TimeSpan.FromHours(1),
+                    CountersAggregateInterval = TimeSpan.FromMinutes(5),
+                    PrepareSchemaIfNecessary = true,
+                    DashboardJobListLimit = 50_000,
+                    TransactionTimeout = TimeSpan.FromMinutes(1),
+                    TablesPrefix = "hangfire"
+                })));
+
+        if (configuration.GetValue("Hangfire:ServerEnabled", true))
+            services.AddHangfireServer();
 
         return services;
     }

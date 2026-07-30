@@ -12,16 +12,16 @@ public record GetDepartmentsQuery(
     Guid? CompanyId,
     bool IncludeInactive = false) : IRequest<IReadOnlyList<DepartmentListItemDto>>;
 
-public class GetDepartmentsHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class GetDepartmentsHandler(IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permService)
     : IRequestHandler<GetDepartmentsQuery, IReadOnlyList<DepartmentListItemDto>>
 {
     public async Task<IReadOnlyList<DepartmentListItemDto>> Handle(GetDepartmentsQuery request, CancellationToken ct)
     {
-        if (!currentUser.IsAdminOrHr())
-            throw new AppForbiddenException("เฉพาะ HR / Admin เท่านั้นที่เข้าถึงได้");
+        await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-departments", ct);
 
         var query = db.Departments
             .Include(d => d.ManagerEmployee)
+            .Include(d => d.Shift)
             .Where(d => !request.IncludeInactive ? d.IsActive : true);
 
         if (currentUser.HasRole(RoleType.Admin))
@@ -56,6 +56,8 @@ public class GetDepartmentsHandler(IApplicationDbContext db, ICurrentUser curren
             d.DeptType,
             d.ManagerEmployeeId,
             d.ManagerEmployee is null ? null : $"{d.ManagerEmployee.FirstName} {d.ManagerEmployee.LastName}".Trim(),
+            d.ShiftId,
+            d.Shift?.Name,
             countByDept.GetValueOrDefault(d.Id, 0),
             d.IsActive)).ToList();
     }

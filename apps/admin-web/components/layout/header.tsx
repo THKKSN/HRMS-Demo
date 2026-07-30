@@ -2,15 +2,17 @@
 
 import { useRef, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, LogOut, Moon, Sun, User } from 'lucide-react'
+import { ChevronDown, LogOut, Menu, Moon, Sun, User } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useTheme } from '@/hooks/use-theme'
+import { useSidebar } from './sidebar-context'
 import { api } from '@/lib/api'
 
 export function Header() {
   const router = useRouter()
   const { employee, clearAuth } = useAuthStore()
   const { theme, toggle } = useTheme()
+  const { toggle: toggleSidebar } = useSidebar()
   const [open, setOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -38,14 +40,25 @@ export function Header() {
   const displayRole = employee?.roles[0]?.role ?? ''
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-background px-6">
-      <div />
+    <header className="flex h-14 items-center justify-between border-b border-border bg-background px-4 lg:px-6">
+      {/* Hamburger — mobile เท่านั้น */}
+      <button
+        onClick={toggleSidebar}
+        className="lg:hidden flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-whited hover:text-foreground transition-colors"
+        aria-label="เปิดเมนู"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Desktop: spacer ซ้าย */}
+      <div className="hidden lg:block" />
+
       <div className="flex items-center gap-2">
         {/* theme toggle */}
         <button
           onClick={toggle}
           title={theme === 'dark' ? 'เปลี่ยนเป็น Light mode' : 'เปลี่ยนเป็น Dark mode'}
-          className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-whited hover:text-foreground transition-colors"
         >
           {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
@@ -54,12 +67,12 @@ export function Header() {
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setOpen((v) => !v)}
-            className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-muted transition-colors"
+            className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm hover:bg-whited transition-colors"
           >
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
               <User className="h-3.5 w-3.5" />
             </div>
-            <div className="text-left leading-tight">
+            <div className="text-left leading-tight hidden sm:block">
               <div className="font-medium text-foreground">{employee?.fullName ?? '—'}</div>
               {displayRole && <div className="text-xs text-muted-foreground">{displayRole}</div>}
             </div>

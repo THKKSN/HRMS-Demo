@@ -3,4 +3,5 @@
   <Project Path="Hrms.Application/Hrms.Application.csproj" />
   <Project Path="Hrms.Domain/Hrms.Domain.csproj" />
   <Project Path="Hrms.Infrastructure/Hrms.Infrastructure.csproj" />
+  <Project Path="Hrms.Application.Tests/Hrms.Application.Tests.csproj" />
 </Solution>

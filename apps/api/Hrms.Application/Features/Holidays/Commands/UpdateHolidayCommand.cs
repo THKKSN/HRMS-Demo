@@ -23,7 +23,7 @@ public class UpdateHolidayCommandValidator : AbstractValidator<UpdateHolidayComm
     }
 }
 
-public class UpdateHolidayHandler(IApplicationDbContext db, IScopeGuard scope)
+public class UpdateHolidayHandler(IApplicationDbContext db, IScopeGuard scope, IAuditLogService auditLog)
     : IRequestHandler<UpdateHolidayCommand, HolidayDto>
 {
     public async Task<HolidayDto> Handle(UpdateHolidayCommand request, CancellationToken ct)
@@ -45,11 +45,23 @@ public class UpdateHolidayHandler(IApplicationDbContext db, IScopeGuard scope)
         if (duplicate)
             throw new ConflictException("DUPLICATE_HOLIDAY", $"มีวันหยุดในวันที่ {request.Date:yyyy-MM-dd} ของ scope นี้อยู่แล้ว");
 
+        var oldValues = new { holiday.Name, holiday.Date, holiday.IsActive };
+
         holiday.Name     = request.Name;
         holiday.Date     = request.Date;
         holiday.IsActive = request.IsActive;
 
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "holiday",
+            entityType:  "Holiday",
+            entityId:    holiday.Id.ToString(),
+            action:      "update",
+            description: $"แก้ไขวันหยุด '{holiday.Name}' วันที่ {holiday.Date:yyyy-MM-dd}",
+            oldValues:   oldValues,
+            newValues:   new { holiday.Name, holiday.Date, holiday.IsActive },
+            ct:          ct);
 
         return CreateHolidayHandler.ToDto(holiday);
     }

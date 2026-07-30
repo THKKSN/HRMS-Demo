@@ -25,4 +25,6 @@ public class Employee : BaseEntity
     public ICollection<EmployeeRole> Roles { get; set; } = new List<EmployeeRole>();
     public ICollection<LeaveRequest> LeaveRequests { get; set; } = new List<LeaveRequest>();
     public ICollection<AttendanceRecord> AttendanceRecords { get; set; } = new List<AttendanceRecord>();
+    public ICollection<OtRequest> OtRequests { get; set; } = new List<OtRequest>();
+    public ICollection<EmployeeShiftOverride> ShiftOverrides { get; set; } = new List<EmployeeShiftOverride>();
 }

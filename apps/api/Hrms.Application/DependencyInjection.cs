@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
         services.AddScoped<IScopeGuard, ScopeGuard>();
+        services.AddScoped<ITicketRoutingService, TicketRoutingService>();
 
         return services;
     }

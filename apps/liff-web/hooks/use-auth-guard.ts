@@ -1,14 +1,27 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth.store'
 
 export function useAuthGuard() {
   const router = useRouter()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const [hasHydrated, setHasHydrated] = useState(false)
 
   useEffect(() => {
+    const persist = useAuthStore.persist
+    if (persist.hasHydrated()) {
+      setHasHydrated(true)
+      return
+    }
+
+    return persist.onFinishHydration(() => setHasHydrated(true))
+  }, [])
+
+  useEffect(() => {
+    if (!hasHydrated) return
+
     const liffState = new URLSearchParams(window.location.search).get('liff.state')
 
     if (!isAuthenticated) {
@@ -20,7 +33,7 @@ export function useAuthGuard() {
       // ผูกบัญชีแล้ว แต่ LIFF เปิดที่ root พร้อม liff.state → navigate ไปตรงๆ
       router.replace(liffState)
     }
-  }, [isAuthenticated, router])
+  }, [hasHydrated, isAuthenticated, router])
 
-  return isAuthenticated
+  return hasHydrated && isAuthenticated
 }

@@ -14,6 +14,7 @@ public class GetDepartmentByIdHandler(IApplicationDbContext db)
     {
         var dept = await db.Departments
             .Include(d => d.ManagerEmployee)
+            .Include(d => d.Shift)
             .FirstOrDefaultAsync(d => d.Id == request.Id, ct)
             ?? throw new KeyNotFoundException("ไม่พบข้อมูลแผนก");
 
@@ -24,6 +25,8 @@ public class GetDepartmentByIdHandler(IApplicationDbContext db)
             dept.DeptType,
             dept.ManagerEmployeeId,
             dept.ManagerEmployee is null ? null : $"{dept.ManagerEmployee.FirstName} {dept.ManagerEmployee.LastName}".Trim(),
+            dept.ShiftId,
+            dept.Shift?.Name,
             dept.IsActive);
     }
 }

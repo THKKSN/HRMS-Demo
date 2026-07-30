@@ -10,7 +10,8 @@ namespace Hrms.Application.Features.Attendance.Queries.GetMyAttendanceToday;
 
 public class GetMyAttendanceTodayHandler(
     IApplicationDbContext db,
-    ICurrentUser currentUser)
+    ICurrentUser currentUser,
+    IShiftResolver shiftResolver)
     : IRequestHandler<GetMyAttendanceTodayQuery, AttendanceTodayDto>
 {
     public async Task<AttendanceTodayDto> Handle(GetMyAttendanceTodayQuery request, CancellationToken ct)
@@ -24,10 +25,7 @@ public class GetMyAttendanceTodayHandler(
 
         var today = ThaiDateTime.Today;
 
-        var shift = await db.Shifts
-            .Where(s => s.CompanyId == employee.CompanyId && s.IsActive)
-            .OrderBy(s => s.StartTime)
-            .FirstOrDefaultAsync(ct);
+        var shift = await shiftResolver.ResolveAsync(employeeId, today, ct);
 
         var record = await db.AttendanceRecords
             .Include(r => r.Employee)

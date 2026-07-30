@@ -1,7 +1,9 @@
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Features.Leaves.Commands.CreateLeaveRequest;
 using Hrms.Application.Features.Leaves.Dtos;
+using Hrms.Application.Features.Leaves.Queries.GetLeaveRequestById;
 using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +13,9 @@ namespace Hrms.Application.Features.Leaves.Commands.ApproveLeaveRequest;
 public class ApproveLeaveRequestHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
-    ILeaveNotificationService notification)
+    IPermissionService permService,
+    ILeaveNotificationService notification,
+    IAuditLogService auditLog)
     : IRequestHandler<ApproveLeaveRequestCommand, LeaveRequestDto>
 {
     public async Task<LeaveRequestDto> Handle(ApproveLeaveRequestCommand request, CancellationToken ct)
@@ -30,8 +34,7 @@ public class ApproveLeaveRequestHandler(
         switch (r.Status)
         {
             case LeaveStatus.PendingSupervisor:
-                if (!currentUser.IsSupervisorOrAbove())
-                    throw new AppForbiddenException("ต้องมีสิทธิ์ Supervisor ขึ้นไปจึงจะอนุมัติในขั้นตอนนี้ได้");
+                await currentUser.ThrowIfNoPermissionAsync(permService, "leave:approve-supervisor", ct);
 
                 r.Status = LeaveStatus.PendingHr;
                 r.SupervisorId = actorId;
@@ -40,8 +43,7 @@ public class ApproveLeaveRequestHandler(
                 break;
 
             case LeaveStatus.PendingHr:
-                if (!currentUser.IsAdminOrHr())
-                    throw new AppForbiddenException("ต้องมีสิทธิ์ HR ขึ้นไปจึงจะอนุมัติในขั้นตอนนี้ได้");
+                await currentUser.ThrowIfNoPermissionAsync(permService, "leave:approve-hr", ct);
 
                 r.Status = LeaveStatus.Approved;
                 r.HrId = actorId;
@@ -65,11 +67,24 @@ public class ApproveLeaveRequestHandler(
                 throw new ConflictException("INVALID_STATUS", "คำขอนี้ไม่อยู่ในสถานะรออนุมัติ");
         }
 
+        var oldStatus = r.Status == LeaveStatus.PendingHr ? LeaveStatus.PendingSupervisor : LeaveStatus.PendingHr;
         r.UpdatedAt = now;
         await db.SaveChangesAsync(ct);
 
+        await auditLog.LogAsync(
+            module:      "leave",
+            entityType:  "LeaveRequest",
+            entityId:    r.Id.ToString(),
+            action:      "approve",
+            description: $"อนุมัติคำขอลาของ {r.Employee.FirstName} {r.Employee.LastName} ({r.LeaveType.NameTh} {r.DateFrom:yyyy-MM-dd} ถึง {r.DateTo:yyyy-MM-dd}) สถานะ: {oldStatus} → {r.Status}",
+            oldValues:   new { status = oldStatus.ToString() },
+            newValues:   new { status = r.Status.ToString(), comment = request.Comment },
+            ct:          ct);
+
         if (r.Status == LeaveStatus.Approved)
             await notification.EnqueueResultAsync(r.Id);
+
+        var (supervisorName, hrName) = await GetLeaveRequestByIdHandler.LookupApproverNamesAsync(db, r.SupervisorId, r.HrId, ct);
 
         return new LeaveRequestDto(
             r.Id,
@@ -83,9 +98,11 @@ public class ApproveLeaveRequestHandler(
             r.TimeTo,
             r.TotalDays,
             r.Reason,
-            r.AttachmentUrl,
+            CreateLeaveRequestHandler.ParseUrls(r.AttachmentUrl),
             r.Status,
+            supervisorName,
             r.SupervisorComment,
+            hrName,
             r.HrComment,
             r.CreatedAt);
     }

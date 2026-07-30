@@ -1,6 +1,7 @@
 using Hrms.Application.Common.Models;
 using Hrms.Application.Features.Auth.Dtos;
 using Hrms.Domain.Entities;
+using Hrms.Domain.Constants;
 
 namespace Hrms.Application.Features.Auth.Common;
 
@@ -10,7 +11,11 @@ public static class AuthMappingExtensions
     {
         var roles = employee.Roles
             .Where(r => r.IsActive)
-            .Select(r => new RoleClaim(r.Role.ToString(), r.CompanyId, r.DepartmentId))
+            .Select(r => new RoleClaim(
+                r.RoleId,
+                SystemRoleIds.ToCode(r.RoleId).ToString(),
+                r.CompanyId,
+                r.DepartmentId))
             .ToList();
 
         return new AuthEmployeeDto(

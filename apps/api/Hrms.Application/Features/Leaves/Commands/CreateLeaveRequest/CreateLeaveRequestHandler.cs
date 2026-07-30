@@ -1,6 +1,6 @@
+using System.Text.Json;
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
-using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Leaves.Dtos;
 using Hrms.Domain.Entities;
@@ -13,8 +13,10 @@ namespace Hrms.Application.Features.Leaves.Commands.CreateLeaveRequest;
 public class CreateLeaveRequestHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
+    IPermissionService permService,
     IWorkingDayCalculator workingDayCalc,
-    ILeaveNotificationService notification)
+    ILeaveNotificationService notification,
+    IAuditLogService auditLog)
     : IRequestHandler<CreateLeaveRequestCommand, LeaveRequestDto>
 {
     public async Task<LeaveRequestDto> Handle(CreateLeaveRequestCommand request, CancellationToken ct)
@@ -72,9 +74,9 @@ public class CreateLeaveRequestHandler(
         if (balance is null || balance.RemainingDays < totalDays)
             throw new ConflictException("INSUFFICIENT_BALANCE", "วันลาคงเหลือไม่เพียงพอ");
 
-        // Supervisor ขึ้นไป → ข้าม Supervisor stage ไปเลย เข้า PendingHr ทันที
-        var isSupervisorOrAbove = currentUser.IsSupervisorOrAbove();
-        var initialStatus = isSupervisorOrAbove ? LeaveStatus.PendingHr : LeaveStatus.PendingSupervisor;
+        // ผู้ที่มี leave:approve-supervisor → ข้าม Supervisor stage ไปเลย เข้า PendingHr ทันที
+        var canApproveSupervisor = await permService.HasPermissionAsync(currentUser, "leave:approve-supervisor", ct);
+        var initialStatus = canApproveSupervisor ? LeaveStatus.PendingHr : LeaveStatus.PendingSupervisor;
 
         var leaveRequest = new LeaveRequest
         {
@@ -87,17 +89,29 @@ public class CreateLeaveRequestHandler(
             TimeTo = request.TimeTo,
             TotalDays = totalDays,
             Reason = request.Reason,
-            AttachmentUrl = request.AttachmentUrl,
+            AttachmentUrl = request.AttachmentUrls is { Count: > 0 }
+                ? JsonSerializer.Serialize(request.AttachmentUrls)
+                : null,
             Status = initialStatus,
-            SupervisorId = isSupervisorOrAbove ? employeeId : null,
-            SupervisorApprovedAt = isSupervisorOrAbove ? DateTime.UtcNow : null,
-            SupervisorComment = isSupervisorOrAbove ? "อนุมัติอัตโนมัติ (ผู้ยื่นมีสิทธิ์ Supervisor)" : null,
+            SupervisorId = canApproveSupervisor ? employeeId : null,
+            SupervisorApprovedAt = canApproveSupervisor ? DateTime.UtcNow.AddHours(7) : null,
+            SupervisorComment = canApproveSupervisor ? "อนุมัติอัตโนมัติ (ผู้ยื่นมีสิทธิ์ Supervisor)" : null,
         };
 
         balance.PendingDays += totalDays;
 
         db.LeaveRequests.Add(leaveRequest);
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "leave",
+            entityType:  "LeaveRequest",
+            entityId:    leaveRequest.Id.ToString(),
+            action:      "create",
+            description: $"{employee.FirstName} {employee.LastName} ยื่นคำขอลา {leaveType.NameTh} {request.DateFrom:yyyy-MM-dd} ถึง {request.DateTo:yyyy-MM-dd} ({totalDays} วัน)",
+            oldValues:   null,
+            newValues:   new { leaveRequest.LeaveTypeId, leaveRequest.DateFrom, leaveRequest.DateTo, leaveRequest.HalfDay, leaveRequest.TotalDays, leaveRequest.Status },
+            ct:          ct);
 
         await notification.EnqueueApprovalPendingAsync(leaveRequest.Id);
 
@@ -113,10 +127,20 @@ public class CreateLeaveRequestHandler(
             leaveRequest.TimeTo,
             leaveRequest.TotalDays,
             leaveRequest.Reason,
-            leaveRequest.AttachmentUrl,
+            ParseUrls(leaveRequest.AttachmentUrl),
             leaveRequest.Status,
+            canApproveSupervisor ? $"{employee.FirstName} {employee.LastName}".Trim() : null,
             leaveRequest.SupervisorComment,
+            null,
             leaveRequest.HrComment,
             leaveRequest.CreatedAt);
+    }
+
+    // รองรับ data เก่าที่เป็น single URL string ด้วย fallback
+    internal static IReadOnlyList<string> ParseUrls(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try { return JsonSerializer.Deserialize<List<string>>(json) ?? []; }
+        catch { return [json]; }
     }
 }

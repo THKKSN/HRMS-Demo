@@ -16,7 +16,7 @@ export function PageHeader({ title, subtitle, backHref, action }: PageHeaderProp
         {backHref && (
           <Link
             href={backHref}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-whited hover:text-foreground"
           >
             <ChevronLeft className="h-5 w-5" />
           </Link>

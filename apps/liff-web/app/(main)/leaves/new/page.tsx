@@ -9,8 +9,9 @@ import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/style.css'
 import { useCreateLeave, useLeaveBalance, useLeaveTypes } from '@/hooks/use-leaves'
 import { useAttendanceToday } from '@/hooks/use-attendance'
-import { ChevronLeft, CalendarDays, Clock, FileText, AlertCircle } from 'lucide-react'
+import { ChevronLeft, CalendarDays, Clock, FileText, AlertCircle, Paperclip, X } from 'lucide-react'
 import Link from 'next/link'
+import { uploadLeaveAttachment } from '@/lib/upload.api'
 
 const today = new Date()
 today.setHours(0, 0, 0, 0)
@@ -87,6 +88,7 @@ export default function NewLeavePage() {
 
   const [range, setRange] = useState<{ from?: Date; to?: Date }>({})
   const [apiError, setApiError] = useState<string | null>(null)
+  const [attachFiles, setAttachFiles] = useState<File[]>([])
 
   const {
     register,
@@ -125,9 +127,39 @@ export default function NewLeavePage() {
     setValue('timeTo', undefined)
   }
 
+  const MAX_FILES = 5
+  const MAX_SIZE  = 10 * 1024 * 1024
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const incoming = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    const tooBig = incoming.filter(f => f.size > MAX_SIZE)
+    if (tooBig.length) {
+      setApiError(`ไฟล์ต่อไปนี้ใหญ่เกิน 10 MB: ${tooBig.map(f => f.name).join(', ')}`)
+      return
+    }
+    setAttachFiles(prev => {
+      const existing = new Set(prev.map(f => f.name + f.size))
+      const added = [...prev, ...incoming.filter(f => !existing.has(f.name + f.size))]
+      if (added.length > MAX_FILES) {
+        setApiError(`แนบได้สูงสุด ${MAX_FILES} ไฟล์`)
+        return prev.length < MAX_FILES ? added.slice(0, MAX_FILES) : prev
+      }
+      setApiError(null)
+      return added
+    })
+  }
+
+  function removeFile(idx: number) {
+    setAttachFiles(prev => prev.filter((_, i) => i !== idx))
+  }
+
   async function onSubmit(values: FormValues) {
     setApiError(null)
     try {
+      const attachmentUrls = attachFiles.length > 0
+        ? await Promise.all(attachFiles.map(f => uploadLeaveAttachment(f)))
+        : undefined
       const result = await createLeave({
         leaveTypeId: values.leaveTypeId,
         dateFrom: toISODate(values.dateFrom),
@@ -136,6 +168,7 @@ export default function NewLeavePage() {
         timeFrom: values.timeFrom,
         timeTo: values.timeTo,
         reason: values.reason,
+        attachmentUrls,
       })
       router.replace(`/leaves/${result.id}`)
     } catch (err: unknown) {
@@ -196,7 +229,7 @@ export default function NewLeavePage() {
 
           {typesLoading ? (
             <div className="flex gap-2">
-              {[1, 2, 3].map(i => <div key={i} className="h-9 w-24 animate-pulse rounded-full bg-muted" />)}
+              {[1, 2, 3].map(i => <div key={i} className="h-9 w-24 animate-pulse rounded-full bg-whited" />)}
             </div>
           ) : availableTypes?.length === 0 ? (
             <p className="text-sm text-muted-foreground">ไม่มีประเภทการลาที่มีโควต้าเหลือ</p>
@@ -257,8 +290,8 @@ export default function NewLeavePage() {
               disabled:      'opacity-30 pointer-events-none',
               outside:       'opacity-0 pointer-events-none',
               nav:           'flex items-center justify-between px-1 mb-2',
-              button_previous: 'h-8 w-8 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground',
-              button_next:     'h-8 w-8 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground',
+              button_previous: 'h-8 w-8 flex items-center justify-center rounded-full hover:bg-whited transition-colors text-muted-foreground',
+              button_next:     'h-8 w-8 flex items-center justify-center rounded-full hover:bg-whited transition-colors text-muted-foreground',
               month_caption:   'flex-1 text-center text-sm font-semibold',
               caption_label:   'text-sm font-semibold',
             }}
@@ -294,7 +327,7 @@ export default function NewLeavePage() {
             </div>
 
             {/* เวลาเริ่ม / สิ้นสุด — list row style */}
-            <div className="divide-y rounded-xl border bg-muted overflow-hidden">
+            <div className="divide-y rounded-xl border bg-whited overflow-hidden">
               <label className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm text-muted-foreground">เวลาเริ่มต้น</span>
                 <input
@@ -338,7 +371,7 @@ export default function NewLeavePage() {
                         className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
                           selected
                             ? 'border-primary bg-primary text-white'
-                            : 'border-border bg-muted text-foreground'
+                            : 'border-border bg-whited text-foreground'
                         }`}
                       >
                         {label}
@@ -386,13 +419,70 @@ export default function NewLeavePage() {
             {...register('reason')}
             rows={3}
             placeholder="ระบุเหตุผลการลา..."
-            className="w-full resize-none rounded-xl border bg-muted px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-full resize-none rounded-xl border bg-whited px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <div className="mt-1 flex justify-end">
             <span className={`text-xs ${reason.length > 450 ? 'text-destructive' : 'text-muted-foreground'}`}>
               {reason.length}/500
             </span>
           </div>
+        </div>
+
+        {/* เอกสารแนบ */}
+        <div className="rounded-2xl bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-2">
+            <Paperclip className="h-4 w-4 text-primary" />
+            <span className="text-sm font-semibold">
+              เอกสารแนบ{selectedType?.requiresAttachment
+                ? <span className="ml-1 text-destructive">*</span>
+                : <span className="ml-1 font-normal text-muted-foreground">(ถ้ามี)</span>}
+            </span>
+            {attachFiles.length > 0 && (
+              <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                {attachFiles.length} ไฟล์
+              </span>
+            )}
+          </div>
+
+          {attachFiles.length > 0 && (
+            <div className="mb-3 space-y-2">
+              {attachFiles.map((file, idx) => (
+                <div key={idx} className="flex items-center gap-3 rounded-xl border border-border bg-whited p-2.5">
+                  {file.type.startsWith('image/') ? (
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={file.name}
+                      className="h-10 w-10 rounded-lg object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <FileText className="h-5 w-5 text-primary" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p>
+                  </div>
+                  <button type="button" onClick={() => removeFile(idx)} className="shrink-0 rounded-full p-1 hover:bg-destructive/10">
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {attachFiles.length < MAX_FILES ? (
+            <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border py-4 transition-colors hover:border-primary/50 hover:bg-primary/5">
+              <Paperclip className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">
+                {attachFiles.length > 0 ? 'แตะเพื่อเพิ่มไฟล์อีก' : 'แตะเพื่อเลือกไฟล์'}
+              </span>
+              <span className="text-xs text-muted-foreground/70">.jpg .jpeg .png .pdf · สูงสุด 10 MB/ไฟล์ · ไม่เกิน {MAX_FILES} ไฟล์</span>
+              <input type="file" accept=".jpg,.jpeg,.png,.pdf" multiple className="hidden" onChange={handleFileChange} />
+            </label>
+          ) : (
+            <p className="text-center text-xs text-muted-foreground py-2">แนบครบ {MAX_FILES} ไฟล์แล้ว</p>
+          )}
         </div>
 
         {/* API Error */}

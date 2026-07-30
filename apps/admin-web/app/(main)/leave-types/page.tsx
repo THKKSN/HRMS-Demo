@@ -224,7 +224,7 @@ export default function LeaveTypesPage() {
       <div className="overflow-hidden rounded-lg border border-border bg-background">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/50">
+            <tr className="border-b border-border bg-whited/50">
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">รหัส</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อภาษาไทย</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">วันต่อปี</th>
@@ -238,7 +238,7 @@ export default function LeaveTypesPage() {
                 <tr key={i} className="border-b border-border">
                   {Array.from({ length: 6 }).map((__, j) => (
                     <td key={j} className="px-4 py-3">
-                      <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                      <div className="h-4 w-20 animate-pulse rounded bg-whited" />
                     </td>
                   ))}
                 </tr>
@@ -252,7 +252,7 @@ export default function LeaveTypesPage() {
             )}
             {!isLoading &&
               leaveTypes?.map((lt) => (
-                <tr key={lt.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                <tr key={lt.id} className="border-b border-border last:border-0 hover:bg-whited/30 transition-colors">
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{lt.code}</td>
                   <td className="px-4 py-3 font-medium">{lt.nameTh}
                     {lt.nameEn && <span className="ml-1.5 text-xs text-muted-foreground">({lt.nameEn})</span>}

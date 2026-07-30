@@ -1,5 +1,7 @@
+using System.Text.Json;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Domain.Enums;
+using Hrms.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Infrastructure.Jobs;
@@ -23,6 +25,7 @@ public class LeaveNotificationJob(IApplicationDbContext db, ILineMessagingServic
         var targetRole = request.Status == LeaveStatus.PendingHr
             ? RoleType.Hr
             : RoleType.Supervisor;
+        var targetRoleId = SystemRoleIds.FromCode(targetRole);
 
         var altText = $"📋 {employeeName} ขอลา{request.LeaveType.NameTh} {dateRange} ({request.TotalDays} วัน)";
         var text    = $"{employeeName} ขอลา{request.LeaveType.NameTh}\n{dateRange} ({request.TotalDays} วัน)\nกรุณาพิจารณาอนุมัติ";
@@ -33,7 +36,7 @@ public class LeaveNotificationJob(IApplicationDbContext db, ILineMessagingServic
         var recipientLineIds = await db.EmployeeRoles
             .Include(r => r.Employee)
             .Where(r =>
-                r.Role     == targetRole &&
+                r.RoleId   == targetRoleId &&
                 r.IsActive &&
                 r.Employee.IsActive &&
                 r.Employee.CompanyId  == companyId &&
@@ -42,8 +45,20 @@ public class LeaveNotificationJob(IApplicationDbContext db, ILineMessagingServic
             .Distinct()
             .ToListAsync();
 
+        // ถ้าอยู่ใน PendingHr แสดงว่า Supervisor อนุมัติแล้ว — แสดงชื่อ Supervisor ใน card
+        string? priorApproverName = null;
+        if (request.Status == LeaveStatus.PendingHr && request.SupervisorId.HasValue)
+        {
+            var sup = await db.Employees
+                .Where(e => e.Id == request.SupervisorId.Value)
+                .Select(e => new { Name = (e.FirstName + " " + e.LastName).Trim() })
+                .FirstOrDefaultAsync();
+            priorApproverName = sup?.Name;
+        }
+
+        var attachmentCount = CountAttachments(request.AttachmentUrl);
         var card = BuildApprovalCard(employeeName, request.LeaveType.NameTh, dateRange,
-            request.TotalDays, request.Reason, approveData, rejectData);
+            request.TotalDays, request.Reason, attachmentCount, priorApproverName, approveData, rejectData);
 
         foreach (var lineUserId in recipientLineIds)
         {
@@ -79,16 +94,38 @@ public class LeaveNotificationJob(IApplicationDbContext db, ILineMessagingServic
 
         var approved   = request.Status == LeaveStatus.Approved;
         var dateRange  = $"{request.DateFrom:dd/MM/yyyy} – {request.DateTo:dd/MM/yyyy}";
+
+        // ผู้ตัดสินใจสุดท้าย: Approved → HrId, Rejected → HrId ถ้ามี ไม่งั้น SupervisorId
+        var finalApproverId = request.HrId ?? request.SupervisorId;
+        string? finalApproverName = null;
+        if (finalApproverId.HasValue)
+        {
+            var approver = await db.Employees
+                .Where(e => e.Id == finalApproverId.Value)
+                .Select(e => new { Name = (e.FirstName + " " + e.LastName).Trim() })
+                .FirstOrDefaultAsync();
+            finalApproverName = approver?.Name;
+        }
+
         var resultCard = BuildResultCard(
-            request.LeaveType.NameTh, dateRange, request.TotalDays, approved, request.HrComment ?? request.SupervisorComment);
+            request.LeaveType.NameTh, dateRange, request.TotalDays, approved,
+            finalApproverName, request.HrComment ?? request.SupervisorComment);
 
         try { await line.PushFlexMessageAsync(request.Employee.LineUserId, message, resultCard); }
         catch { /* เงียบๆ ข้าม ถ้า push ไม่ได้ */ }
     }
 
+    private static int CountAttachments(string? attachmentUrl)
+    {
+        if (string.IsNullOrWhiteSpace(attachmentUrl)) return 0;
+        try { return JsonSerializer.Deserialize<List<string>>(attachmentUrl)?.Count ?? 0; }
+        catch { return 1; }
+    }
+
     private static object BuildApprovalCard(
         string employeeName, string leaveTypeName, string dateRange,
-        decimal totalDays, string? reason, string approveData, string rejectData) => new
+        decimal totalDays, string? reason, int attachmentCount,
+        string? priorApproverName, string approveData, string rejectData) => new
     {
         type = "bubble",
         header = new
@@ -152,7 +189,29 @@ public class LeaveNotificationJob(IApplicationDbContext db, ILineMessagingServic
                             new { type = "text", text = reason, size = "sm", color = "#111111", flex = 5, wrap = true }
                         }
                     }
-                    : new { type = "separator", margin = "sm" }
+                    : new { type = "separator", margin = "sm" },
+                priorApproverName is not null
+                    ? (object)new
+                    {
+                        type = "box", layout = "horizontal", margin = "sm",
+                        contents = new object[]
+                        {
+                            new { type = "text", text = "หัวหน้าอนุมัติ", size = "sm", color = "#888888", flex = 3 },
+                            new { type = "text", text = $"✅ {priorApproverName}", size = "sm", color = "#1DB446", flex = 5, wrap = true }
+                        }
+                    }
+                    : new { type = "separator", margin = "xs" },
+                attachmentCount > 0
+                    ? (object)new
+                    {
+                        type = "box", layout = "horizontal", margin = "sm",
+                        contents = new object[]
+                        {
+                            new { type = "text", text = "เอกสารแนบ", size = "sm", color = "#888888", flex = 3 },
+                            new { type = "text", text = $"📎 มีเอกสารแนบ {attachmentCount} ไฟล์", size = "sm", color = "#1E6FBA", flex = 5, wrap = true }
+                        }
+                    }
+                    : new { type = "separator", margin = "xs" }
             }
         },
         footer = new
@@ -175,7 +234,8 @@ public class LeaveNotificationJob(IApplicationDbContext db, ILineMessagingServic
     };
 
     private static object BuildResultCard(
-        string leaveTypeName, string dateRange, decimal totalDays, bool approved, string? comment) => new
+        string leaveTypeName, string dateRange, decimal totalDays, bool approved,
+        string? approverName, string? comment) => new
     {
         type = "bubble",
         header = new
@@ -224,6 +284,17 @@ public class LeaveNotificationJob(IApplicationDbContext db, ILineMessagingServic
                         new { type = "text", text = $"{totalDays} วัน", size = "sm", color = "#111111", flex = 5 }
                     }
                 },
+                approverName is not null
+                    ? (object)new
+                    {
+                        type = "box", layout = "horizontal", margin = "sm",
+                        contents = new object[]
+                        {
+                            new { type = "text", text = "ผู้อนุมัติ", size = "sm", color = "#888888", flex = 3 },
+                            new { type = "text", text = approverName, size = "sm", color = "#111111", flex = 5, wrap = true }
+                        }
+                    }
+                    : new { type = "separator", margin = "sm" },
                 !string.IsNullOrWhiteSpace(comment)
                     ? (object)new
                     {

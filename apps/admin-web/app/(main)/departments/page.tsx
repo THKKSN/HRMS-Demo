@@ -15,6 +15,7 @@ import { Modal } from '@/components/ui/modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { useCompanies } from '@/hooks/use-companies'
 import { useDepartments, useCreateDepartment, useUpdateDepartment } from '@/hooks/use-departments'
+import { useShifts } from '@/hooks/use-shifts'
 import type { DepartmentListItemDto } from '@hrms/shared-types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -125,6 +126,7 @@ function CreateDeptModal({
 const editDeptSchema = z.object({
   name: z.string().min(1, 'กรุณากรอกชื่อแผนก').max(200),
   deptType: z.string().max(100).optional().or(z.literal('')),
+  shiftId: z.string().optional().or(z.literal('')),
 })
 
 type EditDeptFormValues = z.infer<typeof editDeptSchema>
@@ -139,12 +141,16 @@ function EditDeptModal({
   const update = useUpdateDepartment()
   const [deactivateConfirm, setDeactivateConfirm] = useState(false)
 
+  const { data: shifts = [] } = useShifts(dept.companyId)
+  const activeShifts = shifts.filter((s) => s.isActive)
+
   const { register, handleSubmit, setError, getValues, formState: { errors, isSubmitting, isDirty } } =
     useForm<EditDeptFormValues>({
       resolver: zodResolver(editDeptSchema),
       defaultValues: {
         name: dept.name,
         deptType: dept.deptType ?? '',
+        shiftId: dept.shiftId ?? '',
       },
     })
 
@@ -154,6 +160,7 @@ function EditDeptModal({
         id: dept.id,
         name: values.name,
         deptType: values.deptType || undefined,
+        shiftId: values.shiftId || null,
         isActive,
       })
       toast.success('อัปเดตข้อมูลแผนกสำเร็จ')
@@ -181,6 +188,18 @@ function EditDeptModal({
             <Label htmlFor="ed-type">ประเภทแผนก</Label>
             <Input id="ed-type" {...register('deptType')} placeholder="เช่น ฝ่าย, แผนก, ส่วน" />
             <FieldError message={errors.deptType?.message} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="ed-shift">กะการทำงานเริ่มต้น</Label>
+            <Select id="ed-shift" {...register('shiftId')}>
+              <option value="">— ใช้กะของบริษัท —</option>
+              {activeShifts.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.startTime.slice(0, 5)}–{s.endTime.slice(0, 5)})
+                </option>
+              ))}
+            </Select>
           </div>
 
           {errors.root && <p className="text-sm text-destructive">{errors.root.message}</p>}
@@ -282,7 +301,7 @@ export default function DepartmentsPage() {
       <div className="rounded-lg border border-border bg-background overflow-hidden">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/40">
+            <tr className="border-b border-border bg-whited/40">
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อแผนก</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">ประเภท</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">บริษัท</th>
@@ -299,7 +318,7 @@ export default function DepartmentsPage() {
                 <tr key={i} className="border-b border-border last:border-0">
                   {Array.from({ length: 6 }).map((_, j) => (
                     <td key={j} className="px-4 py-3">
-                      <div className="h-4 animate-pulse rounded bg-muted" />
+                      <div className="h-4 animate-pulse rounded bg-whited" />
                     </td>
                   ))}
                 </tr>
@@ -314,7 +333,7 @@ export default function DepartmentsPage() {
               departments.map((dept) => (
                 <tr
                   key={dept.id}
-                  className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                  className="border-b border-border last:border-0 hover:bg-whited/30 transition-colors"
                 >
                   <td className="px-4 py-3">
                     <span className={dept.isActive ? 'text-foreground font-medium' : 'text-muted-foreground line-through'}>

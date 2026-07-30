@@ -14,8 +14,10 @@ public record LeaveRequestDto(
     TimeOnly? TimeTo,
     decimal TotalDays,
     string? Reason,
-    string? AttachmentUrl,
+    IReadOnlyList<string> AttachmentUrls,
     LeaveStatus Status,
+    string? SupervisorName,
     string? SupervisorComment,
+    string? HrName,
     string? HrComment,
     DateTime CreatedAt);

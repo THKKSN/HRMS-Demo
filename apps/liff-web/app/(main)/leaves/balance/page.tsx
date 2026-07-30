@@ -15,7 +15,7 @@ export default function LeaveBalancePage() {
       <div className="flex flex-col gap-4 px-4 pb-24 pt-4">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-whited" />
           ))
         ) : !balances?.length ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -31,7 +31,7 @@ export default function LeaveBalancePage() {
             const isLow = b.remainingDays <= 1
 
             return (
-              <div key={b.leaveTypeId} className="rounded-xl border bg-card p-4 shadow-sm">
+              <div key={b.leaveTypeId} className="rounded-xl border bg-white p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-medium">{b.leaveTypeName}</p>
                   <span className={`text-sm font-semibold ${isLow ? 'text-destructive' : 'text-foreground'}`}>
@@ -40,7 +40,7 @@ export default function LeaveBalancePage() {
                 </div>
 
                 {/* Progress bar */}
-                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
+                <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-whited">
                   <div className="flex h-full">
                     <div
                       className="h-full rounded-l-full bg-primary transition-all"

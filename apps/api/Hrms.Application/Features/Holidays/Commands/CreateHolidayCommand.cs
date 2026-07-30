@@ -23,7 +23,7 @@ public class CreateHolidayCommandValidator : AbstractValidator<CreateHolidayComm
     }
 }
 
-public class CreateHolidayHandler(IApplicationDbContext db, IScopeGuard scope)
+public class CreateHolidayHandler(IApplicationDbContext db, IScopeGuard scope, IAuditLogService auditLog)
     : IRequestHandler<CreateHolidayCommand, HolidayDto>
 {
     public async Task<HolidayDto> Handle(CreateHolidayCommand request, CancellationToken ct)
@@ -57,6 +57,16 @@ public class CreateHolidayHandler(IApplicationDbContext db, IScopeGuard scope)
         if (holiday.CompanyId.HasValue)
             holiday.Company = await db.Companies
                 .FirstOrDefaultAsync(c => c.Id == holiday.CompanyId.Value, ct);
+
+        await auditLog.LogAsync(
+            module:      "holiday",
+            entityType:  "Holiday",
+            entityId:    holiday.Id.ToString(),
+            action:      "create",
+            description: $"สร้างวันหยุด '{holiday.Name}' วันที่ {holiday.Date:yyyy-MM-dd}",
+            oldValues:   null,
+            newValues:   new { holiday.Name, holiday.Date, holiday.CompanyId },
+            ct:          ct);
 
         return ToDto(holiday);
     }

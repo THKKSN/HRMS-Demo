@@ -74,6 +74,10 @@ bld/
 *.snupkg
 *.[Cc]ache
 TestResults/
+test-results/
+playwright-report/
+blob-report/
+backups/database/
 
 # Next.js
 .next/

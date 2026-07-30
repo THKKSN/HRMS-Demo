@@ -24,7 +24,7 @@ public class UpdateCompanyValidator : AbstractValidator<UpdateCompanyCommand>
     }
 }
 
-public class UpdateCompanyHandler(IApplicationDbContext db, IScopeGuard scope)
+public class UpdateCompanyHandler(IApplicationDbContext db, IScopeGuard scope, IAuditLogService auditLog)
     : IRequestHandler<UpdateCompanyCommand, CompanyDto>
 {
     public async Task<CompanyDto> Handle(UpdateCompanyCommand request, CancellationToken ct)
@@ -59,14 +59,26 @@ public class UpdateCompanyHandler(IApplicationDbContext db, IScopeGuard scope)
             parentName = parent.Name;
         }
 
+        var oldValues = new { company.Name, company.NameEn, company.ParentId, company.IsActive, company.IsHeadquarters };
+
         company.Name           = request.Name;
         company.NameEn         = request.NameEn;
         company.ParentId       = request.ParentId;
         company.IsActive       = request.IsActive;
         company.IsHeadquarters = request.IsHeadquarters;
-        company.UpdatedAt      = DateTime.UtcNow;
+        company.UpdatedAt      = DateTime.UtcNow.AddHours(7);
 
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "company",
+            entityType:  "Company",
+            entityId:    company.Id.ToString(),
+            action:      "update",
+            description: $"แก้ไขข้อมูลบริษัท '{company.Name}'",
+            oldValues:   oldValues,
+            newValues:   new { company.Name, company.NameEn, company.ParentId, company.IsActive, company.IsHeadquarters },
+            ct:          ct);
 
         return new CompanyDto(
             company.Id,

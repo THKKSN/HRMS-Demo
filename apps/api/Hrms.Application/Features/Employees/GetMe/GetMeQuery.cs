@@ -2,6 +2,7 @@ using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Common.Models;
 using Hrms.Application.Features.Employees.Dtos;
+using Hrms.Domain.Constants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,7 +27,11 @@ public class GetMeHandler(IApplicationDbContext db, ICurrentUser currentUser)
             ?? throw new AppUnauthorizedException("Employee not found.");
 
         var roles = employee.Roles
-            .Select(r => new RoleClaim(r.Role.ToString(), r.CompanyId, r.DepartmentId))
+            .Select(r => new RoleClaim(
+                r.RoleId,
+                SystemRoleIds.ToCode(r.RoleId).ToString(),
+                r.CompanyId,
+                r.DepartmentId))
             .ToList();
 
         return new EmployeeProfileDto(

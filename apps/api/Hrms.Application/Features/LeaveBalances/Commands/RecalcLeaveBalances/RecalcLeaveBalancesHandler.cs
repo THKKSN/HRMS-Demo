@@ -7,13 +7,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.LeaveBalances.Commands.RecalcLeaveBalances;
 
-public class RecalcLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser currentUser, IScopeGuard scope)
+public class RecalcLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser currentUser, IScopeGuard scope, IPermissionService permService)
     : IRequestHandler<RecalcLeaveBalancesCommand, int>
 {
     public async Task<int> Handle(RecalcLeaveBalancesCommand request, CancellationToken ct)
     {
-        if (!currentUser.IsAdminOrHr())
-            throw new AppForbiddenException("ต้องมีสิทธิ์ HR หรือ Admin จึงจะคำนวณวันลาได้");
+        await currentUser.ThrowIfNoPermissionAsync(permService, "leave:manage-balance", ct);
 
         Guid companyId;
         if (request.CompanyId.HasValue)
@@ -65,7 +64,7 @@ public class RecalcLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser c
                 if (existingLookup.TryGetValue((employeeId, lt.Id), out var existing))
                 {
                     existing.TotalDays = lt.DefaultDaysPerYear;
-                    existing.UpdatedAt = DateTime.UtcNow;
+                    existing.UpdatedAt = DateTime.UtcNow.AddHours(7);
                 }
                 else
                 {

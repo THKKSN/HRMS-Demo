@@ -101,16 +101,16 @@ function CreateModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="เพิ่มกะงานใหม่">
+    <Modal open={open} onClose={onClose} title="เพิ่มเวลาทำงานใหม่">
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="c-company">บริษัท *</Label>
+          <Label htmlFor="c-company">บริษัท <span className='text-red-500'>*</span></Label>
           <select
             id="c-company"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             {...register('companyId')}
           >
-            <option value="">— เลือกบริษัท —</option>
+            <option value="">เลือกบริษัท</option>
             {companies?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -121,19 +121,19 @@ function CreateModal({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="c-name">ชื่อกะ *</Label>
+          <Label htmlFor="c-name">ชื่อ <span className='text-red-500'>*</span></Label>
           <Input id="c-name" placeholder="เช่น กะเช้า" {...register('name')} />
           <FieldError message={errors.name?.message} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="c-start">เวลาเข้างาน *</Label>
+            <Label htmlFor="c-start">เวลาเข้างาน <span className='text-red-500'>*</span></Label>
             <Input id="c-start" type="time" {...register('startTime')} />
             <FieldError message={errors.startTime?.message} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="c-end">เวลาเลิกงาน *</Label>
+            <Label htmlFor="c-end">เวลาเลิกงาน <span className='text-red-500'>*</span></Label>
             <Input id="c-end" type="time" {...register('endTime')} />
             <FieldError message={errors.endTime?.message} />
           </div>
@@ -219,7 +219,7 @@ function EditModal({ item, onClose }: { item: ShiftDto; onClose: () => void }) {
   }
 
   return (
-    <Modal open onClose={onClose} title={`แก้ไขกะงาน: ${item.name}`}>
+    <Modal open onClose={onClose} title={`${item.name}`}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">
           <Label>บริษัท (ไม่สามารถเปลี่ยนได้)</Label>
@@ -228,19 +228,19 @@ function EditModal({ item, onClose }: { item: ShiftDto; onClose: () => void }) {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="e-name">ชื่อกะ *</Label>
+          <Label htmlFor="e-name">ชื่อกะ <span className='text-red-500'>*</span></Label>
           <Input id="e-name" {...register('name')} />
           <FieldError message={errors.name?.message} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="e-start">เวลาเข้างาน *</Label>
+            <Label htmlFor="e-start">เวลาเข้างาน <span className='text-red-500'>*</span></Label>
             <Input id="e-start" type="time" {...register('startTime')} />
             <FieldError message={errors.startTime?.message} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="e-end">เวลาเลิกงาน *</Label>
+            <Label htmlFor="e-end">เวลาเลิกงาน <span className='text-red-500'>*</span></Label>
             <Input id="e-end" type="time" {...register('endTime')} />
             <FieldError message={errors.endTime?.message} />
           </div>
@@ -311,7 +311,7 @@ export default function ShiftsPage() {
         <h1 className="text-xl font-semibold text-foreground">เวลาทำงาน</h1>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
-          เพิ่มกะงาน
+          เพิ่มเวลาทำงาน
         </Button>
       </div>
 
@@ -346,8 +346,8 @@ export default function ShiftsPage() {
       <div className="overflow-hidden rounded-lg border border-border bg-background">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/50">
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อกะ</th>
+            <tr className="border-b border-border bg-whited/50">
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อ</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">บริษัท</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">เข้างาน</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">เลิกงาน</th>
@@ -362,7 +362,7 @@ export default function ShiftsPage() {
                 <tr key={i} className="border-b border-border">
                   {Array.from({ length: 7 }).map((__, j) => (
                     <td key={j} className="px-4 py-3">
-                      <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                      <div className="h-4 w-20 animate-pulse rounded bg-whited" />
                     </td>
                   ))}
                 </tr>
@@ -380,7 +380,7 @@ export default function ShiftsPage() {
               shifts?.map((s) => (
                 <tr
                   key={s.id}
-                  className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                  className="border-b border-border last:border-0 hover:bg-whited/30 transition-colors"
                 >
                   <td className="px-4 py-3 font-medium">{s.name}</td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">{s.companyName}</td>

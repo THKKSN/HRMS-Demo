@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Calendar, Clock, User, ClipboardList,
-  MapPin, ChevronRight, History, TrendingUp,
+  MapPin, ChevronRight, History, TrendingUp, Briefcase,
+  MessageSquareWarning,
 } from "lucide-react";
 import { usePendingApprovals, useLeaveBalance } from "@/hooks/use-leaves";
 import { useAttendanceToday } from "@/hooks/use-attendance";
@@ -48,7 +49,7 @@ function AttendanceCard() {
     today?.status === "Present" ? "text-green-600 bg-green-50" :
     today?.status === "Late"    ? "text-yellow-700 bg-yellow-50" :
     today?.status === "Absent"  ? "text-red-600 bg-red-50" :
-    "text-muted-foreground bg-muted";
+    "text-muted-foreground bg-whited";
 
   const statusLabel =
     today?.status === "Present" ? "มาทำงาน" :
@@ -57,7 +58,7 @@ function AttendanceCard() {
     today?.status === "HalfDay" ? "ครึ่งวัน" : null;
 
   return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+    <div className="rounded-2xl border border-border bg-white overflow-hidden">
       {/* header row */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-2">
@@ -74,15 +75,15 @@ function AttendanceCard() {
       {/* times */}
       {isLoading ? (
         <div className="grid grid-cols-2 gap-3 px-4 py-3">
-          {[0,1].map(i => <div key={i} className="h-12 rounded-xl bg-muted animate-pulse" />)}
+          {[0,1].map(i => <div key={i} className="h-12 rounded-xl bg-whited animate-pulse" />)}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-2 px-4 pb-3">
-          <div className="rounded-xl bg-muted/50 px-3 py-2.5 text-center">
+          <div className="rounded-xl bg-whited/50 px-3 py-2.5 text-center">
             <p className="text-[10px] text-muted-foreground mb-0.5">เข้างาน</p>
             <p className="text-base font-bold tabular-nums">{formatTime(today?.checkInTime)}</p>
           </div>
-          <div className="rounded-xl bg-muted/50 px-3 py-2.5 text-center">
+          <div className="rounded-xl bg-whited/50 px-3 py-2.5 text-center">
             <p className="text-[10px] text-muted-foreground mb-0.5">ออกงาน</p>
             <p className="text-base font-bold tabular-nums">{formatTime(today?.checkOutTime)}</p>
           </div>
@@ -123,7 +124,7 @@ function LeaveBalanceCard() {
     .slice(0, 3);
 
   return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+    <div className="rounded-2xl border border-border bg-white overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-4 pb-3">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-primary" />
@@ -136,7 +137,7 @@ function LeaveBalanceCard() {
 
       {isLoading ? (
         <div className="px-4 pb-4 space-y-3">
-          {[0,1,2].map(i => <div key={i} className="h-8 rounded-lg bg-muted animate-pulse" />)}
+          {[0,1,2].map(i => <div key={i} className="h-8 rounded-lg bg-whited animate-pulse" />)}
         </div>
       ) : top.length === 0 ? (
         <p className="px-4 pb-4 text-sm text-muted-foreground">ยังไม่มีข้อมูลวันลา</p>
@@ -153,7 +154,7 @@ function LeaveBalanceCard() {
                     <span className="font-normal text-muted-foreground">/{b.totalDays} วัน</span>
                   </span>
                 </div>
-                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                <div className="h-1.5 w-full rounded-full bg-whited overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${pct >= 80 ? "bg-red-400" : pct >= 50 ? "bg-yellow-400" : "bg-green-400"}`}
                     style={{ width: `${pct}%` }}
@@ -184,7 +185,7 @@ function UpcomingHolidaysCard() {
   if (!isLoading && upcoming.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-border bg-card overflow-hidden">
+    <div className="rounded-2xl border border-border bg-white overflow-hidden">
       <div className="flex items-center gap-2 px-4 pt-4 pb-3">
         <Calendar className="h-4 w-4 text-primary" />
         <span className="text-sm font-semibold">วันหยุดที่กำลังจะมาถึง</span>
@@ -192,7 +193,7 @@ function UpcomingHolidaysCard() {
 
       {isLoading ? (
         <div className="px-4 pb-4 space-y-2">
-          {[0,1].map(i => <div key={i} className="h-10 rounded-xl bg-muted animate-pulse" />)}
+          {[0,1].map(i => <div key={i} className="h-10 rounded-xl bg-whited animate-pulse" />)}
         </div>
       ) : (
         <div className="divide-y divide-border">
@@ -209,7 +210,7 @@ function UpcomingHolidaysCard() {
                   </div>
                   <span className="text-sm font-medium">{h.name}</span>
                 </div>
-                <span className={`text-xs rounded-full px-2 py-0.5 font-medium ${diffDays === 0 ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                <span className={`text-xs rounded-full px-2 py-0.5 font-medium ${diffDays === 0 ? "bg-primary/10 text-primary" : "bg-whited text-muted-foreground"}`}>
                   {dayLabel}
                 </span>
               </div>
@@ -268,6 +269,8 @@ export default function HomePage() {
 
   const firstName = (profile?.fullName ?? employee?.fullName ?? "คุณ").split(" ")[0];
   const avatar    = profile?.avatarUrl ?? employee?.avatarUrl;
+  const canCreateTicket = employee?.roles.some(role =>
+    ['Employee', 'Supervisor', 'Hr', 'Admin'].includes(role.role)) ?? false;
 
   const infoLine = [profile?.companyName, profile?.departmentName]
     .filter(Boolean).join(" · ");
@@ -285,7 +288,7 @@ export default function HomePage() {
         {avatar ? (
           <img src={avatar} alt={firstName} className="h-12 w-12 rounded-full object-cover ring-2 ring-border" />
         ) : (
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted ring-2 ring-border">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-whited ring-2 ring-border">
             <User className="h-6 w-6 text-muted-foreground" />
           </div>
         )}
@@ -302,6 +305,30 @@ export default function HomePage() {
           </Link>
         ))}
       </div> */}
+
+      {/* Quick links */}
+      <div className="grid grid-cols-2 gap-2">
+        {canCreateTicket && <Link href="/tickets/new" className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 active:opacity-80">
+          <MessageSquareWarning className="h-5 w-5 shrink-0 text-emerald-700" />
+          <span className="text-sm font-semibold text-emerald-900">แจ้งเรื่องภายใน</span>
+          <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-emerald-500" />
+        </Link>}
+        {canCreateTicket && <Link href="/tickets/my" className="flex items-center gap-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 active:opacity-80">
+          <ClipboardList className="h-5 w-5 shrink-0 text-cyan-700" />
+          <span className="text-sm font-semibold text-cyan-900">เรื่องของฉัน</span>
+          <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-cyan-500" />
+        </Link>}
+        <Link href="/leaves/new" className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 active:opacity-80">
+          <Calendar className="h-5 w-5 text-blue-600 shrink-0" />
+          <span className="text-sm font-semibold text-blue-800">ขอลางาน</span>
+          <ChevronRight className="ml-auto h-4 w-4 text-blue-400 shrink-0" />
+        </Link>
+        <Link href="/ot/new" className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 active:opacity-80">
+          <Briefcase className="h-5 w-5 text-orange-600 shrink-0" />
+          <span className="text-sm font-semibold text-orange-800">ขอ OT</span>
+          <ChevronRight className="ml-auto h-4 w-4 text-orange-400 shrink-0" />
+        </Link>
+      </div>
 
       {/* Attendance */}
       <AttendanceCard />

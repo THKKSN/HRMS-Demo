@@ -25,7 +25,7 @@ public class UpdateWeeklyHolidayScheduleValidator : AbstractValidator<UpdateWeek
     }
 }
 
-public class UpdateWeeklyHolidayScheduleHandler(IApplicationDbContext db, IScopeGuard scope)
+public class UpdateWeeklyHolidayScheduleHandler(IApplicationDbContext db, IScopeGuard scope, IAuditLogService auditLog)
     : IRequestHandler<UpdateWeeklyHolidayScheduleCommand, WeeklyHolidayScheduleDto>
 {
     public async Task<WeeklyHolidayScheduleDto> Handle(
@@ -39,12 +39,25 @@ public class UpdateWeeklyHolidayScheduleHandler(IApplicationDbContext db, IScope
         if (schedule.CompanyId.HasValue)
             await scope.ThrowIfCannotAccessAsync(schedule.CompanyId.Value, ct);
 
+        var oldValues = new { schedule.Name, schedule.DayOfWeek, schedule.WorkDayOccurrences, schedule.IsActive };
+
         schedule.Name               = request.Name;
         schedule.DayOfWeek          = request.DayOfWeek;
         schedule.WorkDayOccurrences = request.WorkDayOccurrences.Distinct().OrderBy(x => x).ToList();
         schedule.IsActive           = request.IsActive;
 
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "weekly-holiday",
+            entityType:  "WeeklyHolidaySchedule",
+            entityId:    schedule.Id.ToString(),
+            action:      "update",
+            description: $"แก้ไขตารางวันหยุดประจำสัปดาห์ '{schedule.Name}'",
+            oldValues:   oldValues,
+            newValues:   new { schedule.Name, schedule.DayOfWeek, schedule.WorkDayOccurrences, schedule.IsActive },
+            ct:          ct);
+
         return GetWeeklyHolidaySchedulesHandler.ToDto(schedule);
     }
 }

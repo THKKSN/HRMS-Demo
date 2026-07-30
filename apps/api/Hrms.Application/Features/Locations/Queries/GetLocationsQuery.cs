@@ -12,13 +12,12 @@ public record GetLocationsQuery(
     Guid? CompanyId,
     bool IncludeInactive = false) : IRequest<IReadOnlyList<LocationDto>>;
 
-public class GetLocationsHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class GetLocationsHandler(IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permService)
     : IRequestHandler<GetLocationsQuery, IReadOnlyList<LocationDto>>
 {
     public async Task<IReadOnlyList<LocationDto>> Handle(GetLocationsQuery request, CancellationToken ct)
     {
-        if (!currentUser.IsAdminOrHr())
-            throw new AppForbiddenException("เฉพาะ HR / Admin เท่านั้นที่เข้าถึงได้");
+        await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-locations", ct);
 
         var query = db.Locations
             .Include(l => l.Province)

@@ -20,6 +20,9 @@ public class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
     public Guid? CompanyId =>
         Guid.TryParse(User?.FindFirstValue("company_id"), out var id) ? id : null;
 
+    public Guid? DepartmentId =>
+        Guid.TryParse(User?.FindFirstValue("department_id"), out var id) ? id : null;
+
     public IReadOnlyList<RoleClaim> Roles
     {
         get

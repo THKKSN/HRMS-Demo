@@ -6,6 +6,7 @@ using System.Text.Json;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Common.Models;
 using Hrms.Application.Common.Options;
+using Hrms.Domain.Constants;
 using Hrms.Domain.Entities;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -23,7 +24,11 @@ public class JwtService(IOptions<JwtOptions> options) : IJwtService
 
         var roleClaims = roles
             .Where(r => r.IsActive)
-            .Select(r => new RoleClaim(r.Role.ToString(), r.CompanyId, r.DepartmentId))
+            .Select(r => new RoleClaim(
+                r.RoleId,
+                SystemRoleIds.ToCode(r.RoleId).ToString(),
+                r.CompanyId,
+                r.DepartmentId))
             .ToList();
 
         var claims = new List<Claim>
@@ -33,6 +38,7 @@ public class JwtService(IOptions<JwtOptions> options) : IJwtService
             new("line_uid", employee.LineUserId ?? string.Empty),
             new("name", $"{employee.FirstName} {employee.LastName}".Trim()),
             new("company_id", employee.CompanyId.ToString()),
+            new("department_id", employee.DepartmentId?.ToString() ?? string.Empty),
             new("roles", JsonSerializer.Serialize(roleClaims))
         };
 

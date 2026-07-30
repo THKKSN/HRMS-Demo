@@ -22,7 +22,13 @@ public class GetEmployeeRolesHandler(IApplicationDbContext db, IScopeGuard scope
         return await db.EmployeeRoles
             .AsNoTracking()
             .Where(r => r.EmployeeId == request.EmployeeId)
-            .Select(r => new EmployeeRoleDto(r.Id, r.Role, r.CompanyId ?? employee.CompanyId, r.DepartmentId, r.IsActive))
+            .Select(r => new EmployeeRoleDto(
+                r.Id,
+                r.RoleId,
+                r.Role.Code,
+                r.CompanyId ?? employee.CompanyId,
+                r.DepartmentId,
+                r.IsActive))
             .ToListAsync(ct);
     }
 }

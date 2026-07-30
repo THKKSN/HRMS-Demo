@@ -1,0 +1,31 @@
+using Hrms.Domain.Enums;
+
+namespace Hrms.Application.Features.Tickets.Dtos;
+
+public record TicketInboxItemDto(
+    Guid Id,
+    string TicketNo,
+    string Title,
+    TicketStatus Status,
+    TicketPriority Priority,
+    Guid RequesterEmployeeId,
+    string RequesterName,
+    string? SourceDepartmentName,
+    Guid TargetCompanyId,
+    string TargetCompanyName,
+    Guid TargetDepartmentId,
+    string TargetDepartmentName,
+    Guid CategoryId,
+    string CategoryName,
+    Guid TopicId,
+    string TopicName,
+    string? OtherTopicText,
+    string? LocationText,
+    string? VehicleText,
+    bool IsAccepted,
+    DateTime? SupervisorAcceptedAt,
+    Guid? CurrentAssigneeEmployeeId,
+    string? CurrentAssigneeName,
+    string? AssignedByEmployeeName,
+    DateTime? AssignedAt,
+    DateTime CreatedAt);

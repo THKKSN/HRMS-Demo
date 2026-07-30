@@ -18,7 +18,7 @@ export type CreateLeaveBody = {
   timeFrom?: string
   timeTo?: string
   reason?: string
-  attachmentUrl?: string
+  attachmentUrls?: string[]
 }
 
 export const leavesApi = {
@@ -26,7 +26,7 @@ export const leavesApi = {
     api.get<LeaveTypeDto[]>('/leave-types').then(r => r.data),
 
   getMyLeaves: (params?: { page?: number; pageSize?: number; status?: LeaveStatus }) =>
-    api.get<PagedResult<LeaveRequestListItemDto>>('/leaves', { params }).then(r => r.data),
+    api.get<PagedResult<LeaveRequestListItemDto>>('/leaves', { params: { ...params, myOnly: true } }).then(r => r.data),
 
   getLeaveById: (id: string) =>
     api.get<LeaveRequestDto>(`/leaves/${id}`).then(r => r.data),
@@ -36,6 +36,9 @@ export const leavesApi = {
 
   cancelLeave: (id: string) =>
     api.post<void>(`/leaves/${id}/cancel`).then(r => r.data),
+
+  requestCancelLeave: (id: string, reason?: string) =>
+    api.post<void>(`/leaves/${id}/request-cancellation`, { reason }).then(r => r.data),
 
   getMyLeaveBalance: (year: number) =>
     api

@@ -1,5 +1,6 @@
 using Hrms.Application.Common.Interfaces;
 using Hrms.Domain.Enums;
+using Hrms.Domain.Constants;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -50,8 +51,8 @@ public class ProcessLeaveWebhookHandler(
                 case LeaveStatus.PendingSupervisor:
                 {
                     var isSupervisor = actor.Roles.Any(r =>
-                        r.Role == RoleType.Supervisor || r.Role == RoleType.Hr ||
-                        r.Role == RoleType.Admin || r.Role == RoleType.Executive);
+                        r.RoleId == SystemRoleIds.Supervisor || r.RoleId == SystemRoleIds.Hr ||
+                        r.RoleId == SystemRoleIds.Admin || r.RoleId == SystemRoleIds.Executive);
 
                     if (!isSupervisor)
                     {
@@ -84,7 +85,7 @@ public class ProcessLeaveWebhookHandler(
                 case LeaveStatus.PendingHr:
                 {
                     var isHr = actor.Roles.Any(r =>
-                        r.Role == RoleType.Hr || r.Role == RoleType.Admin);
+                        r.RoleId == SystemRoleIds.Hr || r.RoleId == SystemRoleIds.Admin);
 
                     if (!isHr)
                     {

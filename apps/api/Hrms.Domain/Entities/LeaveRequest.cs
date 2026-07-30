@@ -16,6 +16,7 @@ public class LeaveRequest : BaseEntity
     public string? Reason { get; set; }
     public string? AttachmentUrl { get; set; }
     public LeaveStatus Status { get; set; } = LeaveStatus.PendingSupervisor;
+    public string? CancellationReason { get; set; }
     public Guid? SupervisorId { get; set; }
     public Guid? HrId { get; set; }
     public string? SupervisorComment { get; set; }

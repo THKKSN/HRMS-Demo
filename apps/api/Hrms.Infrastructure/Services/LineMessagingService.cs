@@ -11,6 +11,12 @@ public class LineMessagingService(
 {
     private readonly LineOptions _opts = options.Value;
 
+    public string BuildLiffUri(string path)
+    {
+        var normalizedPath = path.StartsWith('/') ? path : $"/{path}";
+        return $"https://liff.line.me/{Uri.EscapeDataString(_opts.LiffId)}{normalizedPath}";
+    }
+
     public async Task PushMessageAsync(string lineUserId, string message, CancellationToken ct = default)
     {
         await PushAsync(lineUserId,

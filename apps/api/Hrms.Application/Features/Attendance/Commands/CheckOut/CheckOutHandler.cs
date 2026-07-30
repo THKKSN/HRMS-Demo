@@ -10,7 +10,8 @@ namespace Hrms.Application.Features.Attendance.Commands.CheckOut;
 
 public class CheckOutHandler(
     IApplicationDbContext db,
-    ICurrentUser currentUser)
+    ICurrentUser currentUser,
+    IShiftResolver shiftResolver)
     : IRequestHandler<CheckOutCommand, AttendanceTodayDto>
 {
     public async Task<AttendanceTodayDto> Handle(CheckOutCommand request, CancellationToken ct)
@@ -38,10 +39,7 @@ public class CheckOutHandler(
 
         await db.SaveChangesAsync(ct);
 
-        var shift = await db.Shifts
-            .Where(s => s.CompanyId == record.Employee.CompanyId && s.IsActive)
-            .OrderBy(s => s.StartTime)
-            .FirstOrDefaultAsync(ct);
+        var shift = await shiftResolver.ResolveAsync(employeeId, today, ct);
 
         return record.ToTodayDto(shift);
     }

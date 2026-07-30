@@ -4,6 +4,7 @@ const CONFIG: Record<LeaveStatus, { label: string; className: string }> = {
   Draft:             { label: 'ร่าง',          className: 'bg-gray-100 text-gray-600' },
   PendingSupervisor: { label: 'รอหัวหน้า',     className: 'bg-amber-100 text-amber-700' },
   PendingHr:         { label: 'รอ HR',          className: 'bg-blue-100 text-blue-700' },
+  CancellationRequested: { label: 'รอยกเลิก',   className: 'bg-orange-100 text-orange-700' },
   Approved:          { label: 'อนุมัติแล้ว',   className: 'bg-green-100 text-green-700' },
   Rejected:          { label: 'ถูกปฏิเสธ',     className: 'bg-red-100 text-red-700' },
   Cancelled:         { label: 'ยกเลิกแล้ว',    className: 'bg-gray-100 text-gray-500' },

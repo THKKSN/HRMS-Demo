@@ -3,11 +3,14 @@ import type {
   EmployeeListItemDto,
   EmployeeDetailDto,
   EmployeeRoleDto,
-  RoleType,
   PagedResult,
 } from '@/types/admin'
+import type { EmployeeProfileDto } from '@hrms/shared-types'
 
 export const employeesApi = {
+  getMe: () =>
+    api.get<EmployeeProfileDto>('/employees/me').then((r) => r.data),
+
   getAll: (params?: { page?: number; pageSize?: number; search?: string; isActive?: boolean; companyId?: string }) =>
     api.get<PagedResult<EmployeeListItemDto>>('/employees', { params }).then((r) => r.data),
 
@@ -52,7 +55,7 @@ export const employeesApi = {
   getRoles: (id: string) =>
     api.get<EmployeeRoleDto[]>(`/employees/${id}/roles`).then((r) => r.data),
 
-  addRole: (id: string, body: { role: RoleType; departmentId?: string }) =>
+  addRole: (id: string, body: { roleId: string; departmentId?: string }) =>
     api.post<EmployeeRoleDto>(`/employees/${id}/roles`, body).then((r) => r.data),
 
   removeRole: (employeeId: string, roleId: string) =>

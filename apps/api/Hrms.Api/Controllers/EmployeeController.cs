@@ -39,9 +39,8 @@ public class EmployeeController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>รายการพนักงาน (Supervisor / HR / Admin)</summary>
+    /// <summary>รายการพนักงาน (ต้องมี employee:view permission)</summary>
     [HttpGet]
-    [Authorize(Policy = AuthPolicies.RequireSupervisor)]
     public async Task<IActionResult> GetEmployees(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
@@ -63,9 +62,8 @@ public class EmployeeController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>สร้างพนักงานใหม่ (HR / Admin เท่านั้น)</summary>
+    /// <summary>สร้างพนักงานใหม่ (ต้องมี employee:create permission)</summary>
     [HttpPost]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
     public async Task<IActionResult> CreateEmployee(
         [FromBody] CreateEmployeeRequest request,
         CancellationToken ct)
@@ -106,9 +104,8 @@ public class EmployeeController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>เปิด/ปิดการใช้งานพนักงาน (HR / Admin เท่านั้น)</summary>
+    /// <summary>เปิด/ปิดการใช้งานพนักงาน (ต้องมี employee:toggle-status permission)</summary>
     [HttpPatch("{id:guid}/status")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
     public async Task<IActionResult> ToggleStatus(
         Guid id,
         [FromBody] ToggleStatusRequest request,
@@ -127,30 +124,27 @@ public class EmployeeController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>เพิ่ม role ให้พนักงาน (HR / Admin เท่านั้น)</summary>
+    /// <summary>เพิ่ม role ให้พนักงาน (ต้องมี employee:assign-role permission)</summary>
     [HttpPost("{id:guid}/roles")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
     public async Task<IActionResult> AddRole(
         Guid id,
         [FromBody] AddRoleRequest request,
         CancellationToken ct)
     {
-        var result = await mediator.Send(new AddEmployeeRoleCommand(id, request.Role, request.DepartmentId), ct);
+        var result = await mediator.Send(new AddEmployeeRoleCommand(id, request.RoleId, request.DepartmentId), ct);
         return CreatedAtAction(nameof(GetRoles), new { id }, result);
     }
 
-    /// <summary>ลบ role ของพนักงาน (HR / Admin เท่านั้น)</summary>
+    /// <summary>ลบ role ของพนักงาน (ต้องมี employee:assign-role permission)</summary>
     [HttpDelete("{id:guid}/roles/{roleId:guid}")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
     public async Task<IActionResult> RemoveRole(Guid id, Guid roleId, CancellationToken ct)
     {
         await mediator.Send(new RemoveEmployeeRoleCommand(id, roleId), ct);
         return NoContent();
     }
 
-    /// <summary>ตั้ง / รีเซ็ตรหัสผ่านพนักงาน (HR / Admin เท่านั้น)</summary>
+    /// <summary>ตั้ง / รีเซ็ตรหัสผ่านพนักงาน (ต้องมี employee:reset-password permission)</summary>
     [HttpPut("{id:guid}/password")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
     public async Task<IActionResult> SetPassword(
         Guid id,
         [FromBody] SetPasswordRequest request,
@@ -186,4 +180,4 @@ public record UpdateEmployeeRequest(
 
 public record ToggleStatusRequest(bool IsActive);
 public record SetPasswordRequest(string NewPassword);
-public record AddRoleRequest(RoleType Role, Guid? DepartmentId);
+public record AddRoleRequest(Guid RoleId, Guid? DepartmentId);

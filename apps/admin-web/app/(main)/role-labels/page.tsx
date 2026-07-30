@@ -263,7 +263,7 @@ export default function RoleLabelsPage() {
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/40">
+              <tr className="border-b border-border bg-whited/40">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อตำแหน่ง</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">บริษัท</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">สถานะ</th>
@@ -276,7 +276,7 @@ export default function RoleLabelsPage() {
                   <tr key={i} className="border-b border-border last:border-0">
                     {[1, 2, 3, 4].map((j) => (
                       <td key={j} className="px-4 py-3">
-                        <div className="h-4 animate-pulse rounded bg-muted" />
+                        <div className="h-4 animate-pulse rounded bg-whited" />
                       </td>
                     ))}
                   </tr>
@@ -291,7 +291,7 @@ export default function RoleLabelsPage() {
                 labels.map((lbl) => (
                   <tr
                     key={lbl.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                    className="border-b border-border last:border-0 hover:bg-whited/30 transition-colors"
                   >
                     <td className="px-4 py-3">
                       <span className={lbl.isActive ? 'font-medium text-foreground' : 'text-muted-foreground line-through'}>

@@ -25,7 +25,7 @@ public class CreateWeeklyHolidayScheduleValidator : AbstractValidator<CreateWeek
     }
 }
 
-public class CreateWeeklyHolidayScheduleHandler(IApplicationDbContext db, IScopeGuard scope)
+public class CreateWeeklyHolidayScheduleHandler(IApplicationDbContext db, IScopeGuard scope, IAuditLogService auditLog)
     : IRequestHandler<CreateWeeklyHolidayScheduleCommand, WeeklyHolidayScheduleDto>
 {
     public async Task<WeeklyHolidayScheduleDto> Handle(
@@ -53,6 +53,16 @@ public class CreateWeeklyHolidayScheduleHandler(IApplicationDbContext db, IScope
         if (schedule.CompanyId.HasValue)
             schedule.Company = await db.Companies
                 .FirstOrDefaultAsync(c => c.Id == schedule.CompanyId.Value, ct);
+
+        await auditLog.LogAsync(
+            module:      "weekly-holiday",
+            entityType:  "WeeklyHolidaySchedule",
+            entityId:    schedule.Id.ToString(),
+            action:      "create",
+            description: $"สร้างตารางวันหยุดประจำสัปดาห์ '{schedule.Name}'",
+            oldValues:   null,
+            newValues:   new { schedule.Name, schedule.DayOfWeek, schedule.WorkDayOccurrences, schedule.CompanyId },
+            ct:          ct);
 
         return GetWeeklyHolidaySchedulesHandler.ToDto(schedule);
     }

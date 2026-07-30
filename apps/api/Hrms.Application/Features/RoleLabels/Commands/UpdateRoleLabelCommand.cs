@@ -19,16 +19,15 @@ public class UpdateRoleLabelValidator : AbstractValidator<UpdateRoleLabelCommand
     }
 }
 
-public class UpdateRoleLabelHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class UpdateRoleLabelHandler(IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permService, IAuditLogService auditLog)
     : IRequestHandler<UpdateRoleLabelCommand, RoleLabelDto>
 {
     public async Task<RoleLabelDto> Handle(UpdateRoleLabelCommand request, CancellationToken ct)
     {
+        await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-departments", ct);
+
         var entity = await db.RoleLabels.FirstOrDefaultAsync(r => r.Id == request.Id, ct)
             ?? throw new KeyNotFoundException("ไม่พบ Role Label");
-
-        if (!currentUser.IsAdminOrHr())
-            throw new AppForbiddenException("เฉพาะ HR / Admin เท่านั้น");
 
         if (!currentUser.CanManageCompany(entity.CompanyId))
             throw new AppForbiddenException("ไม่มีสิทธิ์จัดการ company นี้");
@@ -37,11 +36,23 @@ public class UpdateRoleLabelHandler(IApplicationDbContext db, ICurrentUser curre
             await db.RoleLabels.AnyAsync(r => r.CompanyId == entity.CompanyId && r.Name == request.Name && r.Id != request.Id, ct))
             throw new ConflictException("DUPLICATE_ROLE_LABEL", $"ชื่อ '{request.Name}' มีอยู่แล้วในบริษัทนี้");
 
+        var oldValues = new { entity.Name, entity.IsActive };
+
         entity.Name      = request.Name;
         entity.IsActive  = request.IsActive;
-        entity.UpdatedAt = DateTime.UtcNow;
+        entity.UpdatedAt = DateTime.UtcNow.AddHours(7);
 
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "role-label",
+            entityType:  "RoleLabel",
+            entityId:    entity.Id.ToString(),
+            action:      "update",
+            description: $"แก้ไขตำแหน่งงาน '{entity.Name}'",
+            oldValues:   oldValues,
+            newValues:   new { entity.Name, entity.IsActive },
+            ct:          ct);
 
         return new RoleLabelDto(entity.Id, entity.CompanyId, entity.Name, entity.IsActive);
     }

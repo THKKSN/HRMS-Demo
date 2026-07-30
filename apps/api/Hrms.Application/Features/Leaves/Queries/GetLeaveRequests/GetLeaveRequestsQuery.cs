@@ -9,4 +9,8 @@ public record GetLeaveRequestsQuery(
     int Page,
     int PageSize,
     LeaveStatus? Status,
-    Guid? EmployeeId) : IRequest<PagedResult<LeaveRequestListItemDto>>;
+    Guid? EmployeeId,
+    bool MyOnly = false,
+    string? EmployeeNameSearch = null,
+    DateOnly? DateFrom = null,
+    DateOnly? DateTo = null) : IRequest<PagedResult<LeaveRequestListItemDto>>;

@@ -21,6 +21,12 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (process.env.NEXT_PUBLIC_E2E_AUTH_BYPASS === 'true') {
+      setIsLoggedIn(true)
+      setIsReady(true)
+      return
+    }
+
     initLiff()
       .then(() => {
         setIsLoggedIn(liff.isLoggedIn())

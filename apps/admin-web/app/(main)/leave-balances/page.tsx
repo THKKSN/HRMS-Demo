@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense, useMemo } from 'react'
+import { useState, Suspense, useMemo, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, Pencil, X, RefreshCw, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -241,7 +241,6 @@ function LeaveBalancesPage() {
   const currentUser = useAuthStore((s) => s.employee)
   const isAdmin  = currentUser?.roles.some((r) => r.role === 'Admin') ?? false
   const isHr     = currentUser?.roles.some((r) => r.role === 'Hr')    ?? false
-  const canEdit  = isAdmin || isHr
 
   const { data: tree = [] } = useCompanies()
   const activeCompanies = useMemo(() => {
@@ -255,6 +254,20 @@ function LeaveBalancesPage() {
     walk(tree)
     return result
   }, [tree])
+
+  const isHqHr    = isHr && (tree.find((n) => n.id === currentUser?.companyId)?.isHeadquarters ?? false)
+  const canSeeAll = isAdmin || isHqHr
+  const canEdit   = isAdmin || isHr
+
+  // ตั้ง companyFilter หลัง allCompanies โหลด (canSeeAll อาจเปลี่ยนจาก false → true)
+  const [scopeReady, setScopeReady] = useState(false)
+  useEffect(() => {
+    if (scopeReady) return
+    if (!currentUser) return
+    if (isHr && activeCompanies.length === 0) return // รอ tree โหลด
+    setCompanyFilter(canSeeAll ? '' : (currentUser.companyId ?? ''))
+    setScopeReady(true)
+  }, [canSeeAll, isHr, activeCompanies.length, currentUser, scopeReady])
 
   const [editId, setEditId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -386,16 +399,18 @@ function LeaveBalancesPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
-        <Select
-          value={companyFilter}
-          onChange={(e) => setCompanyFilter(e.target.value)}
-          className="w-56"
-        >
-          <option value="">ทุกบริษัท</option>
-          {activeCompanies.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </Select>
+        {canSeeAll && (
+          <Select
+            value={companyFilter}
+            onChange={(e) => setCompanyFilter(e.target.value)}
+            className="w-56"
+          >
+            <option value="">ทุกบริษัท</option>
+            {activeCompanies.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </Select>
+        )}
 
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">ปี:</span>
@@ -406,7 +421,7 @@ function LeaveBalancesPage() {
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 year === y
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  : 'bg-whited text-muted-foreground hover:bg-whited/80'
               }`}
             >
               {y}
@@ -419,17 +434,17 @@ function LeaveBalancesPage() {
         <table className="w-full text-sm border-collapse">
           <thead>
             {/* Row 1: leave type names as group headers */}
-            <tr className="border-b border-border bg-muted/50">
+            <tr className="border-b border-border bg-whited/50">
               <th
                 rowSpan={2}
-                className="px-4 py-3 text-left font-medium text-muted-foreground border-r border-border align-middle sticky left-0 bg-muted/50 z-10 min-w-35"
+                className="px-4 py-3 text-left font-medium text-muted-foreground border-r border-border align-middle sticky left-0 bg-whited/50 z-10 min-w-35"
               >
                 พนักงาน
               </th>
               {isLoading
                 ? Array.from({ length: 3 }).map((_, i) => (
                     <th key={i} className="px-3 py-2 text-center font-medium text-muted-foreground border-r border-border last:border-r-0">
-                      <div className="h-4 w-16 animate-pulse rounded bg-muted mx-auto" />
+                      <div className="h-4 w-16 animate-pulse rounded bg-whited mx-auto" />
                     </th>
                   ))
                 : leaveTypes.map((lt) => (
@@ -442,7 +457,7 @@ function LeaveBalancesPage() {
                   ))}
             </tr>
             {/* Row 2: legend */}
-            <tr className="border-b border-border bg-muted/30 text-xs text-muted-foreground">
+            <tr className="border-b border-border bg-whited/30 text-xs text-muted-foreground">
               {!isLoading &&
                 leaveTypes.map((lt) => (
                   <th key={lt.id} className="px-3 py-1.5 text-center font-normal border-r border-border last:border-r-0">
@@ -456,11 +471,11 @@ function LeaveBalancesPage() {
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-b border-border">
                   <td className="px-4 py-3 border-r border-border sticky left-0 bg-background">
-                    <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+                    <div className="h-4 w-28 animate-pulse rounded bg-whited" />
                   </td>
                   {Array.from({ length: 3 }).map((__, j) => (
                     <td key={j} className="px-3 py-3 border-r border-border last:border-r-0">
-                      <div className="h-4 w-20 animate-pulse rounded bg-muted" />
+                      <div className="h-4 w-20 animate-pulse rounded bg-whited" />
                     </td>
                   ))}
                 </tr>
@@ -479,7 +494,7 @@ function LeaveBalancesPage() {
 
             {!isLoading &&
               employeeRows.map((emp) => (
-                <tr key={emp.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                <tr key={emp.id} className="border-b border-border last:border-0 hover:bg-whited/20 transition-colors">
                   <td className="px-4 py-3 border-r border-border sticky left-0 bg-background whitespace-nowrap">
                     <div className="font-medium text-sm">{emp.name}</div>
                     <div className="text-xs text-muted-foreground">{emp.code}{emp.department ? ` · ${emp.department}` : ''}</div>

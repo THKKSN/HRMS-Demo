@@ -13,7 +13,7 @@ public record CreateLeaveRequestCommand(
     TimeOnly? TimeFrom,
     TimeOnly? TimeTo,
     string? Reason,
-    string? AttachmentUrl) : IRequest<LeaveRequestDto>;
+    IReadOnlyList<string>? AttachmentUrls) : IRequest<LeaveRequestDto>;
 
 public class CreateLeaveRequestCommandValidator : AbstractValidator<CreateLeaveRequestCommand>
 {

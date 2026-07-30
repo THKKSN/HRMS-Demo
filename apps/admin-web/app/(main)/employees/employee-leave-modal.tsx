@@ -141,7 +141,7 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
               className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                 year === y
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  : 'bg-whited text-muted-foreground hover:bg-whited/80'
               }`}
             >
               {y}
@@ -167,7 +167,7 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
       <div className="overflow-auto rounded-md border border-border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/50">
+            <tr className="border-b border-border bg-whited/50">
               <th className="px-3 py-2 text-left font-medium text-muted-foreground">ประเภทการลา</th>
               <th className="px-3 py-2 text-center font-medium text-muted-foreground w-20">ค่าเริ่มต้น</th>
               <th className="px-3 py-2 text-center font-medium text-muted-foreground w-28">สิทธิ์</th>
@@ -182,7 +182,7 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
                 <tr key={i} className="border-b border-border">
                   {Array.from({ length: 6 }).map((__, j) => (
                     <td key={j} className="px-3 py-3">
-                      <div className="h-4 w-16 animate-pulse rounded bg-muted mx-auto" />
+                      <div className="h-4 w-16 animate-pulse rounded bg-whited mx-auto" />
                     </td>
                   ))}
                 </tr>
@@ -203,7 +203,7 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
                 const isCreating = createLtId === lt.id
 
                 return (
-                  <tr key={lt.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                  <tr key={lt.id} className="border-b border-border last:border-0 hover:bg-whited/20 transition-colors">
                     {/* leave type name */}
                     <td className="px-3 py-2.5">
                       <div className="font-medium">{lt.nameTh}</div>

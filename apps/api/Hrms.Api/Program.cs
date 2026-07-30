@@ -10,9 +10,11 @@ using Hrms.Application;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Common.Options;
 using Hrms.Infrastructure;
+using Hrms.Infrastructure.Jobs;
 using Hrms.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
@@ -74,6 +76,12 @@ try
 
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
+            ForwardedHeaders.XForwardedProto |
+            ForwardedHeaders.XForwardedHost;
+    });
 
     // ── Health Checks ────────────────────────────────────────────────────────
     builder.Services.AddHealthChecks()
@@ -223,10 +231,38 @@ try
         app.UseSwaggerUI();
         app.UseHangfireDashboard("/hangfire");
 
+        // Recurring job — Daily attendance report to Executives (Thai 10:00 = UTC 03:00)
+        RecurringJob.AddOrUpdate<DailyAttendanceReportJob>(
+            "daily-attendance-report",
+            job => job.SendDailyReportAsync(CancellationToken.None),
+            "0 3 * * 1-5",
+            new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+
         using var scope = app.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<DataSeeder>().SeedAsync();
     }
 
+    RecurringJob.AddOrUpdate<TicketUploadCleanupJob>(
+        "ticket-upload-cleanup",
+        job => job.CleanupAsync(CancellationToken.None),
+        "15 * * * *",
+        new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+    RecurringJob.AddOrUpdate<NotificationDeliveryJob>(
+        "notification-outbox-delivery",
+        job => job.ProcessAsync(CancellationToken.None),
+        Cron.Minutely);
+
+    app.UseForwardedHeaders();
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments("/uploads/tickets"))
+        {
+            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
+        await next();
+    });
+    app.UseStaticFiles();
     app.UseResponseCompression();
     app.UseSerilogRequestLogging();
     app.UseMiddleware<CorrelationIdMiddleware>();

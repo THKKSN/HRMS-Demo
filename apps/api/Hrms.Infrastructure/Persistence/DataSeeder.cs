@@ -1,12 +1,13 @@
 using BC = BCrypt.Net.BCrypt;
 using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
+using Hrms.Domain.Constants;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Hrms.Infrastructure.Persistence;
 
-public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
+public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger, PermissionSeeder permissionSeeder)
 {
     // Fixed GUIDs so re-runs stay idempotent
     private static readonly Guid CompanyId    = new("3fa85f64-5717-4562-b3fc-2c963f66a001");
@@ -25,6 +26,11 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
     // EMP003 — วิชัย ผู้จัดการ (Supervisor)
     private static readonly Guid Employee3Id  = new("3fa85f64-5717-4562-b3fc-2c963f66a009");
     private static readonly Guid Role3Id      = new("3fa85f64-5717-4562-b3fc-2c963f66a010");
+    private static readonly Guid TicketCatSystemId   = new("3fa85f64-5717-4562-b3fc-2c963f66a101");
+    private static readonly Guid TicketCatNetworkId  = new("3fa85f64-5717-4562-b3fc-2c963f66a102");
+    private static readonly Guid TicketCatHardwareId = new("3fa85f64-5717-4562-b3fc-2c963f66a103");
+    private static readonly Guid TicketCatVehicleId  = new("3fa85f64-5717-4562-b3fc-2c963f66a104");
+    private static readonly Guid TicketCatOtherId    = new("3fa85f64-5717-4562-b3fc-2c963f66a105");
 
     public async Task SeedAsync(CancellationToken ct = default)
     {
@@ -32,8 +38,11 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
         await SeedDepartmentAsync(ct);
         await SeedLeaveTypeAsync(ct);
         await SeedEmployeeAsync(ct);
+        await SeedDepartmentManagerAsync(ct);
         await SeedEmployeeRoleAsync(ct);
         await SeedLeaveBalanceAsync(ct);
+        await permissionSeeder.SeedAsync(ct);
+        await SeedTicketTaxonomyAsync(ct);
         logger.LogInformation("Seed data complete.");
     }
 
@@ -153,9 +162,9 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
     {
         var seedRoles = new[]
         {
-            (Id: RoleId,  EmployeeId: EmployeeId,  Role: RoleType.Hr),
-            (Id: Role2Id, EmployeeId: Employee2Id, Role: RoleType.Employee),
-            (Id: Role3Id, EmployeeId: Employee3Id, Role: RoleType.Supervisor),
+            (Id: RoleId,  EmployeeId: EmployeeId,  RoleId: SystemRoleIds.Hr),
+            (Id: Role2Id, EmployeeId: Employee2Id, RoleId: SystemRoleIds.Employee),
+            (Id: Role3Id, EmployeeId: Employee3Id, RoleId: SystemRoleIds.Supervisor),
         };
 
         foreach (var seed in seedRoles)
@@ -163,7 +172,7 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
             // เช็ค EmployeeId + Role โดยไม่สนใจ IsActive
             // ถ้าเคยมี record (แม้ inactive = ถูก remove แล้ว) → ไม่ restore
             var alreadySeeded = await db.EmployeeRoles.AnyAsync(
-                r => r.EmployeeId == seed.EmployeeId && r.Role == seed.Role, ct);
+                r => r.EmployeeId == seed.EmployeeId && r.RoleId == seed.RoleId, ct);
 
             if (!alreadySeeded)
             {
@@ -171,7 +180,7 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
                 {
                     Id          = seed.Id,
                     EmployeeId  = seed.EmployeeId,
-                    Role        = seed.Role,
+                    RoleId      = seed.RoleId,
                     CompanyId   = CompanyId,
                     IsActive    = true,
                     CreatedAt   = DateTime.UtcNow,
@@ -180,6 +189,16 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
             }
         }
 
+        await db.SaveChangesAsync(ct);
+    }
+
+    private async Task SeedDepartmentManagerAsync(CancellationToken ct)
+    {
+        var itDepartment = await db.Departments.FirstOrDefaultAsync(d => d.Id == DeptItId, ct);
+        if (itDepartment is null || itDepartment.ManagerEmployeeId.HasValue) return;
+
+        itDepartment.ManagerEmployeeId = Employee3Id;
+        itDepartment.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
 
@@ -253,5 +272,68 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger)
             await db.SaveChangesAsync(ct);
             logger.LogInformation("Seeded {Count} leave balance(s) for year {Year}", toAdd.Count, currentYear);
         }
+    }
+
+    private async Task SeedTicketTaxonomyAsync(CancellationToken ct)
+    {
+        var categories = new[]
+        {
+            new TicketCategory { Id = TicketCatSystemId, CompanyId = CompanyId, DepartmentId = DeptItId, Name = "ระบบงาน", Description = "ระบบงานภายในองค์กร", SortOrder = 10, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new TicketCategory { Id = TicketCatNetworkId, CompanyId = CompanyId, DepartmentId = DeptItId, Name = "เครือข่าย / อินเทอร์เน็ต", Description = "Internet, Wi-Fi, LAN, VPN", SortOrder = 20, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new TicketCategory { Id = TicketCatHardwareId, CompanyId = CompanyId, DepartmentId = DeptItId, Name = "ฮาร์ดแวร์", Description = "อุปกรณ์คอมพิวเตอร์และเครื่องพิมพ์", SortOrder = 30, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new TicketCategory { Id = TicketCatVehicleId, CompanyId = CompanyId, DepartmentId = DeptItId, Name = "รถ / อุปกรณ์ประจำรถ", Description = "อุปกรณ์ IT ที่ติดตั้งกับรถ", SortOrder = 40, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new TicketCategory { Id = TicketCatOtherId, CompanyId = CompanyId, DepartmentId = DeptItId, Name = "อื่น ๆ", Description = "เรื่องอื่น ๆ", SortOrder = 99, IsActive = true, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+        };
+
+        var categoryIds = categories.Select(c => c.Id).ToList();
+        var existingCategoryIds = await db.TicketCategories
+            .Where(c => categoryIds.Contains(c.Id))
+            .Select(c => c.Id)
+            .ToListAsync(ct);
+
+        db.TicketCategories.AddRange(categories.Where(c => !existingCategoryIds.Contains(c.Id)));
+        await db.SaveChangesAsync(ct);
+
+        var topics = new[]
+        {
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a111", TicketCatSystemId, "HTML", 10),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a112", TicketCatSystemId, "DTMS", 20),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a113", TicketCatSystemId, "SMMS", 30),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a114", TicketCatSystemId, "SUN ACC", 40),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a115", TicketCatSystemId, "VMS", 50),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a116", TicketCatSystemId, "PISWIN", 60),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a121", TicketCatNetworkId, "INTERNET", 10),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a122", TicketCatNetworkId, "Wi-Fi", 20),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a123", TicketCatNetworkId, "LAN", 30),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a131", TicketCatHardwareId, "PRINTER", 10),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a132", TicketCatHardwareId, "Computer", 20),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a133", TicketCatHardwareId, "Notebook", 30),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a141", TicketCatVehicleId, "กล้องรถ", 10),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a142", TicketCatVehicleId, "GPS", 20),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a143", TicketCatVehicleId, "Sensor", 30),
+            Topic("3fa85f64-5717-4562-b3fc-2c963f66a151", TicketCatOtherId, "อื่น ๆ", 10),
+        };
+
+        var topicIds = topics.Select(t => t.Id).ToList();
+        var existingTopicIds = await db.TicketTopics
+            .Where(t => topicIds.Contains(t.Id))
+            .Select(t => t.Id)
+            .ToListAsync(ct);
+
+        db.TicketTopics.AddRange(topics.Where(t => !existingTopicIds.Contains(t.Id)));
+        await db.SaveChangesAsync(ct);
+
+        TicketTopic Topic(string id, Guid categoryId, string name, int sortOrder) => new()
+        {
+            Id = new Guid(id),
+            CompanyId = CompanyId,
+            DepartmentId = DeptItId,
+            CategoryId = categoryId,
+            Name = name,
+            SortOrder = sortOrder,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
     }
 }

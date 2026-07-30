@@ -2,6 +2,8 @@ namespace Hrms.Application.Common.Interfaces;
 
 public interface ILineMessagingService
 {
+    string BuildLiffUri(string path);
+
     Task PushMessageAsync(string lineUserId, string message, CancellationToken ct = default);
 
     Task PushConfirmTemplateAsync(

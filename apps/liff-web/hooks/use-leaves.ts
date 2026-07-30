@@ -59,6 +59,18 @@ export function useCancelLeave() {
   })
 }
 
+export function useRequestCancelLeave() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
+      leavesApi.requestCancelLeave(id, reason),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: leaveKeys.all })
+      qc.invalidateQueries({ queryKey: leaveKeys.detail(id) })
+    },
+  })
+}
+
 export function usePendingApprovals(params?: { page?: number } | false) {
   return useQuery({
     queryKey: leaveKeys.pending(params || undefined),

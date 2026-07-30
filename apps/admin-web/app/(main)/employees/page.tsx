@@ -286,7 +286,7 @@ function EmployeesPage() {
       <div className="overflow-hidden rounded-lg border border-border bg-background">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/50">
+            <tr className="border-b border-border bg-whited/50">
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">รหัส</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อ-นามสกุล</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">บริษัท</th>
@@ -302,7 +302,7 @@ function EmployeesPage() {
                 <tr key={i} className="border-b border-border">
                   {Array.from({ length: 7 }).map((__, j) => (
                     <td key={j} className="px-4 py-3">
-                      <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                      <div className="h-4 w-24 animate-pulse rounded bg-whited" />
                     </td>
                   ))}
                 </tr>
@@ -319,7 +319,7 @@ function EmployeesPage() {
                 <tr
                   key={emp.id}
                   onClick={() => router.push(`/employees/${emp.id}`)}
-                  className="cursor-pointer border-b border-border last:border-0 hover:bg-muted/40 transition-colors"
+                  className="cursor-pointer border-b border-border last:border-0 hover:bg-whited/40 transition-colors"
                 >
                   <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{emp.employeeCode}</td>
                   <td className="px-4 py-3 font-medium">{emp.fullName}</td>

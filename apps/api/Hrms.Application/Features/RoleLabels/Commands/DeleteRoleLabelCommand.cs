@@ -8,16 +8,15 @@ namespace Hrms.Application.Features.RoleLabels.Commands;
 
 public record DeleteRoleLabelCommand(Guid Id) : IRequest;
 
-public class DeleteRoleLabelHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class DeleteRoleLabelHandler(IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permService, IAuditLogService auditLog)
     : IRequestHandler<DeleteRoleLabelCommand>
 {
     public async Task Handle(DeleteRoleLabelCommand request, CancellationToken ct)
     {
+        await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-departments", ct);
+
         var entity = await db.RoleLabels.FirstOrDefaultAsync(r => r.Id == request.Id, ct)
             ?? throw new KeyNotFoundException("ไม่พบ Role Label");
-
-        if (!currentUser.IsAdminOrHr())
-            throw new AppForbiddenException("เฉพาะ HR / Admin เท่านั้น");
 
         if (!currentUser.CanManageCompany(entity.CompanyId))
             throw new AppForbiddenException("ไม่มีสิทธิ์จัดการ company นี้");
@@ -26,7 +25,18 @@ public class DeleteRoleLabelHandler(IApplicationDbContext db, ICurrentUser curre
         if (inUse)
             throw new ConflictException("ROLE_LABEL_IN_USE", "ไม่สามารถลบได้ — มีพนักงานที่ใช้ตำแหน่งนี้อยู่");
 
-        db.RoleLabels.Remove(entity);
+        entity.IsActive  = false;
+        entity.UpdatedAt = DateTime.UtcNow.AddHours(7);
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "role-label",
+            entityType:  "RoleLabel",
+            entityId:    entity.Id.ToString(),
+            action:      "deactivate",
+            description: $"ลบ (soft delete) ตำแหน่งงาน '{entity.Name}'",
+            oldValues:   new { isActive = true },
+            newValues:   new { isActive = false },
+            ct:          ct);
     }
 }

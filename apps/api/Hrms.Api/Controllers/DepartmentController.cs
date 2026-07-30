@@ -57,6 +57,7 @@ public class DepartmentController(IMediator mediator) : ControllerBase
             request.Name,
             request.DeptType,
             request.ManagerEmployeeId,
+            request.ShiftId,
             request.IsActive), ct);
         return Ok(result);
     }
@@ -74,6 +75,7 @@ public class DepartmentController(IMediator mediator) : ControllerBase
             dept.Name,
             dept.DeptType,
             dept.ManagerEmployeeId,
+            dept.ShiftId,
             request.IsActive), ct);
         return Ok(result);
     }
@@ -89,6 +91,7 @@ public record UpdateDepartmentRequest(
     string Name,
     string? DeptType,
     Guid? ManagerEmployeeId,
+    Guid? ShiftId,
     bool IsActive);
 
 public record ToggleDepartmentStatusRequest(bool IsActive);

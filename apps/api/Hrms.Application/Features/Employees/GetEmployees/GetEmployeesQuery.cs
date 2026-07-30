@@ -1,3 +1,5 @@
+using Hrms.Application.Common.Exceptions;
+using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Common.Models;
 using Hrms.Application.Features.Employees.Dtos;
@@ -13,22 +15,24 @@ public record GetEmployeesQuery(
     Guid? CompanyId,
     bool? IsActive = true) : IRequest<PagedResult<EmployeeListItemDto>>;
 
-public class GetEmployeesHandler(IApplicationDbContext db, IScopeGuard scope)
+public class GetEmployeesHandler(IApplicationDbContext db, IScopeGuard scope, ICurrentUser currentUser, IPermissionService permService)
     : IRequestHandler<GetEmployeesQuery, PagedResult<EmployeeListItemDto>>
 {
     public async Task<PagedResult<EmployeeListItemDto>> Handle(GetEmployeesQuery request, CancellationToken ct)
     {
+        await currentUser.ThrowIfNoPermissionAsync(permService, "employee:view", ct);
+
         var accessibleIds = await scope.GetAccessibleCompanyIdsAsync(ct);
 
         // ถ้า companyId ระบุมา ตรวจสิทธิ์ก่อน
         if (request.CompanyId.HasValue &&
             accessibleIds != null && !accessibleIds.Contains(request.CompanyId.Value))
-            throw new Hrms.Application.Common.Exceptions.AppForbiddenException("ไม่มีสิทธิ์เข้าถึงบริษัทนี้");
+            throw new AppForbiddenException("ไม่มีสิทธิ์เข้าถึงบริษัทนี้");
 
         var query = db.Employees
             .Include(e => e.Company)
             .Include(e => e.Department)
-            .Include(e => e.Roles)
+            .Include(e => e.Roles).ThenInclude(r => r.Role)
             .Include(e => e.RoleLabel)
             .AsQueryable();
 
@@ -67,7 +71,7 @@ public class GetEmployeesHandler(IApplicationDbContext db, IScopeGuard scope)
             e.Company.Name,
             e.DepartmentId,
             e.Department?.Name,
-            e.Roles.Where(r => r.IsActive).Select(r => r.Role.ToString()).ToList(),
+            e.Roles.Where(r => r.IsActive).Select(r => r.Role.Code.ToString()).ToList(),
             e.RoleLabelId,
             e.RoleLabel?.Name,
             e.IsActive)).ToList();

@@ -1,13 +1,14 @@
 'use client'
 
 import { use, useState, useEffect, useRef, useMemo } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   ArrowLeft, Check, KeyRound, Pencil, Plus, RefreshCw, Trash2, X,
-  User, Building2, Layers, CalendarDays,
+  User, Building2, Layers, CalendarDays, Clock,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -27,12 +28,13 @@ import { useRoleLabels } from '@/hooks/use-role-labels'
 import { useLeaveTypes } from '@/hooks/use-leave-types'
 import { useLeaveBalances, useAdjustBalance, useCreateLeaveBalance, useSeedBalancesForEmployee } from '@/hooks/use-leave-balances'
 import { useAuthStore } from '@/stores/auth.store'
-import type { RoleType, LeaveBalanceAdminDto } from '@/types/admin'
+import { useShiftOverrides, useCurrentShift, useSetShiftOverride, useRemoveShiftOverride } from '@/hooks/use-shift-overrides'
+import { useShifts } from '@/hooks/use-shifts'
+import { useAllRolePermissions } from '@/hooks/use-permissions'
+import type { LeaveBalanceAdminDto } from '@/types/admin'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1]
-const ROLE_OPTIONS: RoleType[] = ['Employee', 'Supervisor', 'Hr', 'Admin', 'Executive']
-
 const ROLE_CHIP: Record<string, string> = {
   Admin:      'bg-red-100 text-red-700 border-red-200',
   Hr:         'bg-purple-100 text-purple-700 border-purple-200',
@@ -54,7 +56,7 @@ const editSchema = z.object({
 })
 type EditValues = z.infer<typeof editSchema>
 
-type TabKey = 'info' | 'roles' | 'leave' | 'password'
+type TabKey = 'info' | 'roles' | 'leave' | 'shift' | 'password'
 
 function getInitials(name: string) {
   const parts = name.trim().split(/\s+/)
@@ -163,7 +165,7 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
             <button key={y}
               onClick={() => { setYear(y); setEditId(null); setCreateLtId(null) }}
               className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                year === y ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                year === y ? 'bg-primary text-primary-foreground' : 'bg-whited text-muted-foreground hover:bg-whited/80'
               }`}>{y}</button>
           ))}
         </div>
@@ -177,7 +179,7 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
       <div className="overflow-auto rounded-lg border border-border">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/50">
+            <tr className="border-b border-border bg-whited/50">
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">ประเภทการลา</th>
               <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-20">ค่าเริ่มต้น</th>
               <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-32">สิทธิ์</th>
@@ -191,7 +193,7 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
               <tr key={i} className="border-b border-border">
                 {Array.from({ length: 6 }).map((__, j) => (
                   <td key={j} className="px-4 py-3">
-                    <div className="h-4 w-16 animate-pulse rounded bg-muted mx-auto" />
+                    <div className="h-4 w-16 animate-pulse rounded bg-whited mx-auto" />
                   </td>
                 ))}
               </tr>
@@ -208,7 +210,7 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
               const isEditing  = editId !== null && balance?.id === editId
               const isCreating = createLtId === lt.id
               return (
-                <tr key={lt.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors">
+                <tr key={lt.id} className="border-b border-border last:border-0 hover:bg-whited/20 transition-colors">
                   <td className="px-4 py-3">
                     <div className="font-medium">{lt.nameTh}</div>
                     {lt.nameEn && <div className="text-xs text-muted-foreground">{lt.nameEn}</div>}
@@ -261,6 +263,175 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
   )
 }
 
+// ── Shift override tab ───────────────────────────────────────────────────────
+const SOURCE_LABEL: Record<string, string> = {
+  override:   'เวลาปฎิบัติงานพิเศษ (override)',
+  department: 'เวลาปฎิบัติงานของแผนก',
+  company:    'เวลาปฎิบัติงานเริ่มต้นบริษัท',
+  none:       'ไม่มีเวลาปฎิบัติงาน',
+}
+
+function ShiftOverrideTab({ empId, companyId, canEdit }: { empId: string; companyId: string; canEdit: boolean }) {
+  const [formOpen, setFormOpen]   = useState(false)
+  const [shiftId, setShiftId]     = useState('')
+  const [dateFrom, setDateFrom]   = useState('')
+  const [dateTo, setDateTo]       = useState('')
+  const [reason, setReason]       = useState('')
+  const [formError, setFormError] = useState('')
+
+  const { data: current, isLoading: loadingCurrent } = useCurrentShift(empId)
+  const { data: overrides = [], isLoading: loadingList } = useShiftOverrides(empId)
+  const { data: shifts = [] } = useShifts(companyId)
+  const setOverride    = useSetShiftOverride(empId)
+  const removeOverride = useRemoveShiftOverride(empId)
+
+  function resetForm() {
+    setShiftId(''); setDateFrom(''); setDateTo(''); setReason(''); setFormError('')
+  }
+
+  async function handleSubmit() {
+    if (!shiftId)   { setFormError('กรุณาเลือกเวลาปฎิบัติงาน'); return }
+    if (!dateFrom)  { setFormError('กรุณาระบุวันที่เริ่มต้น'); return }
+    try {
+      await setOverride.mutateAsync({ shiftId, effectiveFrom: dateFrom, effectiveTo: dateTo || null, reason: reason || null })
+      toast.success('ตั้งค่าเวลาปฎิบัติงานพิเศษสำเร็จ')
+      setFormOpen(false); resetForm()
+    } catch { toast.error('เกิดข้อผิดพลาด') }
+  }
+
+  async function handleRemove(overrideId: string) {
+    try {
+      await removeOverride.mutateAsync(overrideId)
+      toast.success('ยกเลิกเวลาปฎิบัติงานพิเศษสำเร็จ')
+    } catch { toast.error('เกิดข้อผิดพลาด') }
+  }
+
+  const activeShifts = shifts.filter((s) => s.isActive)
+
+  return (
+    <div className="space-y-5">
+      {/* Current effective shift */}
+      <div className="rounded-lg border border-border bg-whited/40 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">เวลาปฎิบัติงานปัจจุบันที่มีผล</p>
+        {loadingCurrent ? (
+          <div className="h-6 w-40 animate-pulse rounded bg-whited" />
+        ) : current?.shiftId ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-primary shrink-0" />
+              <span className="font-semibold">{current.shiftName}</span>
+              <span className="text-sm text-muted-foreground">
+                {current.startTime?.slice(0, 5)} – {current.endTime?.slice(0, 5)}
+              </span>
+            </div>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              current.source === 'override'
+                ? 'bg-orange-100 text-orange-700'
+                : current.source === 'department'
+                ? 'bg-blue-100 text-blue-700'
+                : 'bg-slate-100 text-slate-600'
+            }`}>
+              {SOURCE_LABEL[current.source]}
+            </span>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">ไม่มีเวลาปฎิบัติงาน</p>
+        )}
+      </div>
+
+      {/* Add override form */}
+      {canEdit && (
+        <div className="flex justify-end">
+          <Button size="sm" variant="outline" onClick={() => { setFormOpen((v) => !v); resetForm() }}>
+            <Plus className="h-4 w-4" />ตั้งเวลาปฎิบัติงานพิเศษ
+          </Button>
+        </div>
+      )}
+      {formOpen && (
+        <div className="rounded-lg border border-border bg-whited/40 p-4 space-y-3">
+          <p className="text-sm font-medium">ตั้งเวลาปฎิบัติงานพิเศษสำหรับพนักงาน</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>เวลาปฎิบัติงาน *</Label>
+              <Select value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
+                <option value="">— เลือกเวลาปฎิบัติงาน —</option>
+                {activeShifts.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.startTime.slice(0, 5)}–{s.endTime.slice(0, 5)})
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>วันที่เริ่มต้น *</Label>
+              <DateInput value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>วันที่สิ้นสุด <span className="text-muted-foreground text-xs">(ว่าง = ถาวร)</span></Label>
+              <DateInput value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>หมายเหตุ</Label>
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="เช่น ย้ายเวลาปฎิบัติงานชั่วคราว" />
+            </div>
+          </div>
+          {formError && <p className="text-xs text-destructive">{formError}</p>}
+          <div className="flex gap-2">
+            <Button size="sm" loading={setOverride.isPending} onClick={handleSubmit}>บันทึก</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setFormOpen(false); resetForm() }}>ยกเลิก</Button>
+          </div>
+        </div>
+      )}
+
+      {/* Override history */}
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">ประวัติ Override</p>
+        {loadingList ? (
+          <div className="space-y-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="h-14 animate-pulse rounded-lg bg-whited" />
+            ))}
+          </div>
+        ) : overrides.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">ยังไม่มีการตั้งเวลาปฎิบัติงานพิเศษ</p>
+        ) : (
+          <div className="space-y-2">
+            {overrides.map((o) => (
+              <div
+                key={o.id}
+                className={`flex items-start justify-between rounded-lg border px-4 py-3 gap-3 ${o.isActive ? 'border-border' : 'opacity-50 border-dashed'}`}
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-sm">{o.shiftName}</span>
+                    <span className="text-xs text-muted-foreground">{o.startTime.slice(0, 5)}–{o.endTime.slice(0, 5)}</span>
+                    {!o.isActive && (
+                      <span className="rounded-full bg-slate-100 text-slate-500 px-2 py-0.5 text-xs">ยกเลิกแล้ว</span>
+                    )}
+                    {o.isActive && !o.effectiveTo && (
+                      <span className="rounded-full bg-orange-100 text-orange-700 px-2 py-0.5 text-xs">ถาวร</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {o.effectiveFrom} {o.effectiveTo ? `→ ${o.effectiveTo}` : '→ '}
+                    {o.reason && <span className="ml-2 italic">{o.reason}</span>}
+                  </p>
+                </div>
+                {canEdit && o.isActive && (
+                  <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                    loading={removeOverride.isPending} onClick={() => handleRemove(o.id)}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -275,7 +446,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
   const [activeTab,     setActiveTab]     = useState<TabKey>('info')
   const [addRoleOpen,   setAddRoleOpen]   = useState(false)
-  const [selectedRole,  setSelectedRole]  = useState<RoleType>('Employee')
+  const [selectedRoleId, setSelectedRoleId] = useState('')
   const [pwOpen,        setPwOpen]        = useState(false)
   const [newPw,         setNewPw]         = useState('')
   const [pwError,       setPwError]       = useState('')
@@ -286,6 +457,13 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const isAdmin   = currentUser?.roles.some((r) => r.role === 'Admin') ?? false
   const isHr      = currentUser?.roles.some((r) => r.role === 'Hr')    ?? false
   const canEdit   = isAdmin || isHr
+  const canManageRoles = isAdmin
+  const { data: roleOptions = [] } = useAllRolePermissions(canManageRoles)
+
+  useEffect(() => {
+    if (!selectedRoleId && roleOptions.length > 0)
+      setSelectedRoleId(roleOptions[0].roleId)
+  }, [roleOptions, selectedRoleId])
 
   const { data: tree = [] } = useCompanies()
   const activeCompanies = useMemo(() => {
@@ -351,9 +529,11 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   }
 
   async function handleAddRole() {
+    if (!selectedRoleId) return
     try {
-      await addRole.mutateAsync({ role: selectedRole })
-      setAddRoleOpen(false); toast.success(`เพิ่ม role ${selectedRole} สำเร็จ`)
+      await addRole.mutateAsync({ roleId: selectedRoleId })
+      const roleName = roleOptions.find((role) => role.roleId === selectedRoleId)?.role ?? ''
+      setAddRoleOpen(false); toast.success(`เพิ่ม role ${roleName} สำเร็จ`)
     } catch (err: unknown) {
       const e = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
       toast.error(e === 'DUPLICATE_ROLE' ? 'role นี้มีอยู่แล้ว' : 'เกิดข้อผิดพลาด')
@@ -397,10 +577,10 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="h-8 w-24 animate-pulse rounded-md bg-muted" />
-        <div className="h-40 animate-pulse rounded-xl bg-muted" />
-        <div className="h-10 animate-pulse rounded-lg bg-muted" />
-        <div className="h-64 animate-pulse rounded-xl bg-muted" />
+        <div className="h-8 w-24 animate-pulse rounded-md bg-whited" />
+        <div className="h-40 animate-pulse rounded-xl bg-whited" />
+        <div className="h-10 animate-pulse rounded-lg bg-whited" />
+        <div className="h-64 animate-pulse rounded-xl bg-whited" />
       </div>
     )
   }
@@ -422,6 +602,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
     { key: 'info',     label: 'ข้อมูลทั่วไป' },
     { key: 'roles',    label: 'สิทธิ์การใช้งาน' },
     { key: 'leave',    label: 'โควตาวันลา' },
+    { key: 'shift',    label: 'เวลาปฎิบัติงาน' },
     ...(canEdit ? [{ key: 'password' as TabKey, label: 'รหัสผ่าน' }] : []),
   ]
 
@@ -494,16 +675,22 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             </div>
           </div>
 
-          {canEdit && (
-            <Button
-              size="sm"
-              variant={emp.isActive ? 'destructive' : 'outline'}
-              onClick={() => setToggleConfirm(true)}
-              className="shrink-0 self-start sm:mt-0 mt-2"
-            >
-              {emp.isActive ? 'พ้นสภาพ' : 'เปิดการปฎิบัติงาน'}
-            </Button>
-          )}
+          <div className="flex flex-col gap-2 shrink-0 self-start sm:mt-0 mt-2">
+            <Link href={`/employees/${id}/attendance`}>
+              <Button size="sm" variant="outline" className="w-full">
+                <CalendarDays className="h-4 w-4" />ประวัติการเข้างาน
+              </Button>
+            </Link>
+            {canEdit && (
+              <Button
+                size="sm"
+                variant={emp.isActive ? 'destructive' : 'outline'}
+                onClick={() => setToggleConfirm(true)}
+              >
+                {emp.isActive ? 'พ้นสภาพ' : 'เปิดการปฎิบัติงาน'}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -531,7 +718,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
       {/* ── Tab: ข้อมูลทั่วไป ─────────────────────────────────────────────── */}
       {activeTab === 'info' && (
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-background p-6">
           <form onSubmit={handleSubmit(onSave)} className="space-y-5">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -611,20 +798,24 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
       {/* ── Tab: สิทธิ์การใช้งาน ──────────────────────────────────────────── */}
       {activeTab === 'roles' && (
-        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
-          {canEdit && (
+        <div className="rounded-xl border border-border bg-background p-6 space-y-4">
+          {canManageRoles && (
             <div className="flex justify-end">
               <Button size="sm" variant="outline" onClick={() => setAddRoleOpen((v) => !v)}>
                 <Plus className="h-4 w-4" />เพิ่มสิทธิ์
               </Button>
             </div>
           )}
-          {canEdit && addRoleOpen && (
-            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-4 py-3">
-              <Select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value as RoleType)} className="w-40">
-                {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          {canManageRoles && addRoleOpen && (
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-whited/50 px-4 py-3">
+              <Select value={selectedRoleId} onChange={(e) => setSelectedRoleId(e.target.value)} className="w-48">
+                {roleOptions.map((role) => (
+                  <option key={role.roleId} value={role.roleId}>
+                    {role.roleName} ({role.role})
+                  </option>
+                ))}
               </Select>
-              <Button size="sm" loading={addRole.isPending} onClick={handleAddRole}>เพิ่ม</Button>
+              <Button size="sm" disabled={!selectedRoleId} loading={addRole.isPending} onClick={handleAddRole}>เพิ่ม</Button>
               <Button size="sm" variant="ghost" onClick={() => setAddRoleOpen(false)}>ยกเลิก</Button>
             </div>
           )}
@@ -636,7 +827,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
               {emp.roles.map((r) => (
                 <div
                   key={r.id}
-                  className={`flex items-center justify-between rounded-lg border px-4 py-3 transition-colors ${r.isActive ? 'hover:bg-muted/30' : 'opacity-50'}`}
+                  className={`flex items-center justify-between rounded-lg border px-4 py-3 transition-colors ${r.isActive ? 'hover:bg-whited/30' : 'opacity-50'}`}
                 >
                   <div className="flex items-center gap-3">
                     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${ROLE_CHIP[r.role] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}>
@@ -644,7 +835,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                     </span>
                     {!r.isActive && <span className="text-xs text-muted-foreground">พ้นสภาพ</span>}
                   </div>
-                  {canEdit && r.isActive && (
+                  {canManageRoles && r.isActive && (
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive"
                       loading={removeRole.isPending} onClick={() => setRemoveTarget(r.id)}>
                       <Trash2 className="h-4 w-4" />
@@ -659,14 +850,21 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
       {/* ── Tab: โควตาวันลา ───────────────────────────────────────────────── */}
       {activeTab === 'leave' && (
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="rounded-xl border border-border bg-background p-6">
           <LeaveBalanceTab empId={id} companyId={emp.companyId ?? ''} canEdit={canEdit} />
+        </div>
+      )}
+
+      {/* ── Tab: เวลาปฎิบัติงาน ──────────────────────────────────────────────── */}
+      {activeTab === 'shift' && (
+        <div className="rounded-xl border border-border bg-background p-6">
+          <ShiftOverrideTab empId={id} companyId={emp.companyId ?? ''} canEdit={canEdit} />
         </div>
       )}
 
       {/* ── Tab: รหัสผ่าน ─────────────────────────────────────────────────── */}
       {activeTab === 'password' && canEdit && (
-        <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div className="rounded-xl border border-border bg-background p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium">รีเซ็ตรหัสผ่าน</p>
@@ -679,7 +877,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             )}
           </div>
           {pwOpen && (
-            <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-3">
+            <div className="rounded-lg border border-border bg-whited/40 p-4 space-y-3">
               <div className="space-y-1.5">
                 <Label>รหัสผ่านใหม่</Label>
                 <Input type="password" placeholder="อย่างน้อย 6 ตัวอักษร"

@@ -25,6 +25,7 @@ export const departmentsApi = {
       name: string
       deptType?: string
       managerEmployeeId?: string
+      shiftId?: string | null
       isActive: boolean
     },
   ) => api.put<DepartmentDto>(`/departments/${id}`, body).then((r) => r.data),

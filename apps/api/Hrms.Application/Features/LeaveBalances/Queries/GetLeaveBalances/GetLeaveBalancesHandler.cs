@@ -8,30 +8,34 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.LeaveBalances.Queries.GetLeaveBalances;
 
-public class GetLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser currentUser, IScopeGuard scope)
+public class GetLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser currentUser, IScopeGuard scope, IPermissionService permService)
     : IRequestHandler<GetLeaveBalancesQuery, PagedResult<LeaveBalanceAdminDto>>
 {
     public async Task<PagedResult<LeaveBalanceAdminDto>> Handle(GetLeaveBalancesQuery request, CancellationToken ct)
     {
-        if (!currentUser.IsAdminOrHr())
-            throw new AppForbiddenException("ต้องมีสิทธิ์ HR หรือ Admin จึงจะดูวันลาของพนักงานได้");
+        await currentUser.ThrowIfNoPermissionAsync(permService, "leave:manage-balance", ct);
 
-        Guid companyId;
-        if (request.CompanyId.HasValue)
-        {
-            await scope.ThrowIfCannotAccessAsync(request.CompanyId.Value);
-            companyId = request.CompanyId.Value;
-        }
-        else
-        {
-            companyId = currentUser.CompanyId
-                ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
-        }
+        var accessibleIds = await scope.GetAccessibleCompanyIdsAsync(ct);
 
         var query = db.LeaveBalances
             .Include(b => b.Employee).ThenInclude(e => e.Department)
             .Include(b => b.LeaveType)
-            .Where(b => b.Year == request.Year && b.Employee.CompanyId == companyId);
+            .Where(b => b.Year == request.Year)
+            .AsQueryable();
+
+        if (request.CompanyId.HasValue)
+        {
+            // ระบุบริษัท → ตรวจสิทธิ์
+            if (accessibleIds != null && !accessibleIds.Contains(request.CompanyId.Value))
+                throw new AppForbiddenException("ไม่มีสิทธิ์เข้าถึงข้อมูลบริษัทนี้");
+            query = query.Where(b => b.Employee.CompanyId == request.CompanyId.Value);
+        }
+        else if (accessibleIds != null)
+        {
+            // HR ทั่วไป → กรองเฉพาะบริษัทที่เข้าถึงได้
+            query = query.Where(b => accessibleIds.Contains(b.Employee.CompanyId));
+        }
+        // accessibleIds == null → Admin / HQ HR → เห็นทุกบริษัท (ไม่กรอง)
 
         if (request.EmployeeId.HasValue)
             query = query.Where(b => b.EmployeeId == request.EmployeeId.Value);

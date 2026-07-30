@@ -41,11 +41,15 @@ public class CreateEmployeeHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
     IScopeGuard scope,
-    IPasswordService passwordService)
+    IPasswordService passwordService,
+    IPermissionService permService,
+    IAuditLogService auditLog)
     : IRequestHandler<CreateEmployeeCommand, EmployeeDetailDto>
 {
     public async Task<EmployeeDetailDto> Handle(CreateEmployeeCommand request, CancellationToken ct)
     {
+        await currentUser.ThrowIfNoPermissionAsync(permService, "employee:create", ct);
+
         Guid companyId;
         if (request.CompanyId.HasValue)
         {
@@ -94,6 +98,16 @@ public class CreateEmployeeHandler(
 
         db.Employees.Add(employee);
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "employee",
+            entityType:  "Employee",
+            entityId:    employee.Id.ToString(),
+            action:      "create",
+            description: $"สร้างพนักงานใหม่ {employee.FirstName} {employee.LastName} รหัส {employee.EmployeeCode}",
+            oldValues:   null,
+            newValues:   new { employee.EmployeeCode, employee.FirstName, employee.LastName, employee.Email, employee.DepartmentId, employee.CompanyId },
+            ct:          ct);
 
         return employee.ToDetailDto(department?.Name);
     }

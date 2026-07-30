@@ -2,6 +2,260 @@ namespace Hrms.Application.Common.Helpers;
 
 public static class LineFlexBuilder
 {
+    public static object BuildTicketNotificationCard(
+        string message, string ticketUrl)
+    {
+        var lines = message
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var title = lines.FirstOrDefault() ?? "อัปเดตใบแจ้งเรื่อง";
+        var style = ResolveTicketStyle(message);
+        var detailContents = new List<object>();
+
+        foreach (var line in lines.Skip(1))
+        {
+            var separatorIndex = line.IndexOf(':');
+            if (separatorIndex > 0)
+            {
+                detailContents.Add(new
+                {
+                    type = "box",
+                    layout = "horizontal",
+                    spacing = "md",
+                    contents = new object[]
+                    {
+                        new
+                        {
+                            type = "text",
+                            text = line[..separatorIndex].Trim(),
+                            size = "sm",
+                            color = "#7A7F87",
+                            flex = 2,
+                            wrap = true
+                        },
+                        new
+                        {
+                            type = "text",
+                            text = line[(separatorIndex + 1)..].Trim(),
+                            size = "sm",
+                            color = "#22252A",
+                            weight = "bold",
+                            flex = 3,
+                            wrap = true
+                        }
+                    }
+                });
+            }
+            else
+            {
+                detailContents.Add(new
+                {
+                    type = "text",
+                    text = line,
+                    size = "sm",
+                    color = "#4E535A",
+                    wrap = true
+                });
+            }
+        }
+
+        if (detailContents.Count == 0)
+        {
+            detailContents.Add(new
+            {
+                type = "text",
+                text = "แตะปุ่มด้านล่างเพื่อตรวจสอบรายละเอียด",
+                size = "sm",
+                color = "#7A7F87",
+                wrap = true
+            });
+        }
+
+        return new
+        {
+            type = "bubble",
+            size = "mega",
+            styles = new
+            {
+                header = new { backgroundColor = "#FFFFFF" },
+                body = new { backgroundColor = "#FFFFFF" },
+                footer = new { backgroundColor = "#F7F8FA", separator = true }
+            },
+            header = new
+            {
+                type = "box",
+                layout = "vertical",
+                paddingAll = "0px",
+                contents = new object[]
+                {
+                    new
+                    {
+                        type = "box",
+                        layout = "vertical",
+                        height = "6px",
+                        backgroundColor = style.AccentColor,
+                        contents = new object[] { new { type = "filler" } }
+                    },
+                    new
+                    {
+                        type = "box",
+                        layout = "horizontal",
+                        paddingStart = "20px",
+                        paddingEnd = "20px",
+                        paddingTop = "16px",
+                        paddingBottom = "8px",
+                        alignItems = "center",
+                        contents = new object[]
+                        {
+                            new
+                            {
+                                type = "text",
+                                text = "HRMS  ·  INTERNAL TICKET",
+                                size = "xs",
+                                color = "#71767E",
+                                weight = "bold",
+                                flex = 1
+                            },
+                            new
+                            {
+                                type = "box",
+                                layout = "vertical",
+                                backgroundColor = style.BadgeColor,
+                                cornerRadius = "12px",
+                                paddingStart = "10px",
+                                paddingEnd = "10px",
+                                paddingTop = "4px",
+                                paddingBottom = "4px",
+                                flex = 0,
+                                contents = new object[]
+                                {
+                                    new
+                                    {
+                                        type = "text",
+                                        text = style.Label,
+                                        size = "xs",
+                                        color = style.AccentColor,
+                                        weight = "bold",
+                                        align = "center"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            body = new
+            {
+                type = "box",
+                layout = "vertical",
+                paddingStart = "20px",
+                paddingEnd = "20px",
+                paddingTop = "8px",
+                paddingBottom = "20px",
+                spacing = "md",
+                contents = new object[]
+                {
+                    new
+                    {
+                        type = "text",
+                        text = title,
+                        size = "lg",
+                        color = "#17191C",
+                        weight = "bold",
+                        wrap = true
+                    },
+                    new
+                    {
+                        type = "box",
+                        layout = "horizontal",
+                        alignItems = "center",
+                        contents = new object[]
+                        {
+                            new
+                            {
+                                type = "box",
+                                layout = "vertical",
+                                width = "8px",
+                                height = "8px",
+                                cornerRadius = "4px",
+                                backgroundColor = style.AccentColor,
+                                contents = new object[] { new { type = "filler" } }
+                            },
+                            new
+                            {
+                                type = "text",
+                                text = $"อัปเดตเมื่อ {DateTime.UtcNow.AddHours(7):dd/MM/yyyy HH:mm} น.",
+                                margin = "sm",
+                                size = "xs",
+                                color = "#8A8F98"
+                            }
+                        }
+                    },
+                    new { type = "separator", color = "#E8EAED" },
+                    new
+                    {
+                        type = "box",
+                        layout = "vertical",
+                        spacing = "sm",
+                        contents = detailContents.ToArray()
+                    }
+                }
+            },
+            footer = new
+            {
+                type = "box",
+                layout = "vertical",
+                paddingAll = "12px",
+                contents = new object[]
+                {
+                    new
+                    {
+                        type = "button",
+                        height = "sm",
+                        style = "primary",
+                        color = style.AccentColor,
+                        action = new
+                        {
+                            type = "uri",
+                            label = "เปิดดูรายละเอียด",
+                            uri = ticketUrl
+                        }
+                    }
+                }
+            }
+        };
+    }
+
+    private static TicketCardStyle ResolveTicketStyle(string message)
+    {
+        if (message.Contains("ปฏิเสธ") || message.Contains("ถูกยุติ"))
+            return new("#C63C3C", "#FCEBEC", "ยุติรายการ");
+        if (message.Contains("คำขอยกเลิก") && message.Contains("ไม่ได้รับอนุมัติ"))
+            return new("#C63C3C", "#FCEBEC", "ไม่อนุมัติ");
+        if (message.Contains("คำขอยกเลิก") && message.Contains("อนุมัติ"))
+            return new("#5B6472", "#EEF0F3", "ยกเลิกแล้ว");
+        if (message.Contains("คำขอยกเลิก") || message.Contains("ขอยกเลิก"))
+            return new("#B7791F", "#FFF6DE", "รอพิจารณา");
+        if (message.Contains("ส่งกลับ") || message.Contains("ขอข้อมูล"))
+            return new("#B7791F", "#FFF6DE", "ต้องดำเนินการ");
+        if (message.Contains("ผ่านการตรวจ") || message.Contains("ปิดแล้ว"))
+            return new("#17855B", "#E7F7F0", "ปิดงานแล้ว");
+        if (message.Contains("รอตรวจ"))
+            return new("#087EA4", "#E5F6FB", "รอตรวจรับ");
+        if (message.Contains("เริ่มดำเนินการ") || message.Contains("กลับมาดำเนินการ"))
+            return new("#1267A5", "#E8F2FA", "กำลังดำเนินการ");
+        if (message.Contains("มอบหมาย") || message.Contains("ผู้รับผิดชอบ") || message.Contains("รับเรื่อง"))
+            return new("#3563C9", "#EBF0FC", "มอบหมายแล้ว");
+        if (message.Contains("ข้อความใหม่"))
+            return new("#5B6472", "#EEF0F3", "ข้อความใหม่");
+
+        return new("#0F8F72", "#E5F6F1", "งานใหม่");
+    }
+
+    private sealed record TicketCardStyle(
+        string AccentColor,
+        string BadgeColor,
+        string Label);
+
     public static object BuildAttendancePromptCard(
         string name, bool isCheckIn, string? checkInTime = null)
     {

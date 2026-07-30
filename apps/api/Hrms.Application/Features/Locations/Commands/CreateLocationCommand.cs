@@ -34,13 +34,12 @@ public class CreateLocationValidator : AbstractValidator<CreateLocationCommand>
     }
 }
 
-public class CreateLocationHandler(IApplicationDbContext db, ICurrentUser currentUser)
+public class CreateLocationHandler(IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permService, IAuditLogService auditLog)
     : IRequestHandler<CreateLocationCommand, LocationDto>
 {
     public async Task<LocationDto> Handle(CreateLocationCommand request, CancellationToken ct)
     {
-        if (!currentUser.IsAdminOrHr())
-            throw new AppForbiddenException("เฉพาะ HR / Admin เท่านั้นที่สร้าง Location ได้");
+        await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-locations", ct);
 
         if (!currentUser.CanManageCompany(request.CompanyId))
             throw new AppForbiddenException("ไม่มีสิทธิ์จัดการ Location ใน company นี้");
@@ -60,12 +59,22 @@ public class CreateLocationHandler(IApplicationDbContext db, ICurrentUser curren
             SubDistrictId = request.SubDistrictId,
             Address       = request.Address,
             IsActive      = true,
-            CreatedAt     = DateTime.UtcNow,
-            UpdatedAt     = DateTime.UtcNow,
+            CreatedAt     = DateTime.UtcNow.AddHours(7),
+            UpdatedAt     = DateTime.UtcNow.AddHours(7),
         };
 
         db.Locations.Add(location);
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "location",
+            entityType:  "Location",
+            entityId:    location.Id.ToString(),
+            action:      "create",
+            description: $"สร้าง Location '{location.Name}' ใน company {location.CompanyId}",
+            oldValues:   null,
+            newValues:   new { location.Name, location.Latitude, location.Longitude, location.RadiusMeters, location.CompanyId },
+            ct:          ct);
 
         // reload navigations for response
         await db.Locations.Entry(location)

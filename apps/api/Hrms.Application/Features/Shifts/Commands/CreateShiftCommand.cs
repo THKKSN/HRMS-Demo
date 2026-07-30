@@ -28,7 +28,7 @@ public class CreateShiftCommandValidator : AbstractValidator<CreateShiftCommand>
     }
 }
 
-public class CreateShiftHandler(IApplicationDbContext db, IScopeGuard scope)
+public class CreateShiftHandler(IApplicationDbContext db, IScopeGuard scope, IAuditLogService auditLog)
     : IRequestHandler<CreateShiftCommand, ShiftDto>
 {
     public async Task<ShiftDto> Handle(CreateShiftCommand request, CancellationToken ct)
@@ -61,6 +61,16 @@ public class CreateShiftHandler(IApplicationDbContext db, IScopeGuard scope)
         await db.SaveChangesAsync(ct);
 
         shift.Company = await db.Companies.FirstAsync(c => c.Id == shift.CompanyId, ct);
+
+        await auditLog.LogAsync(
+            module:      "shift",
+            entityType:  "Shift",
+            entityId:    shift.Id.ToString(),
+            action:      "create",
+            description: $"สร้างกะงาน '{shift.Name}' ({shift.StartTime}–{shift.EndTime})",
+            oldValues:   null,
+            newValues:   new { shift.Name, shift.StartTime, shift.EndTime, shift.GracePeriodMinutes, shift.CompanyId },
+            ct:          ct);
 
         return ToDto(shift);
     }

@@ -23,6 +23,10 @@ const DateInput = forwardRef<HTMLInputElement, DateInputProps>(
             error ? 'border-destructive' : 'border-border',
             className,
           )}
+          onClick={(e) => {
+            try { (e.currentTarget as HTMLInputElement).showPicker() } catch {}
+            props.onClick?.(e)
+          }}
           {...props}
         />
       </div>

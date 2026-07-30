@@ -400,7 +400,7 @@ function GenerateFromScheduleModal({
 
       {step === 2 && (
         <div className="space-y-4">
-          <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
+          <div className="rounded-md bg-whited/50 px-3 py-2 text-sm">
             กฎ: <span className="font-medium">{selectedSchedule?.name}</span>
             {' · '}ปี {year + 543}
           </div>
@@ -418,7 +418,7 @@ function GenerateFromScheduleModal({
               </p>
               <div className="max-h-56 overflow-y-auto rounded-md border border-border">
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-muted/80">
+                  <thead className="sticky top-0 bg-whited/80">
                     <tr>
                       <th className="px-3 py-2 text-left font-medium text-muted-foreground">วันที่</th>
                       <th className="px-3 py-2 text-left font-medium text-muted-foreground">ชื่อวันหยุด</th>
@@ -477,10 +477,24 @@ export default function HolidaysPage() {
   const canSeeAll = isAdmin || isHqHr
 
   const [year, setYear] = useState(CURRENT_YEAR)
-  const [companyId, setCompanyId] = useState<string | undefined>(
-    canSeeAll ? undefined : (employee?.companyId ?? undefined),
-  )
+  const [companyId, setCompanyId] = useState<string | undefined>(undefined)
+  const [scopeInitialized, setScopeInitialized] = useState(false)
   const [includeInactive, setIncludeInactive] = useState(false)
+
+  // ตั้ง companyId เมื่อรู้ว่าเป็น HQ HR หรือไม่ (allCompanies โหลด async)
+  useEffect(() => {
+    if (scopeInitialized) return
+    if (!employee) return
+    // รอให้ allCompanies โหลดก่อนถ้าเป็น HR (isAdmin รู้ผลทันที)
+    if (isHr && allCompanies.length === 0) return
+
+    if (canSeeAll) {
+      setCompanyId(undefined)
+    } else {
+      setCompanyId(employee.companyId ?? undefined)
+    }
+    setScopeInitialized(true)
+  }, [canSeeAll, isHr, allCompanies.length, employee, scopeInitialized])
 
   const { data: holidays, isLoading } = useHolidays(year, companyId, includeInactive)
 
@@ -585,7 +599,7 @@ export default function HolidaysPage() {
       <div className="overflow-hidden rounded-lg border border-border bg-background">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/50">
+            <tr className="border-b border-border bg-whited/50">
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อวันหยุด</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">วันที่</th>
               <th className="px-4 py-3 text-left font-medium text-muted-foreground">บริษัท</th>
@@ -599,7 +613,7 @@ export default function HolidaysPage() {
                 <tr key={i} className="border-b border-border">
                   {Array.from({ length: 5 }).map((__, j) => (
                     <td key={j} className="px-4 py-3">
-                      <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+                      <div className="h-4 w-24 animate-pulse rounded bg-whited" />
                     </td>
                   ))}
                 </tr>
@@ -619,7 +633,7 @@ export default function HolidaysPage() {
               pagedHolidays.map((h) => (
                 <tr
                   key={h.id}
-                  className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                  className="border-b border-border last:border-0 hover:bg-whited/30 transition-colors"
                 >
                   <td className="px-4 py-3 font-medium">{h.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{thaiDate(h.date)}</td>

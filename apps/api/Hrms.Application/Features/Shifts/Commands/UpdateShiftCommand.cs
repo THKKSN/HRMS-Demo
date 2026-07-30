@@ -28,7 +28,7 @@ public class UpdateShiftCommandValidator : AbstractValidator<UpdateShiftCommand>
     }
 }
 
-public class UpdateShiftHandler(IApplicationDbContext db, IScopeGuard scope)
+public class UpdateShiftHandler(IApplicationDbContext db, IScopeGuard scope, IAuditLogService auditLog)
     : IRequestHandler<UpdateShiftCommand, ShiftDto>
 {
     public async Task<ShiftDto> Handle(UpdateShiftCommand request, CancellationToken ct)
@@ -48,6 +48,8 @@ public class UpdateShiftHandler(IApplicationDbContext db, IScopeGuard scope)
         if (duplicate)
             throw new ConflictException("DUPLICATE_SHIFT", $"ชื่อกะ '{request.Name}' มีอยู่แล้วใน company นี้");
 
+        var oldValues = new { shift.Name, shift.StartTime, shift.EndTime, shift.GracePeriodMinutes, shift.IsActive };
+
         shift.Name               = request.Name;
         shift.StartTime          = request.StartTime;
         shift.EndTime            = request.EndTime;
@@ -55,6 +57,16 @@ public class UpdateShiftHandler(IApplicationDbContext db, IScopeGuard scope)
         shift.IsActive           = request.IsActive;
 
         await db.SaveChangesAsync(ct);
+
+        await auditLog.LogAsync(
+            module:      "shift",
+            entityType:  "Shift",
+            entityId:    shift.Id.ToString(),
+            action:      "update",
+            description: $"แก้ไขกะงาน '{shift.Name}'",
+            oldValues:   oldValues,
+            newValues:   new { shift.Name, shift.StartTime, shift.EndTime, shift.GracePeriodMinutes, shift.IsActive },
+            ct:          ct);
 
         return CreateShiftHandler.ToDto(shift);
     }

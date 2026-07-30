@@ -31,7 +31,7 @@ export default function PendingApprovalsPage() {
       <div className="flex flex-col gap-3 px-4 pb-24 pt-4">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
+            <div key={i} className="h-24 animate-pulse rounded-xl bg-whited" />
           ))
         ) : !data?.items.length ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -48,7 +48,7 @@ export default function PendingApprovalsPage() {
               <Link
                 key={item.id}
                 href={`/leaves/${item.id}`}
-                className="rounded-xl border bg-card p-4 shadow-sm active:bg-muted"
+                className="rounded-xl border bg-white p-4 shadow-sm active:bg-whited"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
