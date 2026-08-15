@@ -4,6 +4,7 @@ namespace Hrms.Application.Features.Tickets.Dtos;
 
 public record TicketAttachmentDto(
     Guid Id,
+    Guid? TicketProgressEntryId,
     string Url,
     string? FileName,
     string? ContentType,

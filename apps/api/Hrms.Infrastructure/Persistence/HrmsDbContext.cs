@@ -27,6 +27,10 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
     public DbSet<AuditLog>        AuditLogs       => Set<AuditLog>();
 
     public DbSet<OtRequest>             OtRequests             => Set<OtRequest>();
+    public DbSet<ExpenseClaim>          ExpenseClaims          => Set<ExpenseClaim>();
+    public DbSet<ExpenseOcrResult>       ExpenseOcrResults      => Set<ExpenseOcrResult>();
+    public DbSet<ExpenseBillingBatch>    ExpenseBillingBatches  => Set<ExpenseBillingBatch>();
+    public DbSet<ExpenseBillingBatchItem> ExpenseBillingBatchItems => Set<ExpenseBillingBatchItem>();
     public DbSet<EmployeeShiftOverride> EmployeeShiftOverrides => Set<EmployeeShiftOverride>();
 
     public DbSet<Location>    Locations    => Set<Location>();
@@ -34,6 +38,7 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
     public DbSet<Ticket>           Tickets           => Set<Ticket>();
     public DbSet<TicketCategory>   TicketCategories  => Set<TicketCategory>();
     public DbSet<TicketTopic>      TicketTopics      => Set<TicketTopic>();
+    public DbSet<TicketSubject>    TicketSubjects    => Set<TicketSubject>();
     public DbSet<TicketAttachment> TicketAttachments => Set<TicketAttachment>();
     public DbSet<TicketPendingUpload> TicketPendingUploads => Set<TicketPendingUpload>();
     public DbSet<TicketDailySequence> TicketDailySequences => Set<TicketDailySequence>();
@@ -42,6 +47,9 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
     public DbSet<TicketReview>     TicketReviews     => Set<TicketReview>();
     public DbSet<TicketStatusHistory> TicketStatusHistory => Set<TicketStatusHistory>();
     public DbSet<TicketCancellationRequest> TicketCancellationRequests => Set<TicketCancellationRequest>();
+    public DbSet<TicketProgressEntry> TicketProgressEntries => Set<TicketProgressEntry>();
+    public DbSet<TicketWorkflowDefinition> TicketWorkflowDefinitions => Set<TicketWorkflowDefinition>();
+    public DbSet<TicketSubjectGuidanceConfig> TicketSubjectGuidanceConfigs => Set<TicketSubjectGuidanceConfig>();
     public DbSet<EmployeeResponsibility> EmployeeResponsibilities => Set<EmployeeResponsibility>();
     public DbSet<NotificationOutbox> NotificationOutboxes => Set<NotificationOutbox>();
 

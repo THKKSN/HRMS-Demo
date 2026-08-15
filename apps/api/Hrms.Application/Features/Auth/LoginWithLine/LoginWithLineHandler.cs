@@ -50,6 +50,7 @@ public class LoginWithLineHandler(
         await db.SaveChangesAsync(ct);
 
         var expiresIn = (int)(accessExpires - DateTime.UtcNow).TotalSeconds;
-        return new AuthResultDto(accessToken, refreshToken, expiresIn, employee.ToAuthDto());
+        var permissionCodes = await employee.GetPermissionCodesAsync(db, ct);
+        return new AuthResultDto(accessToken, refreshToken, expiresIn, employee.ToAuthDto(permissionCodes));
     }
 }

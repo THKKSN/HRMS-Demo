@@ -18,7 +18,8 @@ public record AddTicketAttachmentCommand(
     string? ContentType,
     long SizeBytes,
     TicketAttachmentStage Stage,
-    TicketAttachmentVisibility Visibility) : IRequest<TicketAttachmentDto>;
+    TicketAttachmentVisibility Visibility,
+    Guid? TicketProgressEntryId = null) : IRequest<TicketAttachmentDto>;
 
 public class AddTicketAttachmentValidator : AbstractValidator<AddTicketAttachmentCommand>
 {
@@ -48,16 +49,29 @@ public class AddTicketAttachmentHandler(
             throw new ConflictException("INVALID_TICKET_STATUS", "สถานะปัจจุบันไม่อนุญาตให้เพิ่มหลักฐาน");
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
         var isAssignee = await TicketAccess.IsActiveAssigneeAsync(db, actorId, ticket.Id, ct);
-        if (request.Stage is TicketAttachmentStage.Progress or TicketAttachmentStage.Resolved &&
+        var isManager = await TicketAccess.IsDepartmentManagerAsync(db, currentUser, ticket, ct);
+        var isActivityAttachment = request.TicketProgressEntryId.HasValue;
+        if (!isActivityAttachment &&
+            request.Stage is TicketAttachmentStage.Progress or TicketAttachmentStage.Resolved &&
             !isAssignee && !currentUser.HasRole(RoleType.Admin))
             throw new AppForbiddenException("เฉพาะผู้รับผิดชอบปัจจุบันที่เพิ่มหลักฐานการทำงานได้");
         if (request.Stage == TicketAttachmentStage.Created)
             throw new ValidationException("ไม่สามารถเพิ่มหลักฐานขั้นเปิดเรื่องจากหน้านี้ได้");
         if (request.Visibility == TicketAttachmentVisibility.Internal)
         {
-            var isManager = await TicketAccess.IsDepartmentManagerAsync(db, currentUser, ticket, ct);
             if (!isManager || actorId == ticket.RequesterEmployeeId)
                 throw new AppForbiddenException("เฉพาะ Supervisor/Admin ฝั่งผู้รับที่เพิ่มไฟล์ภายในได้");
+        }
+
+        if (isActivityAttachment)
+        {
+            if (request.Stage != TicketAttachmentStage.Progress)
+                throw new ValidationException("รูปกิจกรรมต้องใช้ขั้น Progress");
+            var entry = await db.TicketProgressEntries.FirstOrDefaultAsync(progress =>
+                progress.Id == request.TicketProgressEntryId && progress.TicketId == ticket.Id, ct)
+                ?? throw new ValidationException("ไม่พบกิจกรรมที่ต้องการแนบรูป");
+            if (!isAssignee && !isManager && !currentUser.HasRole(RoleType.Admin))
+                throw new AppForbiddenException("ไม่มีสิทธิ์แนบรูปในกิจกรรมนี้");
         }
 
         var uploadId = ParseUploadId(request.Url);
@@ -75,6 +89,7 @@ public class AddTicketAttachmentHandler(
         var attachment = new TicketAttachment
         {
             TicketId = ticket.Id,
+            TicketProgressEntryId = request.TicketProgressEntryId,
             UploadedByEmployeeId = actorId,
             FileName = pending.FileName,
             ContentType = pending.ContentType,
@@ -107,7 +122,7 @@ public class AddTicketAttachmentHandler(
     }
 
     private static TicketAttachmentDto ToDto(TicketAttachment a)
-        => new(a.Id, a.Url, a.FileName, a.ContentType, a.SizeBytes, a.Stage, a.Visibility);
+        => new(a.Id, a.TicketProgressEntryId, a.Url, a.FileName, a.ContentType, a.SizeBytes, a.Stage, a.Visibility);
     private static string ContentUrl(Guid ticketId, Guid attachmentId)
         => $"/tickets/{ticketId}/attachments/{attachmentId}/content";
 }

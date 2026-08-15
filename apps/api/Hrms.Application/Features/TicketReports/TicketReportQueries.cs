@@ -1,5 +1,6 @@
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Common.Models;
+using Hrms.Application.Common.Extensions;
 using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
 using MediatR;
@@ -15,21 +16,56 @@ public class GetTicketReportScopeHandler(
 {
     public async Task<TicketReportScopeDto> Handle(GetTicketReportScopeQuery request, CancellationToken ct)
     {
-        var scoped = await TicketReportAccess.ApplyScopeAsync(db.Tickets.AsNoTracking(), currentUser, permissions, ct);
-        var departments = await scoped
-            .Select(t => new { t.TargetDepartmentId, t.TargetCompanyId, t.TargetDepartment.Name })
+        await currentUser.ThrowIfNoPermissionAsync(permissions, "ticket:view-report", ct);
+
+        var departmentsQuery = db.Departments.AsNoTracking()
+            .Where(department => department.IsActive && department.Company.IsActive);
+
+        if (!currentUser.HasRole(RoleType.Admin))
+        {
+            if (currentUser.HasRole(RoleType.Supervisor) && currentUser.EmployeeId.HasValue)
+            {
+                var employeeId = currentUser.EmployeeId.Value;
+                var ownDepartmentId = currentUser.DepartmentId;
+                var roleDepartmentIds = currentUser.Roles
+                    .Where(role => role.Role == RoleType.Supervisor.ToString() && role.DepartmentId.HasValue)
+                    .Select(role => role.DepartmentId!.Value)
+                    .ToList();
+
+                departmentsQuery = departmentsQuery.Where(department =>
+                    department.ManagerEmployeeId == employeeId ||
+                    (ownDepartmentId.HasValue && department.Id == ownDepartmentId.Value) ||
+                    roleDepartmentIds.Contains(department.Id) ||
+                    db.EmployeeResponsibilities.Any(responsibility =>
+                        responsibility.EmployeeId == employeeId &&
+                        responsibility.IsActive &&
+                        responsibility.CompanyId == department.CompanyId &&
+                        responsibility.DepartmentId == department.Id));
+            }
+            else
+            {
+                var companyIds = currentUser.ManagedCompanyIds;
+                departmentsQuery = departmentsQuery.Where(department => companyIds.Contains(department.CompanyId));
+            }
+        }
+
+        var departments = await departmentsQuery
+            .Select(department => new { department.Id, department.CompanyId, department.Name })
             .Distinct()
             .OrderBy(x => x.Name)
             .ToListAsync(ct);
-        var companies = await scoped
-            .Select(t => new { t.TargetCompanyId, t.TargetCompany.Name })
-            .Distinct()
-            .OrderBy(x => x.Name)
+
+        var companyIdsInScope = departments.Select(department => department.CompanyId).Distinct().ToList();
+        var companies = await db.Companies.AsNoTracking()
+            .Where(company => companyIdsInScope.Contains(company.Id))
+            .OrderBy(company => company.Name)
+            .Select(company => new { company.Id, company.Name })
             .ToListAsync(ct);
+
         return new TicketReportScopeDto(
-            companies.Select(x => new TicketReportScopeCompanyDto(x.TargetCompanyId, x.Name)).ToList(),
+            companies.Select(x => new TicketReportScopeCompanyDto(x.Id, x.Name)).ToList(),
             departments.Select(x => new TicketReportScopeDepartmentDto(
-                x.TargetDepartmentId, x.TargetCompanyId, x.Name)).ToList());
+                x.Id, x.CompanyId, x.Name)).ToList());
     }
 }
 

@@ -17,7 +17,7 @@ namespace Hrms.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.28")
+                .HasAnnotation("ProductVersion", "8.0.29")
                 .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
@@ -802,6 +802,423 @@ namespace Hrms.Infrastructure.Migrations
                         .HasDatabaseName("ix_employee_shift_overrides_employee_id_is_active");
 
                     b.ToTable("employee_shift_overrides", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExpenseBillingBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BatchNo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("batch_no");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("CreatedByEmployeeId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by_employee_id");
+
+                    b.Property<DateTime?>("ExportedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("exported_at");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("note");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("paid_at");
+
+                    b.Property<DateOnly>("PeriodFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("period_from");
+
+                    b.Property<DateOnly>("PeriodTo")
+                        .HasColumnType("date")
+                        .HasColumnName("period_to");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("status");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasColumnType("decimal(12,2)")
+                        .HasColumnName("total_amount");
+
+                    b.Property<int>("TotalClaims")
+                        .HasColumnType("int")
+                        .HasColumnName("total_claims");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_expense_billing_batches");
+
+                    b.HasIndex("BatchNo")
+                        .IsUnique()
+                        .HasDatabaseName("ix_expense_billing_batches_batch_no");
+
+                    b.HasIndex("CreatedByEmployeeId")
+                        .HasDatabaseName("ix_expense_billing_batches_created_by_employee_id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_expense_billing_batches_status");
+
+                    b.HasIndex("PeriodFrom", "PeriodTo")
+                        .HasDatabaseName("ix_expense_billing_batches_period_from_period_to");
+
+                    b.ToTable("expense_billing_batches", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExpenseBillingBatchItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("AmountSnapshot")
+                        .HasColumnType("decimal(12,2)")
+                        .HasColumnName("amount_snapshot");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("batch_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("ExpenseClaimId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("expense_claim_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_expense_billing_batch_items");
+
+                    b.HasIndex("BatchId")
+                        .HasDatabaseName("ix_expense_billing_batch_items_batch_id");
+
+                    b.HasIndex("ExpenseClaimId")
+                        .HasDatabaseName("ix_expense_billing_batch_items_expense_claim_id");
+
+                    b.ToTable("expense_billing_batch_items", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExpenseClaim", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(12,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<string>("AttachmentUrlsJson")
+                        .HasColumnType("text")
+                        .HasColumnName("attachment_urls_json");
+
+                    b.Property<DateTime?>("BatchedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("batched_at");
+
+                    b.Property<string>("BillNo")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)")
+                        .HasColumnName("bill_no");
+
+                    b.Property<Guid?>("BillingBatchId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("billing_batch_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("CustomerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("customer_name");
+
+                    b.Property<string>("DriverName")
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)")
+                        .HasColumnName("driver_name");
+
+                    b.Property<Guid>("EmployeeId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("employee_id");
+
+                    b.Property<DateOnly>("ExpenseDate")
+                        .HasColumnType("date")
+                        .HasColumnName("expense_date");
+
+                    b.Property<decimal?>("FuelLiters")
+                        .HasColumnType("decimal(10,2)")
+                        .HasColumnName("fuel_liters");
+
+                    b.Property<string>("MerchantName")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("merchant_name");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Origin")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("origin");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("paid_at");
+
+                    b.Property<string>("PlateNo")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)")
+                        .HasColumnName("plate_no");
+
+                    b.Property<string>("ReceiptBatch")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)")
+                        .HasColumnName("receipt_batch");
+
+                    b.Property<string>("ReceiptMid")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)")
+                        .HasColumnName("receipt_mid");
+
+                    b.Property<string>("ReceiptTid")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)")
+                        .HasColumnName("receipt_tid");
+
+                    b.Property<string>("ReceiptTrace")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)")
+                        .HasColumnName("receipt_trace");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TransportNo")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("transport_no");
+
+                    b.Property<int?>("TripCount")
+                        .HasColumnType("int")
+                        .HasColumnName("trip_count");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("VehicleNo")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)")
+                        .HasColumnName("vehicle_no");
+
+                    b.HasKey("Id")
+                        .HasName("pk_expense_claims");
+
+                    b.HasIndex("BillNo")
+                        .HasDatabaseName("ix_expense_claims_bill_no");
+
+                    b.HasIndex("BillingBatchId")
+                        .HasDatabaseName("ix_expense_claims_billing_batch_id");
+
+                    b.HasIndex("ReceiptTrace")
+                        .HasDatabaseName("ix_expense_claims_receipt_trace");
+
+                    b.HasIndex("EmployeeId", "Status")
+                        .HasDatabaseName("ix_expense_claims_employee_id_status");
+
+                    b.HasIndex("ExpenseDate", "Status")
+                        .HasDatabaseName("ix_expense_claims_expense_date_status");
+
+                    b.ToTable("expense_claims", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExpenseOcrResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AttachmentUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("attachment_url");
+
+                    b.Property<int>("AttemptCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("attempt_count");
+
+                    b.Property<decimal?>("ConfidenceScore")
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("confidence_score");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("DocumentType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("document_type");
+
+                    b.Property<decimal?>("DurationMs")
+                        .HasColumnType("decimal(12,2)")
+                        .HasColumnName("duration_ms");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("error_message");
+
+                    b.Property<Guid>("ExpenseClaimId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("expense_claim_id");
+
+                    b.Property<int?>("MaxSide")
+                        .HasColumnType("int")
+                        .HasColumnName("max_side");
+
+                    b.Property<string>("ModelVersion")
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)")
+                        .HasColumnName("model_version");
+
+                    b.Property<string>("ParsedJson")
+                        .HasColumnType("json")
+                        .HasColumnName("parsed_json");
+
+                    b.Property<string>("PreprocessVariant")
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)")
+                        .HasColumnName("preprocess_variant");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("processed_at");
+
+                    b.Property<DateTime?>("ProcessingStartedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("processing_started_at");
+
+                    b.Property<string>("Profile")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("profile");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("provider");
+
+                    b.Property<string>("RawLinesJson")
+                        .HasColumnType("json")
+                        .HasColumnName("raw_lines_json");
+
+                    b.Property<string>("RawText")
+                        .HasColumnType("longtext")
+                        .HasColumnName("raw_text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("WorkerVersion")
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)")
+                        .HasColumnName("worker_version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_expense_ocr_results");
+
+                    b.HasIndex("ExpenseClaimId", "AttachmentUrl")
+                        .HasDatabaseName("ix_expense_ocr_results_expense_claim_id_attachment_url");
+
+                    b.HasIndex("ExpenseClaimId", "Status")
+                        .HasDatabaseName("ix_expense_ocr_results_expense_claim_id_status");
+
+                    b.ToTable("expense_ocr_results", (string)null);
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.Holiday", b =>
@@ -1894,6 +2311,21 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("char(36)")
                         .HasColumnName("created_by");
 
+                    b.Property<string>("CurrentBlockerReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("current_blocker_reason");
+
+                    b.Property<string>("CurrentNextAction")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("current_next_action");
+
+                    b.Property<string>("CurrentWorkState")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("current_work_state");
+
                     b.Property<string>("Detail")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -1998,6 +2430,19 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("varchar(30)")
                         .HasColumnName("status");
 
+                    b.Property<Guid?>("SubjectGuidanceConfigId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("subject_guidance_config_id");
+
+                    b.Property<string>("SubjectGuidanceConfigName")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("subject_guidance_config_name");
+
+                    b.Property<Guid?>("SubjectId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("subject_id");
+
                     b.Property<DateTime?>("SupervisorAcceptedAt")
                         .HasColumnType("datetime")
                         .HasColumnName("supervisor_accepted_at");
@@ -2074,6 +2519,44 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("char(36)")
                         .HasColumnName("work_started_by_employee_id");
 
+                    b.Property<string>("WorkflowActionsJson")
+                        .HasColumnType("longtext")
+                        .HasColumnName("workflow_actions_json");
+
+                    b.Property<int?>("WorkflowAutoAcknowledgeAfterDays")
+                        .HasColumnType("int")
+                        .HasColumnName("workflow_auto_acknowledge_after_days");
+
+                    b.Property<string>("WorkflowBoardStepsJson")
+                        .HasColumnType("longtext")
+                        .HasColumnName("workflow_board_steps_json");
+
+                    b.Property<string>("WorkflowCurrentStepKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("workflow_current_step_key");
+
+                    b.Property<Guid?>("WorkflowDefinitionId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("workflow_definition_id");
+
+                    b.Property<string>("WorkflowInProgressPresetsJson")
+                        .HasColumnType("longtext")
+                        .HasColumnName("workflow_in_progress_presets_json");
+
+                    b.Property<string>("WorkflowName")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("workflow_name");
+
+                    b.Property<string>("WorkflowStatusStepMapJson")
+                        .HasColumnType("longtext")
+                        .HasColumnName("workflow_status_step_map_json");
+
+                    b.Property<string>("WorkflowStepsJson")
+                        .HasColumnType("longtext")
+                        .HasColumnName("workflow_steps_json");
+
                     b.HasKey("Id")
                         .HasName("pk_tickets");
 
@@ -2098,6 +2581,9 @@ namespace Hrms.Infrastructure.Migrations
                     b.HasIndex("SourceDepartmentId")
                         .HasDatabaseName("ix_tickets_source_department_id");
 
+                    b.HasIndex("SubjectGuidanceConfigId")
+                        .HasDatabaseName("ix_tickets_subject_guidance_config_id");
+
                     b.HasIndex("SupervisorAcceptedByEmployeeId")
                         .HasDatabaseName("ix_tickets_supervisor_accepted_by_employee_id");
 
@@ -2120,6 +2606,9 @@ namespace Hrms.Infrastructure.Migrations
                     b.HasIndex("WorkStartedByEmployeeId")
                         .HasDatabaseName("ix_tickets_work_started_by_employee_id");
 
+                    b.HasIndex("WorkflowDefinitionId")
+                        .HasDatabaseName("ix_tickets_workflow_definition_id");
+
                     b.HasIndex("RequesterEmployeeId", "Status")
                         .HasDatabaseName("ix_tickets_requester_employee_id_status");
 
@@ -2128,6 +2617,12 @@ namespace Hrms.Infrastructure.Migrations
 
                     b.HasIndex("Status", "UpdatedAt")
                         .HasDatabaseName("ix_tickets_status_updated_at");
+
+                    b.HasIndex("Status", "VerifiedAt")
+                        .HasDatabaseName("ix_tickets_status_verified_at");
+
+                    b.HasIndex("SubjectId", "Status")
+                        .HasDatabaseName("ix_tickets_subject_id_status");
 
                     b.HasIndex("TargetDepartmentId", "Status")
                         .HasDatabaseName("ix_tickets_target_department_id_status");
@@ -2288,6 +2783,10 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("char(36)")
                         .HasColumnName("ticket_id");
 
+                    b.Property<Guid?>("TicketProgressEntryId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("ticket_progress_entry_id");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime")
                         .HasColumnName("updated_at");
@@ -2316,6 +2815,9 @@ namespace Hrms.Infrastructure.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_ticket_attachments");
+
+                    b.HasIndex("TicketProgressEntryId")
+                        .HasDatabaseName("ix_ticket_attachments_ticket_progress_entry_id");
 
                     b.HasIndex("UploadedByEmployeeId")
                         .HasDatabaseName("ix_ticket_attachments_uploaded_by_employee_id");
@@ -2638,6 +3140,95 @@ namespace Hrms.Infrastructure.Migrations
                     b.ToTable("ticket_pending_uploads", (string)null);
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketProgressEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("BlockerReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("blocker_reason");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("CreatedByEmployeeId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by_employee_id");
+
+                    b.Property<DateTime?>("DueAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("due_at");
+
+                    b.Property<bool>("IsCompleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_completed");
+
+                    b.Property<string>("NextAction")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("next_action");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid?>("OwnerEmployeeId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("owner_employee_id");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("ticket_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.Property<string>("WorkState")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("work_state");
+
+                    b.Property<string>("WorkflowStepKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("workflow_step_key");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ticket_progress_entries");
+
+                    b.HasIndex("CreatedByEmployeeId")
+                        .HasDatabaseName("ix_ticket_progress_entries_created_by_employee_id");
+
+                    b.HasIndex("OwnerEmployeeId")
+                        .HasDatabaseName("ix_ticket_progress_entries_owner_employee_id");
+
+                    b.HasIndex("TicketId", "CreatedAt")
+                        .HasDatabaseName("ix_ticket_progress_entries_ticket_id_created_at");
+
+                    b.HasIndex("TicketId", "WorkflowStepKey", "CreatedAt")
+                        .HasDatabaseName("ix_ticket_progress_entries_ticket_id_workflow_step_key_created_");
+
+                    b.ToTable("ticket_progress_entries", (string)null);
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.TicketReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2809,6 +3400,193 @@ namespace Hrms.Infrastructure.Migrations
                     b.ToTable("ticket_status_history", (string)null);
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketSubject", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CategoryId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("category_id");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid?>("CreatedByEmployeeId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by_employee_id");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("department_id");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int")
+                        .HasColumnName("sort_order");
+
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("topic_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ticket_subjects");
+
+                    b.HasIndex("CategoryId")
+                        .HasDatabaseName("ix_ticket_subjects_category_id");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_ticket_subjects_company_id");
+
+                    b.HasIndex("CreatedByEmployeeId")
+                        .HasDatabaseName("ix_ticket_subjects_created_by_employee_id");
+
+                    b.HasIndex("TopicId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_ticket_subjects_topic_id_name");
+
+                    b.HasIndex("DepartmentId", "CategoryId", "TopicId", "IsActive")
+                        .HasDatabaseName("ix_ticket_subjects_department_id_category_id_topic_id_is_active");
+
+                    b.ToTable("ticket_subjects", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketSubjectGuidanceConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("category_id");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("department_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int")
+                        .HasColumnName("priority");
+
+                    b.Property<Guid?>("SubjectId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("subject_id");
+
+                    b.Property<string>("SuggestionTargetLabel")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("suggestion_target_label");
+
+                    b.Property<string>("SuggestionsJson")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("suggestions_json");
+
+                    b.Property<string>("Template")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("template");
+
+                    b.Property<Guid?>("TopicId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("topic_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.Property<Guid?>("WorkflowDefinitionId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("workflow_definition_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ticket_subject_guidance_configs");
+
+                    b.HasIndex("CategoryId")
+                        .HasDatabaseName("ix_ticket_subject_guidance_configs_category_id");
+
+                    b.HasIndex("DepartmentId")
+                        .HasDatabaseName("ix_ticket_subject_guidance_configs_department_id");
+
+                    b.HasIndex("SubjectId")
+                        .HasDatabaseName("ix_ticket_subject_guidance_configs_subject_id");
+
+                    b.HasIndex("TopicId")
+                        .HasDatabaseName("ix_ticket_subject_guidance_configs_topic_id");
+
+                    b.HasIndex("WorkflowDefinitionId")
+                        .HasDatabaseName("ix_ticket_subject_guidance_configs_workflow_definition_id");
+
+                    b.HasIndex("CompanyId", "DepartmentId", "IsActive")
+                        .HasDatabaseName("ix_ticket_subject_guidance_configs_company_id_department_id_is_");
+
+                    b.HasIndex("CompanyId", "DepartmentId", "Priority")
+                        .HasDatabaseName("ix_ticket_subject_guidance_configs_company_id_department_id_pri");
+
+                    b.ToTable("ticket_subject_guidance_configs", (string)null);
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.TicketTopic", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2890,6 +3668,107 @@ namespace Hrms.Infrastructure.Migrations
                         .HasDatabaseName("ix_ticket_topics_department_id_category_id_is_active");
 
                     b.ToTable("ticket_topics", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketWorkflowDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ActionsJson")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("actions_json");
+
+                    b.Property<int?>("AutoAcknowledgeAfterDays")
+                        .HasColumnType("int")
+                        .HasColumnName("auto_acknowledge_after_days");
+
+                    b.Property<string>("BoardStepsJson")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("board_steps_json");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("code");
+
+                    b.Property<Guid>("CompanyId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("DepartmentId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("department_id");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("InProgressPresetsJson")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("in_progress_presets_json");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("StatusStepMapJson")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("status_step_map_json");
+
+                    b.Property<string>("StepsJson")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("steps_json");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_ticket_workflow_definitions");
+
+                    b.HasIndex("DepartmentId")
+                        .HasDatabaseName("ix_ticket_workflow_definitions_department_id");
+
+                    b.HasIndex("CompanyId", "DepartmentId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_ticket_workflow_definitions_company_id_department_id_code");
+
+                    b.HasIndex("CompanyId", "DepartmentId", "IsActive")
+                        .HasDatabaseName("ix_ticket_workflow_definitions_company_id_department_id_is_acti");
+
+                    b.ToTable("ticket_workflow_definitions", (string)null);
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.WeeklyHolidaySchedule", b =>
@@ -3218,6 +4097,71 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("Shift");
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.ExpenseBillingBatch", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.Employee", "CreatedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("CreatedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_expense_billing_batches_employees_created_by_employee_id");
+
+                    b.Navigation("CreatedByEmployee");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExpenseBillingBatchItem", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.ExpenseBillingBatch", "Batch")
+                        .WithMany("Items")
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_expense_billing_batch_items_expense_billing_batches_batch_id");
+
+                    b.HasOne("Hrms.Domain.Entities.ExpenseClaim", "ExpenseClaim")
+                        .WithMany()
+                        .HasForeignKey("ExpenseClaimId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_expense_billing_batch_items_expense_claims_expense_claim_id");
+
+                    b.Navigation("Batch");
+
+                    b.Navigation("ExpenseClaim");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExpenseClaim", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.ExpenseBillingBatch", "BillingBatch")
+                        .WithMany("Claims")
+                        .HasForeignKey("BillingBatchId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_expense_claims_expense_billing_batches_billing_batch_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Employee", "Employee")
+                        .WithMany("ExpenseClaims")
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_expense_claims_employees_employee_id");
+
+                    b.Navigation("BillingBatch");
+
+                    b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExpenseOcrResult", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.ExpenseClaim", "ExpenseClaim")
+                        .WithMany("OcrResults")
+                        .HasForeignKey("ExpenseClaimId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_expense_ocr_results_expense_claims_expense_claim_id");
+
+                    b.Navigation("ExpenseClaim");
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.Holiday", b =>
                 {
                     b.HasOne("Hrms.Domain.Entities.Company", "Company")
@@ -3492,6 +4436,18 @@ namespace Hrms.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_tickets_departments_source_department_id");
 
+                    b.HasOne("Hrms.Domain.Entities.TicketSubjectGuidanceConfig", "SubjectGuidanceConfig")
+                        .WithMany("Tickets")
+                        .HasForeignKey("SubjectGuidanceConfigId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_tickets_ticket_subject_guidance_configs_subject_guidance_con");
+
+                    b.HasOne("Hrms.Domain.Entities.TicketSubject", "Subject")
+                        .WithMany("Tickets")
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_tickets_ticket_subjects_subject_id");
+
                     b.HasOne("Hrms.Domain.Entities.Employee", "SupervisorAcceptedByEmployee")
                         .WithMany()
                         .HasForeignKey("SupervisorAcceptedByEmployeeId")
@@ -3537,6 +4493,12 @@ namespace Hrms.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_tickets_employees_work_started_by_employee_id");
 
+                    b.HasOne("Hrms.Domain.Entities.TicketWorkflowDefinition", "WorkflowDefinition")
+                        .WithMany("Tickets")
+                        .HasForeignKey("WorkflowDefinitionId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_tickets_ticket_workflow_definitions_workflow_definition_id");
+
                     b.Navigation("CancelledByEmployee");
 
                     b.Navigation("Category");
@@ -3555,6 +4517,10 @@ namespace Hrms.Infrastructure.Migrations
 
                     b.Navigation("SourceDepartment");
 
+                    b.Navigation("Subject");
+
+                    b.Navigation("SubjectGuidanceConfig");
+
                     b.Navigation("SupervisorAcceptedByEmployee");
 
                     b.Navigation("TargetCompany");
@@ -3568,6 +4534,8 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("WaitingInfoByEmployee");
 
                     b.Navigation("WorkStartedByEmployee");
+
+                    b.Navigation("WorkflowDefinition");
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.TicketAssignment", b =>
@@ -3624,6 +4592,12 @@ namespace Hrms.Infrastructure.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_ticket_attachments_tickets_ticket_id");
 
+                    b.HasOne("Hrms.Domain.Entities.TicketProgressEntry", "TicketProgressEntry")
+                        .WithMany("Attachments")
+                        .HasForeignKey("TicketProgressEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_ticket_attachments_ticket_progress_entries_ticket_progress_e");
+
                     b.HasOne("Hrms.Domain.Entities.Employee", "UploadedByEmployee")
                         .WithMany()
                         .HasForeignKey("UploadedByEmployeeId")
@@ -3632,6 +4606,8 @@ namespace Hrms.Infrastructure.Migrations
                         .HasConstraintName("fk_ticket_attachments_employees_uploaded_by_employee_id");
 
                     b.Navigation("Ticket");
+
+                    b.Navigation("TicketProgressEntry");
 
                     b.Navigation("UploadedByEmployee");
                 });
@@ -3727,6 +4703,35 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("UploadedByEmployee");
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketProgressEntry", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.Employee", "CreatedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("CreatedByEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ticket_progress_entries_employees_created_by_employee_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Employee", "OwnerEmployee")
+                        .WithMany()
+                        .HasForeignKey("OwnerEmployeeId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_ticket_progress_entries_employees_owner_employee_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Ticket", "Ticket")
+                        .WithMany("ProgressEntries")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_ticket_progress_entries_tickets_ticket_id");
+
+                    b.Navigation("CreatedByEmployee");
+
+                    b.Navigation("OwnerEmployee");
+
+                    b.Navigation("Ticket");
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.TicketReview", b =>
                 {
                     b.HasOne("Hrms.Domain.Entities.Employee", "ResolvedByEmployee")
@@ -3784,6 +4789,106 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("Ticket");
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketSubject", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.TicketCategory", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ticket_subjects_ticket_categories_category_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ticket_subjects_companies_company_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Employee", "CreatedByEmployee")
+                        .WithMany()
+                        .HasForeignKey("CreatedByEmployeeId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_ticket_subjects_employees_created_by_employee_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ticket_subjects_departments_department_id");
+
+                    b.HasOne("Hrms.Domain.Entities.TicketTopic", "Topic")
+                        .WithMany("Subjects")
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_ticket_subjects_ticket_topics_topic_id");
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("CreatedByEmployee");
+
+                    b.Navigation("Department");
+
+                    b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketSubjectGuidanceConfig", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.TicketCategory", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_ticket_subject_guidance_configs_ticket_categories_category_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ticket_subject_guidance_configs_companies_company_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ticket_subject_guidance_configs_departments_department_id");
+
+                    b.HasOne("Hrms.Domain.Entities.TicketSubject", "Subject")
+                        .WithMany()
+                        .HasForeignKey("SubjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_ticket_subject_guidance_configs_ticket_subjects_subject_id");
+
+                    b.HasOne("Hrms.Domain.Entities.TicketTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_ticket_subject_guidance_configs_ticket_topics_topic_id");
+
+                    b.HasOne("Hrms.Domain.Entities.TicketWorkflowDefinition", "WorkflowDefinition")
+                        .WithMany("SubjectGuidanceConfigs")
+                        .HasForeignKey("WorkflowDefinitionId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_ticket_subject_guidance_configs_ticket_workflow_definitions_");
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Department");
+
+                    b.Navigation("Subject");
+
+                    b.Navigation("Topic");
+
+                    b.Navigation("WorkflowDefinition");
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.TicketTopic", b =>
                 {
                     b.HasOne("Hrms.Domain.Entities.TicketCategory", "Category")
@@ -3822,6 +4927,27 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("Department");
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketWorkflowDefinition", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ticket_workflow_definitions_companies_company_id");
+
+                    b.HasOne("Hrms.Domain.Entities.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_ticket_workflow_definitions_departments_department_id");
+
+                    b.Navigation("Company");
+
+                    b.Navigation("Department");
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.WeeklyHolidaySchedule", b =>
                 {
                     b.HasOne("Hrms.Domain.Entities.Company", "Company")
@@ -3856,6 +4982,8 @@ namespace Hrms.Infrastructure.Migrations
                 {
                     b.Navigation("AttendanceRecords");
 
+                    b.Navigation("ExpenseClaims");
+
                     b.Navigation("LeaveRequests");
 
                     b.Navigation("OtRequests");
@@ -3868,6 +4996,18 @@ namespace Hrms.Infrastructure.Migrations
             modelBuilder.Entity("Hrms.Domain.Entities.EmployeeResponsibility", b =>
                 {
                     b.Navigation("Assignments");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExpenseBillingBatch", b =>
+                {
+                    b.Navigation("Claims");
+
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExpenseClaim", b =>
+                {
+                    b.Navigation("OcrResults");
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.Permission", b =>
@@ -3902,6 +5042,8 @@ namespace Hrms.Infrastructure.Migrations
 
                     b.Navigation("Comments");
 
+                    b.Navigation("ProgressEntries");
+
                     b.Navigation("Reviews");
 
                     b.Navigation("StatusHistory");
@@ -3914,9 +5056,33 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("Topics");
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketProgressEntry", b =>
+                {
+                    b.Navigation("Attachments");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketSubject", b =>
+                {
+                    b.Navigation("Tickets");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketSubjectGuidanceConfig", b =>
+                {
+                    b.Navigation("Tickets");
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.TicketTopic", b =>
                 {
                     b.Navigation("Responsibilities");
+
+                    b.Navigation("Subjects");
+
+                    b.Navigation("Tickets");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.TicketWorkflowDefinition", b =>
+                {
+                    b.Navigation("SubjectGuidanceConfigs");
 
                     b.Navigation("Tickets");
                 });

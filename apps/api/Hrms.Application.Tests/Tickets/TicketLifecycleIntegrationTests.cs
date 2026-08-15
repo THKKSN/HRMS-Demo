@@ -83,7 +83,166 @@ public class TicketLifecycleIntegrationTests
     }
 
     [Fact]
-    public async Task Close_ShouldEndCurrentAssignmentAndKeepReviewHistory()
+    public async Task ResolveWithCloseoutEvidence_ShouldProceed()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
+        ticket.ProblemType = TicketProblemType.SystemDefect;
+        ticket.ResolutionNote = "Reattached the camera";
+        fixture.Db.TicketAttachments.Add(new TicketAttachment
+        {
+            TicketId = ticket.Id,
+            UploadedByEmployeeId = fixture.AssigneeId,
+            Url = "/protected/evidence.jpg",
+            FileName = "evidence.jpg",
+            ContentType = "image/jpeg",
+            SizeBytes = 100,
+            Stage = TicketAttachmentStage.Resolved,
+            Visibility = TicketAttachmentVisibility.Public
+        });
+        await fixture.Db.SaveChangesAsync();
+        var handler = new ResolveTicketHandler(
+            fixture.Db,
+            Worker(fixture),
+            new TestPermissionService("ticket:resolve"),
+            new TestAuditLogService());
+
+        var result = await handler.Handle(new ResolveTicketCommand(ticket.Id, ticket.UpdatedAt), default);
+
+        result.Status.Should().Be(TicketStatus.Resolved);
+    }
+
+    [Fact]
+    public async Task AddActivityAttachment_ShouldLinkFileToProgressEntry()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
+        var user = Worker(fixture);
+        var permissions = new TestPermissionService(
+            "ticket:update-status",
+            "ticket:add-attachment",
+            "ticket:view-assigned");
+        var progressHandler = new UpdateTicketProgressHandler(
+            fixture.Db,
+            user,
+            permissions,
+            new TestAuditLogService());
+        var attachmentHandler = new AddTicketAttachmentHandler(
+            fixture.Db,
+            user,
+            permissions,
+            new TestAuditLogService());
+
+        var progress = await progressHandler.Handle(
+            new UpdateTicketProgressCommand(
+                ticket.Id,
+                "ตรวจสอบหน้างาน",
+                null,
+                null,
+                false,
+                "ถ่ายรูปประกอบ",
+                ticket.UpdatedAt),
+            default);
+        var upload = new TicketPendingUpload
+        {
+            UploadedByEmployeeId = fixture.AssigneeId,
+            StorageKey = "2026/08/activity.jpg",
+            FileName = "activity.jpg",
+            ContentType = "image/jpeg",
+            SizeBytes = 1024,
+            CreatedBy = fixture.AssigneeId,
+            UpdatedBy = fixture.AssigneeId
+        };
+        fixture.Db.TicketPendingUploads.Add(upload);
+        await fixture.Db.SaveChangesAsync();
+
+        var attachment = await attachmentHandler.Handle(
+            new AddTicketAttachmentCommand(
+                ticket.Id,
+                $"ticket-upload:{upload.Id}",
+                upload.FileName,
+                upload.ContentType,
+                upload.SizeBytes,
+                TicketAttachmentStage.Progress,
+                TicketAttachmentVisibility.Public,
+                progress.ProgressEntryId),
+            default);
+
+        attachment.TicketProgressEntryId.Should().Be(progress.ProgressEntryId);
+        var saved = await fixture.Db.TicketAttachments.SingleAsync(a => a.Id == attachment.Id);
+        saved.TicketProgressEntryId.Should().Be(progress.ProgressEntryId);
+        (await fixture.Db.TicketPendingUploads.SingleAsync(u => u.Id == upload.Id))
+            .TicketAttachmentId.Should().Be(attachment.Id);
+    }
+
+    [Fact]
+    public async Task AddActivityAttachment_ShouldAllowManagerWhoCanCreateProgressEntry()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
+        var user = new TestCurrentUser(
+            fixture.SupervisorId,
+            fixture.CompanyId,
+            fixture.TargetDepartmentId,
+            RoleType.Supervisor);
+        var permissions = new TestPermissionService(
+            "ticket:update-status",
+            "ticket:add-attachment",
+            "ticket:view-team");
+        var progressHandler = new UpdateTicketProgressHandler(
+            fixture.Db,
+            user,
+            permissions,
+            new TestAuditLogService());
+        var attachmentHandler = new AddTicketAttachmentHandler(
+            fixture.Db,
+            user,
+            permissions,
+            new TestAuditLogService());
+
+        var progress = await progressHandler.Handle(
+            new UpdateTicketProgressCommand(
+                ticket.Id,
+                null,
+                "รอข้อมูลเพิ่มเติม",
+                null,
+                false,
+                "แนบรูปประกอบการติดตาม",
+                ticket.UpdatedAt),
+            default);
+        var upload = new TicketPendingUpload
+        {
+            UploadedByEmployeeId = fixture.SupervisorId,
+            StorageKey = "2026/08/manager-activity.jpg",
+            FileName = "manager-activity.jpg",
+            ContentType = "image/jpeg",
+            SizeBytes = 1024,
+            CreatedBy = fixture.SupervisorId,
+            UpdatedBy = fixture.SupervisorId
+        };
+        fixture.Db.TicketPendingUploads.Add(upload);
+        await fixture.Db.SaveChangesAsync();
+
+        var attachment = await attachmentHandler.Handle(
+            new AddTicketAttachmentCommand(
+                ticket.Id,
+                $"ticket-upload:{upload.Id}",
+                upload.FileName,
+                upload.ContentType,
+                upload.SizeBytes,
+                TicketAttachmentStage.Progress,
+                TicketAttachmentVisibility.Public,
+                progress.ProgressEntryId),
+            default);
+
+        attachment.TicketProgressEntryId.Should().Be(progress.ProgressEntryId);
+    }
+
+    [Fact]
+    public async Task SupervisorApproval_ShouldWaitForRequesterCompletionConfirmation()
     {
         await using var fixture = new TicketTestFixture();
         await fixture.SeedOrganizationAsync();
@@ -117,11 +276,40 @@ public class TicketLifecycleIntegrationTests
         var result = await handler.Handle(
             new CloseTicketCommand(ticket.Id, "Verified", ticket.UpdatedAt), default);
 
+        result.Status.Should().Be(TicketStatus.AwaitingRequesterConfirmation);
+        var assignment = await fixture.Db.TicketAssignments.SingleAsync();
+        assignment.IsActive.Should().BeTrue();
+        assignment.EndedAt.Should().BeNull();
+        (await fixture.Db.TicketReviews.CountAsync()).Should().Be(1);
+        (await fixture.Db.NotificationOutboxes.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task RequesterConfirmation_ShouldCloseTicketWaitingForRequester()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.AwaitingRequesterConfirmation, true);
+        ticket.VerifiedAt = DateTime.UtcNow.AddHours(7);
+        await fixture.Db.SaveChangesAsync();
+
+        var handler = new ConfirmTicketCompletionHandler(
+            fixture.Db,
+            new TestCurrentUser(
+                fixture.RequesterId,
+                fixture.CompanyId,
+                fixture.SourceDepartmentId,
+                RoleType.Employee),
+            new TestPermissionService("ticket:view-own"),
+            new TestAuditLogService());
+
+        var result = await handler.Handle(
+            new ConfirmTicketCompletionCommand(ticket.Id, ticket.UpdatedAt), default);
+
         result.Status.Should().Be(TicketStatus.Closed);
         var assignment = await fixture.Db.TicketAssignments.SingleAsync();
         assignment.IsActive.Should().BeFalse();
         assignment.EndedAt.Should().NotBeNull();
-        (await fixture.Db.TicketReviews.CountAsync()).Should().Be(1);
         (await fixture.Db.NotificationOutboxes.CountAsync()).Should().Be(2);
     }
 

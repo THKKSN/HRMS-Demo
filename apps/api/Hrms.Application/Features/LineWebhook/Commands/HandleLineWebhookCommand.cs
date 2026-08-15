@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.LineWebhook.Dtos;
 using MediatR;
@@ -7,7 +8,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Hrms.Application.Features.LineWebhook.Commands;
 
-public record HandleLineWebhookCommand(string Body, string Signature) : IRequest<Unit>;
+public record HandleLineWebhookCommand(byte[] Body, string Signature) : IRequest<Unit>;
 
 public class HandleLineWebhookHandler(
     ILineWebhookService webhookService,
@@ -19,19 +20,28 @@ public class HandleLineWebhookHandler(
 {
     public async Task<Unit> Handle(HandleLineWebhookCommand request, CancellationToken ct)
     {
-        logger.LogInformation("[Webhook] received body={Body}", request.Body);
+        logger.LogInformation("[Webhook] received body bytes={Length}", request.Body.Length);
 
         if (!webhookService.VerifySignature(request.Body, request.Signature))
         {
-            logger.LogWarning("[Webhook] signature verification FAILED — sig={Sig}", request.Signature);
+            logger.LogWarning("[Webhook] signature verification failed");
             return Unit.Value;
         }
 
         logger.LogInformation("[Webhook] signature OK");
 
+        var bodyText = Encoding.UTF8.GetString(request.Body);
+
         LineWebhookPayload? payload;
-        try { payload = JsonSerializer.Deserialize<LineWebhookPayload>(request.Body); }
-        catch { return Unit.Value; }
+        try
+        {
+            payload = JsonSerializer.Deserialize<LineWebhookPayload>(bodyText);
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "[Webhook] invalid JSON payload");
+            return Unit.Value;
+        }
 
         if (payload?.Events is null) return Unit.Value;
 
@@ -39,15 +49,25 @@ public class HandleLineWebhookHandler(
         {
             if (evt.Source?.UserId is null) continue;
 
-            switch (evt.Type)
+            try
             {
-                case "message":
-                    await HandleMessageEventAsync(evt, ct);
-                    break;
+                switch (evt.Type)
+                {
+                    case "message":
+                        await HandleMessageEventAsync(evt, ct);
+                        break;
 
-                case "postback":
-                    await HandlePostbackEventAsync(evt, ct);
-                    break;
+                    case "postback":
+                        await HandlePostbackEventAsync(evt, ct);
+                        break;
+                }
+            }
+            catch (Exception ex) when (!ct.IsCancellationRequested)
+            {
+                logger.LogError(ex,
+                    "[Webhook] event processing failed type={Type} userId={UserId}",
+                    evt.Type,
+                    evt.Source.UserId);
             }
         }
 
@@ -92,13 +112,23 @@ public class HandleLineWebhookHandler(
 
         switch (text)
         {
+            case "ระบบบริหารงานบุคคล":
+            case "ระบบ HR":
+            case "HRMS":
+            case "TBG Assistant":
+            case "เมนู":
+            case "เมนูหลัก":
+            case "สร้างบิล":
+                await line.ReplyHrMenuAsync(replyToken, ct);
+                break;
+
             case "ลงเวลา":
                 await sender.Send(new HandleLineAttendancePromptCommand(lineUserId, replyToken), ct);
                 break;
 
             case "ตรวจสอบสิทธิ์":
                 logger.LogInformation("[Webhook] dispatching HandleCheckQuotaCommand userId={UserId}", lineUserId);
-                await sender.Send(new HandleCheckQuotaCommand(lineUserId), ct);
+                await sender.Send(new HandleCheckQuotaCommand(lineUserId, replyToken), ct);
                 break;
 
             default:

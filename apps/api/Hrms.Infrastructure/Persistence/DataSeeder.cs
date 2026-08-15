@@ -16,16 +16,10 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger, Permission
     private static readonly Guid LeaveTypeAL  = new("3fa85f64-5717-4562-b3fc-2c963f66a003");
     private static readonly Guid LeaveTypeSL  = new("3fa85f64-5717-4562-b3fc-2c963f66a011");
     private static readonly Guid LeaveTypePL  = new("3fa85f64-5717-4562-b3fc-2c963f66a012");
-    // EMP001 — สมชาย ทดสอบ (HR)
-    private static readonly Guid EmployeeId   = new("3fa85f64-5717-4562-b3fc-2c963f66a004");
-    private static readonly Guid RoleId       = new("3fa85f64-5717-4562-b3fc-2c963f66a005");
+    // SYSADMIN — System Admin
+    private static readonly Guid SystemAdminEmployeeId = new("3fa85f64-5717-4562-b3fc-2c963f66a004");
+    private static readonly Guid SystemAdminRoleId     = new("3fa85f64-5717-4562-b3fc-2c963f66a005");
     private static readonly Guid BalanceId    = new("3fa85f64-5717-4562-b3fc-2c963f66a006");
-    // EMP002 — สมหญิง รักงาน (Employee)
-    private static readonly Guid Employee2Id  = new("3fa85f64-5717-4562-b3fc-2c963f66a007");
-    private static readonly Guid Role2Id      = new("3fa85f64-5717-4562-b3fc-2c963f66a008");
-    // EMP003 — วิชัย ผู้จัดการ (Supervisor)
-    private static readonly Guid Employee3Id  = new("3fa85f64-5717-4562-b3fc-2c963f66a009");
-    private static readonly Guid Role3Id      = new("3fa85f64-5717-4562-b3fc-2c963f66a010");
     private static readonly Guid TicketCatSystemId   = new("3fa85f64-5717-4562-b3fc-2c963f66a101");
     private static readonly Guid TicketCatNetworkId  = new("3fa85f64-5717-4562-b3fc-2c963f66a102");
     private static readonly Guid TicketCatHardwareId = new("3fa85f64-5717-4562-b3fc-2c963f66a103");
@@ -37,11 +31,11 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger, Permission
         await SeedCompanyAsync(ct);
         await SeedDepartmentAsync(ct);
         await SeedLeaveTypeAsync(ct);
+        await permissionSeeder.SeedAsync(ct);
         await SeedEmployeeAsync(ct);
         await SeedDepartmentManagerAsync(ct);
         await SeedEmployeeRoleAsync(ct);
         await SeedLeaveBalanceAsync(ct);
-        await permissionSeeder.SeedAsync(ct);
         await SeedTicketTaxonomyAsync(ct);
         logger.LogInformation("Seed data complete.");
     }
@@ -106,53 +100,39 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger, Permission
 
     private async Task SeedEmployeeAsync(CancellationToken ct)
     {
-        // EMP001 — สมชาย ทดสอบ (HR)
-        var emp1 = await db.Employees.FirstOrDefaultAsync(x => x.Id == EmployeeId, ct);
-        if (emp1 == null)
+        var admin = await db.Employees.FirstOrDefaultAsync(x =>
+            x.Id == SystemAdminEmployeeId ||
+            x.EmployeeCode == "SYSADMIN" ||
+            x.Email == "tbg.line.dev@gmail.com", ct);
+
+        if (admin is null)
         {
             db.Employees.Add(new Employee
             {
-                Id = EmployeeId, CompanyId = CompanyId, DepartmentId = DeptHrId,
-                EmployeeCode = "EMP001", FirstName = "สมชาย", LastName = "ทดสอบ",
-                Email = "emp001@test.com", NationalId = "1100100000001",
-                PasswordHash = BC.HashPassword("Test@1234", workFactor: 12),
+                Id = SystemAdminEmployeeId, CompanyId = CompanyId, DepartmentId = DeptHrId,
+                EmployeeCode = "SYSADMIN", FirstName = "System", LastName = "Admin",
+                Email = "tbg.line.dev@gmail.com",
+                PasswordHash = BC.HashPassword("P@55W0rd", workFactor: 12),
                 HireDate = new DateOnly(2023, 1, 1), IsActive = true,
                 CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
             });
         }
-        else if (emp1.PasswordHash == null)
+        else
         {
-            emp1.Email = "emp001@test.com";
-            emp1.PasswordHash = BC.HashPassword("Test@1234", workFactor: 12);
-            emp1.UpdatedAt = DateTime.UtcNow;
-        }
-
-        // EMP002 — สมหญิง รักงาน (Employee ทั่วไป)
-        if (!await db.Employees.AnyAsync(x => x.Id == Employee2Id, ct))
-        {
-            db.Employees.Add(new Employee
-            {
-                Id = Employee2Id, CompanyId = CompanyId, DepartmentId = DeptItId,
-                EmployeeCode = "EMP002", FirstName = "สมหญิง", LastName = "รักงาน",
-                Email = "emp002@test.com", NationalId = "1100100000002",
-                PasswordHash = BC.HashPassword("Test@1234", workFactor: 12),
-                HireDate = new DateOnly(2023, 6, 1), IsActive = true,
-                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
-            });
-        }
-
-        // EMP003 — วิชัย ผู้จัดการ (Supervisor)
-        if (!await db.Employees.AnyAsync(x => x.Id == Employee3Id, ct))
-        {
-            db.Employees.Add(new Employee
-            {
-                Id = Employee3Id, CompanyId = CompanyId, DepartmentId = DeptItId,
-                EmployeeCode = "EMP003", FirstName = "วิชัย", LastName = "ผู้จัดการ",
-                Email = "emp003@test.com", NationalId = "1100100000003",
-                PasswordHash = BC.HashPassword("Test@1234", workFactor: 12),
-                HireDate = new DateOnly(2022, 3, 1), IsActive = true,
-                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
-            });
+            admin.CompanyId = CompanyId;
+            admin.DepartmentId = DeptHrId;
+            admin.EmployeeCode = "SYSADMIN";
+            admin.FirstName = "System";
+            admin.LastName = "Admin";
+            admin.Email = "tbg.line.dev@gmail.com";
+            admin.Phone = null;
+            admin.NationalId = null;
+            admin.LineUserId = null;
+            admin.AvatarUrl = null;
+            admin.PasswordHash = BC.HashPassword("P@55W0rd", workFactor: 12);
+            admin.HireDate = new DateOnly(2023, 1, 1);
+            admin.IsActive = true;
+            admin.UpdatedAt = DateTime.UtcNow;
         }
 
         await db.SaveChangesAsync(ct);
@@ -162,9 +142,7 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger, Permission
     {
         var seedRoles = new[]
         {
-            (Id: RoleId,  EmployeeId: EmployeeId,  RoleId: SystemRoleIds.Hr),
-            (Id: Role2Id, EmployeeId: Employee2Id, RoleId: SystemRoleIds.Employee),
-            (Id: Role3Id, EmployeeId: Employee3Id, RoleId: SystemRoleIds.Supervisor),
+            (Id: SystemAdminRoleId, EmployeeId: SystemAdminEmployeeId, RoleId: SystemRoleIds.Admin),
         };
 
         foreach (var seed in seedRoles)
@@ -195,9 +173,9 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger, Permission
     private async Task SeedDepartmentManagerAsync(CancellationToken ct)
     {
         var itDepartment = await db.Departments.FirstOrDefaultAsync(d => d.Id == DeptItId, ct);
-        if (itDepartment is null || itDepartment.ManagerEmployeeId.HasValue) return;
+        if (itDepartment is null || itDepartment.ManagerEmployeeId is null) return;
 
-        itDepartment.ManagerEmployeeId = Employee3Id;
+        itDepartment.ManagerEmployeeId = null;
         itDepartment.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
     }
@@ -210,7 +188,7 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger, Permission
             db.LeaveBalances.Add(new LeaveBalance
             {
                 Id = BalanceId,
-                EmployeeId = EmployeeId,
+                EmployeeId = SystemAdminEmployeeId,
                 LeaveTypeId = LeaveTypeAL,
                 Year = 2025,
                 TotalDays = 10,
@@ -323,12 +301,49 @@ public class DataSeeder(HrmsDbContext db, ILogger<DataSeeder> logger, Permission
         db.TicketTopics.AddRange(topics.Where(t => !existingTopicIds.Contains(t.Id)));
         await db.SaveChangesAsync(ct);
 
+        var subjects = new[]
+        {
+            Subject("3fa85f64-5717-4562-b3fc-2c963f66b111", topics[0], "เข้าใช้งานไม่ได้", 10),
+            Subject("3fa85f64-5717-4562-b3fc-2c963f66b112", topics[0], "ข้อมูลแสดงผลผิดพลาด", 20),
+            Subject("3fa85f64-5717-4562-b3fc-2c963f66b121", topics[6], "อินเทอร์เน็ตใช้งานไม่ได้", 10),
+            Subject("3fa85f64-5717-4562-b3fc-2c963f66b122", topics[7], "Wi-Fi เชื่อมต่อไม่ได้", 10),
+            Subject("3fa85f64-5717-4562-b3fc-2c963f66b131", topics[9], "เครื่องพิมพ์ไม่ทำงาน", 10),
+            Subject("3fa85f64-5717-4562-b3fc-2c963f66b132", topics[10], "คอมพิวเตอร์เปิดไม่ติด", 10),
+            Subject("3fa85f64-5717-4562-b3fc-2c963f66b141", topics[12], "กล้องรถกาวหลุด", 10),
+            Subject("3fa85f64-5717-4562-b3fc-2c963f66b142", topics[12], "กล้องรถไม่บันทึกภาพ", 20),
+            Subject("3fa85f64-5717-4562-b3fc-2c963f66b143", topics[13], "GPS ไม่ส่งตำแหน่ง", 10),
+            Subject("3fa85f64-5717-4562-b3fc-2c963f66b151", topics[15], "อื่น ๆ", 10),
+        };
+
+        var subjectIds = subjects.Select(s => s.Id).ToList();
+        var existingSubjectIds = await db.TicketSubjects
+            .Where(s => subjectIds.Contains(s.Id))
+            .Select(s => s.Id)
+            .ToListAsync(ct);
+
+        db.TicketSubjects.AddRange(subjects.Where(s => !existingSubjectIds.Contains(s.Id)));
+        await db.SaveChangesAsync(ct);
+
         TicketTopic Topic(string id, Guid categoryId, string name, int sortOrder) => new()
         {
             Id = new Guid(id),
             CompanyId = CompanyId,
             DepartmentId = DeptItId,
             CategoryId = categoryId,
+            Name = name,
+            SortOrder = sortOrder,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        TicketSubject Subject(string id, TicketTopic topic, string name, int sortOrder) => new()
+        {
+            Id = new Guid(id),
+            CompanyId = topic.CompanyId,
+            DepartmentId = topic.DepartmentId,
+            CategoryId = topic.CategoryId,
+            TopicId = topic.Id,
             Name = name,
             SortOrder = sortOrder,
             IsActive = true,

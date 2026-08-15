@@ -109,7 +109,7 @@ public static class LineFlexBuilder
                             new
                             {
                                 type = "text",
-                                text = "HRMS  ·  INTERNAL TICKET",
+                                text = "TBG Assistant  ·  INTERNAL TICKET",
                                 size = "xs",
                                 color = "#71767E",
                                 weight = "bold",

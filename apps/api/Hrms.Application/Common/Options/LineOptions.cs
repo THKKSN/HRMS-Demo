@@ -7,5 +7,6 @@ public class LineOptions
     public string ChannelId { get; set; } = string.Empty;
     public string ChannelSecret { get; set; } = string.Empty;
     public string LiffId { get; set; } = string.Empty;
+    public string MessagingChannelSecret { get; set; } = string.Empty;
     public string MessagingChannelAccessToken { get; set; } = string.Empty;
 }

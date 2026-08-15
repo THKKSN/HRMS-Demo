@@ -37,6 +37,15 @@ public class StartTicketWorkHandler(
         ticket.WorkStartedAt = now;
         ticket.WaitingInfoByEmployeeId = null;
         ticket.WaitingInfoAt = null;
+        TicketCommandSupport.SetWorkflowBoardState(ticket, "in_progress", workState: "เริ่มดำเนินการ");
+        TicketCommandSupport.AddProgressEntry(
+            db,
+            ticket,
+            actorId,
+            "in_progress",
+            workState: "เริ่มดำเนินการ",
+            note: "Work Started",
+            ownerEmployeeId: actorId);
         ticket.UpdatedBy = actorId;
         TicketStatusTransition.Record(
             db, ticket, TicketStatus.Assigned, TicketStatus.InProgress, actorId, now, "WorkStarted");

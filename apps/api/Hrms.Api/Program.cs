@@ -3,7 +3,6 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Hangfire;
 using Hrms.Api.Authorization;
-using Hrms.Api.HealthChecks;
 using Hrms.Api.Middleware;
 using Hrms.Api.Services;
 using Hrms.Application;
@@ -16,6 +15,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -28,7 +28,11 @@ Log.Logger = new LoggerConfiguration()
 
 try
 {
-    var builder = WebApplication.CreateBuilder(args);
+    var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+    {
+        Args = args,
+        ContentRootPath = AppContext.BaseDirectory
+    });
 
     builder.Host.UseSerilog((ctx, lc) => lc
         .ReadFrom.Configuration(ctx.Configuration)
@@ -42,7 +46,7 @@ try
     // ── Swagger ──────────────────────────────────────────────────────────────
     builder.Services.AddSwaggerGen(c =>
     {
-        c.SwaggerDoc("v1", new OpenApiInfo { Title = "HRMS API", Version = "v1" });
+        c.SwaggerDoc("v1", new OpenApiInfo { Title = "TBG Assistant API", Version = "v1" });
 
         // XML doc comments
         var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
@@ -85,8 +89,7 @@ try
 
     // ── Health Checks ────────────────────────────────────────────────────────
     builder.Services.AddHealthChecks()
-        .AddDbContextCheck<HrmsDbContext>("db")
-        .AddCheck<RedisHealthCheck>("redis");
+        .AddDbContextCheck<HrmsDbContext>("db");
 
     // ── Response Compression (7.8) ───────────────────────────────────────────
     builder.Services.AddResponseCompression(opts => opts.EnableForHttps = true);
@@ -224,6 +227,7 @@ try
 
     // ── Build ─────────────────────────────────────────────────────────────────
     var app = builder.Build();
+    var recurringJobRegistrar = app.Services.GetRequiredService<RecurringJobRegistrar>();
 
     if (app.Environment.IsDevelopment())
     {
@@ -232,25 +236,16 @@ try
         app.UseHangfireDashboard("/hangfire");
 
         // Recurring job — Daily attendance report to Executives (Thai 10:00 = UTC 03:00)
-        RecurringJob.AddOrUpdate<DailyAttendanceReportJob>(
-            "daily-attendance-report",
-            job => job.SendDailyReportAsync(CancellationToken.None),
-            "0 3 * * 1-5",
-            new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+        recurringJobRegistrar.RegisterDevelopmentJobs();
 
         using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<HrmsDbContext>();
+        await db.Database.MigrateAsync();
+        await EnsureDevelopmentSchemaCompatibilityAsync(db);
         await scope.ServiceProvider.GetRequiredService<DataSeeder>().SeedAsync();
     }
 
-    RecurringJob.AddOrUpdate<TicketUploadCleanupJob>(
-        "ticket-upload-cleanup",
-        job => job.CleanupAsync(CancellationToken.None),
-        "15 * * * *",
-        new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
-    RecurringJob.AddOrUpdate<NotificationDeliveryJob>(
-        "notification-outbox-delivery",
-        job => job.ProcessAsync(CancellationToken.None),
-        Cron.Minutely);
+    recurringJobRegistrar.RegisterProductionJobs();
 
     app.UseForwardedHeaders();
     app.Use(async (context, next) =>
@@ -304,6 +299,10 @@ try
 
     app.Run();
 }
+catch (HostAbortedException)
+{
+    // EF Core tooling aborts the host after resolving services during design-time commands.
+}
 catch (Exception ex)
 {
     Log.Fatal(ex, "Application startup failed");
@@ -311,4 +310,49 @@ catch (Exception ex)
 finally
 {
     Log.CloseAndFlush();
+}
+
+static async Task EnsureDevelopmentSchemaCompatibilityAsync(HrmsDbContext db)
+{
+    await EnsureColumnAsync(db, "ticket_subjects", "created_by", "char(36) NULL");
+    await EnsureColumnAsync(db, "ticket_subjects", "updated_by", "char(36) NULL");
+}
+
+static async Task EnsureColumnAsync(HrmsDbContext db, string tableName, string columnName, string columnDefinition)
+{
+    var connection = db.Database.GetDbConnection();
+    var shouldClose = connection.State == System.Data.ConnectionState.Closed;
+    if (shouldClose) await connection.OpenAsync();
+
+    try
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = @tableName
+              AND COLUMN_NAME = @columnName
+            """;
+
+        var tableParam = command.CreateParameter();
+        tableParam.ParameterName = "@tableName";
+        tableParam.Value = tableName;
+        command.Parameters.Add(tableParam);
+
+        var columnParam = command.CreateParameter();
+        columnParam.ParameterName = "@columnName";
+        columnParam.Value = columnName;
+        command.Parameters.Add(columnParam);
+
+        var exists = Convert.ToInt32(await command.ExecuteScalarAsync()) > 0;
+        if (exists) return;
+
+        await db.Database.ExecuteSqlRawAsync(
+            $"ALTER TABLE `{tableName}` ADD COLUMN `{columnName}` {columnDefinition}");
+    }
+    finally
+    {
+        if (shouldClose) await connection.CloseAsync();
+    }
 }

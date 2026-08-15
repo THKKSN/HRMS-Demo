@@ -107,12 +107,22 @@ public class AssignTicketHandler(
         };
         db.TicketAssignments.Add(newAssignment);
         ticket.Status = TicketStatus.Assigned;
+        TicketCommandSupport.SetWorkflowBoardState(ticket, "assigned");
         if (reassigningStartedWork)
         {
             ticket.WorkStartedByEmployeeId = null;
             ticket.WorkStartedAt = null;
             ticket.WaitingInfoByEmployeeId = null;
             ticket.WaitingInfoAt = null;
+            TicketCommandSupport.AddProgressEntry(
+                db,
+                ticket,
+                actorId,
+                "assigned",
+                workState: "เปลี่ยนผู้รับผิดชอบ",
+                nextAction: "เริ่มงานกับผู้รับผิดชอบใหม่",
+                note: request.Note,
+                ownerEmployeeId: assignee.Id);
         }
         ticket.UpdatedBy = actorId;
         if (oldStatus != TicketStatus.Assigned)

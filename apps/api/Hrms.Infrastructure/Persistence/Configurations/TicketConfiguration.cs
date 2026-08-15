@@ -20,9 +20,23 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.Property(x => x.TargetDepartmentId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.CategoryId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.TopicId).HasColumnType("char(36)").IsRequired();
+        builder.Property(x => x.SubjectId).HasColumnType("char(36)");
+        builder.Property(x => x.WorkflowDefinitionId).HasColumnType("char(36)");
+        builder.Property(x => x.SubjectGuidanceConfigId).HasColumnType("char(36)");
         builder.Property(x => x.OtherTopicText).HasMaxLength(200);
         builder.Property(x => x.Title).HasMaxLength(200).IsRequired();
         builder.Property(x => x.Detail).HasMaxLength(2000).IsRequired();
+        builder.Property(x => x.WorkflowName).HasMaxLength(200);
+        builder.Property(x => x.WorkflowStepsJson).HasColumnType("longtext");
+        builder.Property(x => x.WorkflowStatusStepMapJson).HasColumnType("longtext");
+        builder.Property(x => x.WorkflowBoardStepsJson).HasColumnType("longtext");
+        builder.Property(x => x.WorkflowInProgressPresetsJson).HasColumnType("longtext");
+        builder.Property(x => x.WorkflowActionsJson).HasColumnType("longtext");
+        builder.Property(x => x.SubjectGuidanceConfigName).HasMaxLength(200);
+        builder.Property(x => x.WorkflowCurrentStepKey).HasMaxLength(100);
+        builder.Property(x => x.CurrentWorkState).HasMaxLength(200);
+        builder.Property(x => x.CurrentBlockerReason).HasMaxLength(200);
+        builder.Property(x => x.CurrentNextAction).HasMaxLength(200);
         builder.Property(x => x.Priority).HasConversion<string>().HasMaxLength(20);
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(30);
         builder.Property(x => x.RoutingMode).HasConversion<string>().HasMaxLength(30);
@@ -65,7 +79,9 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.HasIndex(x => new { x.RequesterEmployeeId, x.Status });
         builder.HasIndex(x => new { x.TargetDepartmentId, x.Status });
         builder.HasIndex(x => new { x.CategoryId, x.TopicId, x.Status });
+        builder.HasIndex(x => new { x.SubjectId, x.Status });
         builder.HasIndex(x => new { x.Status, x.UpdatedAt });
+        builder.HasIndex(x => new { x.Status, x.VerifiedAt });
         builder.HasIndex(x => new { x.RoutingOutcome, x.CreatedAt });
 
         builder.HasOne(x => x.RequesterEmployee).WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict);
@@ -75,6 +91,9 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.HasOne(x => x.TargetDepartment).WithMany().HasForeignKey(x => x.TargetDepartmentId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Category).WithMany().HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.Topic).WithMany(x => x.Tickets).HasForeignKey(x => x.TopicId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.Subject).WithMany(x => x.Tickets).HasForeignKey(x => x.SubjectId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.WorkflowDefinition).WithMany(x => x.Tickets).HasForeignKey(x => x.WorkflowDefinitionId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne(x => x.SubjectGuidanceConfig).WithMany(x => x.Tickets).HasForeignKey(x => x.SubjectGuidanceConfigId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.ReceiverEmployee).WithMany().HasForeignKey(x => x.ReceiverEmployeeId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.SupervisorAcceptedByEmployee).WithMany().HasForeignKey(x => x.SupervisorAcceptedByEmployeeId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.WorkStartedByEmployee).WithMany().HasForeignKey(x => x.WorkStartedByEmployeeId).OnDelete(DeleteBehavior.SetNull);

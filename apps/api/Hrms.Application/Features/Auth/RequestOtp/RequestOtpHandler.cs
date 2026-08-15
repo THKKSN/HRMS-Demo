@@ -29,7 +29,7 @@ public class RequestOtpHandler(
 
         var otpPlain = await otp.GenerateAndStoreAsync(employee.Id, profile.UserId, ct);
 
-        var message = $"รหัส OTP สำหรับเชื่อมบัญชี HRMS: {otpPlain}\n(ใช้ได้ภายใน 5 นาที ห้ามแชร์รหัสนี้กับผู้อื่น)";
+        var message = $"รหัส OTP สำหรับเชื่อมบัญชี TBG Assistant: {otpPlain}\n(ใช้ได้ภายใน 5 นาที ห้ามแชร์รหัสนี้กับผู้อื่น)";
         await messaging.PushMessageAsync(profile.UserId, message, ct);
 
         return new RequestOtpResult("OTP ส่งแล้ว กรุณาตรวจสอบ LINE ของคุณ");

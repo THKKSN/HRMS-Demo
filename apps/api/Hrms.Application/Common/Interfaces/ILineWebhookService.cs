@@ -2,5 +2,5 @@ namespace Hrms.Application.Common.Interfaces;
 
 public interface ILineWebhookService
 {
-    bool VerifySignature(string body, string xLineSignature);
+    bool VerifySignature(byte[] body, string xLineSignature);
 }

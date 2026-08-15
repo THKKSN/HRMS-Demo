@@ -28,4 +28,9 @@ public record TicketInboxItemDto(
     string? CurrentAssigneeName,
     string? AssignedByEmployeeName,
     DateTime? AssignedAt,
+    string? WorkflowCurrentStepKey,
+    string? WorkflowCurrentStepLabel,
+    string? CurrentWorkState,
+    string? CurrentBlockerReason,
+    string? CurrentNextAction,
     DateTime CreatedAt);

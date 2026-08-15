@@ -55,28 +55,63 @@ public class GetClaimableTicketsHandler(
         var totalCount = await query.CountAsync(ct);
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
-        var items = await query
+        var rows = await query
             .OrderBy(t => t.Priority == TicketPriority.Critical ? 0 :
                 t.Priority == TicketPriority.High ? 1 :
                 t.Priority == TicketPriority.Medium ? 2 : 3)
             .ThenBy(t => t.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(t => new AssignedTicketItemDto(
+            .Select(t => new
+            {
                 t.Id,
                 t.TicketNo,
                 t.Title,
                 t.Status,
                 t.Priority,
-                (t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName).Trim(),
-                t.Category.Name,
-                t.Topic.Name,
+                RequesterName = (t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName).Trim(),
+                CategoryName = t.Category.Name,
+                TopicName = t.Topic.Name,
                 t.VehicleText,
                 t.LocationText,
-                t.CreatedAt,
+                AssignedAt = t.CreatedAt,
                 t.WorkStartedAt,
-                t.UpdatedAt))
+                t.WorkflowBoardStepsJson,
+                t.WorkflowCurrentStepKey,
+                t.CurrentWorkState,
+                t.CurrentBlockerReason,
+                t.CurrentNextAction,
+                t.UpdatedAt
+            })
             .ToListAsync(ct);
+
+        var items = rows
+            .Select(t =>
+            {
+                var currentStepLabel = TicketWorkflowRuntime.DeserializeBoardSteps(t.WorkflowBoardStepsJson)
+                    .FirstOrDefault(step => step.Key == t.WorkflowCurrentStepKey)?.Label;
+
+                return new AssignedTicketItemDto(
+                    t.Id,
+                    t.TicketNo,
+                    t.Title,
+                    t.Status,
+                    t.Priority,
+                    t.RequesterName,
+                    t.CategoryName,
+                    t.TopicName,
+                    t.VehicleText,
+                    t.LocationText,
+                    t.AssignedAt,
+                    t.WorkStartedAt,
+                    t.WorkflowCurrentStepKey,
+                    currentStepLabel,
+                    t.CurrentWorkState,
+                    t.CurrentBlockerReason,
+                    t.CurrentNextAction,
+                    t.UpdatedAt);
+            })
+            .ToList();
 
         return new PagedResult<AssignedTicketItemDto>(items, totalCount, page, pageSize);
     }

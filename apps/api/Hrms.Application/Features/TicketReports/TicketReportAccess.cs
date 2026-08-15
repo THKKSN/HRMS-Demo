@@ -6,7 +6,7 @@ using FluentValidation;
 
 namespace Hrms.Application.Features.TicketReports;
 
-internal static class TicketReportAccess
+public static class TicketReportAccess
 {
     public static async Task<IQueryable<Ticket>> ApplyScopeAsync(
         IQueryable<Ticket> query,
@@ -19,7 +19,25 @@ internal static class TicketReportAccess
 
         var employeeId = currentUser.EmployeeId;
         if (currentUser.HasRole(RoleType.Supervisor) && employeeId.HasValue)
-            return query.Where(t => t.TargetDepartment.ManagerEmployeeId == employeeId.Value);
+        {
+            var ownDepartmentId = currentUser.DepartmentId;
+            var roleDepartmentIds = currentUser.Roles
+                .Where(role => role.Role == RoleType.Supervisor.ToString() && role.DepartmentId.HasValue)
+                .Select(role => role.DepartmentId!.Value)
+                .ToList();
+
+            return query.Where(t =>
+                t.TargetDepartment.ManagerEmployeeId == employeeId.Value ||
+                (ownDepartmentId.HasValue && t.TargetDepartmentId == ownDepartmentId.Value) ||
+                roleDepartmentIds.Contains(t.TargetDepartmentId) ||
+                t.Category.Responsibilities.Any(r =>
+                    r.EmployeeId == employeeId.Value &&
+                    r.IsActive &&
+                    r.CompanyId == t.TargetCompanyId &&
+                    r.DepartmentId == t.TargetDepartmentId &&
+                    r.CategoryId == t.CategoryId &&
+                    (r.TopicId == null || r.TopicId == t.TopicId)));
+        }
 
         var companyIds = currentUser.ManagedCompanyIds;
         return query.Where(t => companyIds.Contains(t.TargetCompanyId));
@@ -64,6 +82,10 @@ internal static class TicketReportAccess
             filter.DateBasis,
             "Asia/Bangkok",
             new DateOnly(2026, 7, 21),
-            currentUser.HasRole(RoleType.Admin) ? "All" : "ManagedScope");
+            currentUser.HasRole(RoleType.Admin)
+                ? "All"
+                : currentUser.HasRole(RoleType.Supervisor)
+                    ? "SupervisorScope"
+                    : "ManagedScope");
     }
 }

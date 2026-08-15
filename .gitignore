@@ -19,6 +19,7 @@ docker-compose.yml
 CLAUDE.md
 
 # Build outputs
+.worktrees/
 .next/
 out/
 dist/

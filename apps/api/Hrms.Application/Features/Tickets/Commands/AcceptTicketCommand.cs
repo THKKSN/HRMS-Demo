@@ -40,6 +40,7 @@ public class AcceptTicketHandler(
         ticket.SupervisorAcceptedByEmployeeId = actorId;
         ticket.SupervisorAcceptedAt = now;
         ticket.ReceiverEmployeeId = actorId;
+        TicketCommandSupport.SetWorkflowBoardState(ticket, "received");
         ticket.UpdatedBy = actorId;
         TicketCommandSupport.QueueNotification(
             db, "TicketAccepted", ticket.Id, ticket.RequesterEmployeeId,

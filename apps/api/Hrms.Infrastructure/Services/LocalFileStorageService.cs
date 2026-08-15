@@ -62,7 +62,7 @@ public class LocalFileStorageService(
 
     public Task DeleteAsync(string key, CancellationToken ct = default)
     {
-        var fullPath = Path.Combine(env.WebRootPath, "uploads", key.Replace('/', Path.DirectorySeparatorChar));
+        var fullPath = SafePath(Path.Combine(env.WebRootPath, "uploads"), key);
         if (File.Exists(fullPath))
             File.Delete(fullPath);
         return Task.CompletedTask;

@@ -63,54 +63,102 @@ public class GetTicketInboxHandler(
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
-        var items = await query
+        var rows = await query
             .OrderByDescending(t => t.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(t => new TicketInboxItemDto(
+            .Select(t => new
+            {
                 t.Id,
                 t.TicketNo,
                 t.Title,
                 t.Status,
                 t.Priority,
                 t.RequesterEmployeeId,
-                (t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName).Trim(),
-                t.SourceDepartment != null ? t.SourceDepartment.Name : null,
+                RequesterName = (t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName).Trim(),
+                SourceDepartmentName = t.SourceDepartment != null ? t.SourceDepartment.Name : null,
                 t.TargetCompanyId,
-                t.TargetCompany.Name,
+                TargetCompanyName = t.TargetCompany.Name,
                 t.TargetDepartmentId,
-                t.TargetDepartment.Name,
+                TargetDepartmentName = t.TargetDepartment.Name,
                 t.CategoryId,
-                t.Category.Name,
+                CategoryName = t.Category.Name,
                 t.TopicId,
-                t.Topic.Name,
+                TopicName = t.Topic.Name,
                 t.OtherTopicText,
                 t.LocationText,
                 t.VehicleText,
-                t.SupervisorAcceptedAt != null,
+                IsAccepted = t.SupervisorAcceptedAt != null,
                 t.SupervisorAcceptedAt,
-                t.Assignments.Where(a => a.IsPrimary)
+                CurrentAssigneeEmployeeId = t.Assignments.Where(a => a.IsPrimary)
                     .OrderByDescending(a => a.IsActive)
                     .ThenByDescending(a => a.AssignedAt)
                     .Select(a => (Guid?)a.AssignedToEmployeeId).FirstOrDefault(),
-                t.Assignments.Where(a => a.IsPrimary)
+                CurrentAssigneeName = t.Assignments.Where(a => a.IsPrimary)
                     .OrderByDescending(a => a.IsActive)
                     .ThenByDescending(a => a.AssignedAt)
                     .Select(a => (a.AssignedToEmployee.FirstName + " " + a.AssignedToEmployee.LastName).Trim())
                     .FirstOrDefault(),
-                t.Assignments.Where(a => a.IsPrimary)
+                AssignedByEmployeeName = t.Assignments.Where(a => a.IsPrimary)
                     .OrderByDescending(a => a.IsActive)
                     .ThenByDescending(a => a.AssignedAt)
                     .Select(a => a.AssignedByEmployee == null ? null :
                         (a.AssignedByEmployee.FirstName + " " + a.AssignedByEmployee.LastName).Trim())
                     .FirstOrDefault(),
-                t.Assignments.Where(a => a.IsPrimary)
+                AssignedAt = t.Assignments.Where(a => a.IsPrimary)
                     .OrderByDescending(a => a.IsActive)
                     .ThenByDescending(a => a.AssignedAt)
                     .Select(a => (DateTime?)a.AssignedAt)
                     .FirstOrDefault(),
-                t.CreatedAt))
+                t.WorkflowBoardStepsJson,
+                t.WorkflowCurrentStepKey,
+                t.CurrentWorkState,
+                t.CurrentBlockerReason,
+                t.CurrentNextAction,
+                t.CreatedAt
+            })
             .ToListAsync(ct);
+
+        var items = rows
+            .Select(t =>
+            {
+                var currentStepLabel = TicketWorkflowRuntime.DeserializeBoardSteps(t.WorkflowBoardStepsJson)
+                    .FirstOrDefault(step => step.Key == t.WorkflowCurrentStepKey)?.Label;
+
+                return new TicketInboxItemDto(
+                    t.Id,
+                    t.TicketNo,
+                    t.Title,
+                    t.Status,
+                    t.Priority,
+                    t.RequesterEmployeeId,
+                    t.RequesterName,
+                    t.SourceDepartmentName,
+                    t.TargetCompanyId,
+                    t.TargetCompanyName,
+                    t.TargetDepartmentId,
+                    t.TargetDepartmentName,
+                    t.CategoryId,
+                    t.CategoryName,
+                    t.TopicId,
+                    t.TopicName,
+                    t.OtherTopicText,
+                    t.LocationText,
+                    t.VehicleText,
+                    t.IsAccepted,
+                    t.SupervisorAcceptedAt,
+                    t.CurrentAssigneeEmployeeId,
+                    t.CurrentAssigneeName,
+                    t.AssignedByEmployeeName,
+                    t.AssignedAt,
+                    t.WorkflowCurrentStepKey,
+                    currentStepLabel,
+                    t.CurrentWorkState,
+                    t.CurrentBlockerReason,
+                    t.CurrentNextAction,
+                    t.CreatedAt);
+            })
+            .ToList();
 
         return new PagedResult<TicketInboxItemDto>(items, totalCount, page, pageSize);
     }

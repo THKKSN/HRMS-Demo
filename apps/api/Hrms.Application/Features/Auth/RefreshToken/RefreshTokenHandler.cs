@@ -61,6 +61,7 @@ public class RefreshTokenHandler(
         await db.SaveChangesAsync(ct);
 
         var expiresIn = (int)(accessExpires - DateTime.UtcNow).TotalSeconds;
-        return new AuthResultDto(accessToken, newRefreshToken, expiresIn, employee.ToAuthDto());
+        var permissionCodes = await employee.GetPermissionCodesAsync(db, ct);
+        return new AuthResultDto(accessToken, newRefreshToken, expiresIn, employee.ToAuthDto(permissionCodes));
     }
 }

@@ -14,7 +14,7 @@ public class UploadController(
     ICurrentUser currentUser,
     IPermissionService permService) : ControllerBase
 {
-    private static readonly HashSet<string> AllowedModules = ["leaves", "payslips", "general", "tickets"];
+    private static readonly HashSet<string> AllowedModules = ["leaves", "payslips", "general", "tickets", "expenses"];
 
     /// <summary>อัปโหลดไฟล์ — คืน key และ URL สำหรับใช้ใน form submit</summary>
     [HttpPost]
@@ -31,6 +31,9 @@ public class UploadController(
             return BadRequest(new { error = "INVALID_MODULE", message = $"module ต้องเป็นหนึ่งใน: {string.Join(", ", AllowedModules)}" });
         if (module.Equals("tickets", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { error = "PROTECTED_UPLOAD_REQUIRED", message = "กรุณาใช้ /v1/uploads/tickets" });
+        if (module.Equals("expenses", StringComparison.OrdinalIgnoreCase) &&
+            !await permService.HasPermissionAsync(currentUser, "expense:upload-attachment", ct))
+            return StatusCode(403, new { error = "FORBIDDEN", message = "ไม่มีสิทธิ์อัปโหลดหลักฐานวางบิล" });
 
         if (file is null || file.Length == 0)
             return BadRequest(new { error = "NO_FILE", message = "กรุณาเลือกไฟล์" });

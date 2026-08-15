@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.LineWebhook.Commands;
 
-public record HandleCheckQuotaCommand(string LineUserId) : IRequest<Unit>;
+public record HandleCheckQuotaCommand(string LineUserId, string? ReplyToken = null) : IRequest<Unit>;
 
 public class HandleCheckQuotaHandler(IApplicationDbContext db, ILineMessagingService line)
     : IRequestHandler<HandleCheckQuotaCommand, Unit>
@@ -16,7 +16,7 @@ public class HandleCheckQuotaHandler(IApplicationDbContext db, ILineMessagingSer
 
         if (employee is null)
         {
-            await line.PushMessageAsync(request.LineUserId,
+            await SendTextAsync(request,
                 "ไม่พบข้อมูลผู้ใช้ กรุณากด 'เข้าสู่ระบบ' เพื่อผูกบัญชีก่อนใช้งาน", ct);
             return Unit.Value;
         }
@@ -33,7 +33,7 @@ public class HandleCheckQuotaHandler(IApplicationDbContext db, ILineMessagingSer
 
         if (balances.Count == 0)
         {
-            await line.PushMessageAsync(request.LineUserId,
+            await SendTextAsync(request,
                 $"ยังไม่มีข้อมูลโควต้าวันลาสำหรับปี {year}", ct);
             return Unit.Value;
         }
@@ -81,12 +81,26 @@ public class HandleCheckQuotaHandler(IApplicationDbContext db, ILineMessagingSer
             }
         };
 
-        await line.PushFlexMessageAsync(
-            request.LineUserId,
+        await SendFlexAsync(
+            request,
             $"สิทธิ์วันลาของ {employee.FirstName}",
             card,
             ct);
 
         return Unit.Value;
     }
+
+    private Task SendTextAsync(HandleCheckQuotaCommand request, string message, CancellationToken ct) =>
+        !string.IsNullOrWhiteSpace(request.ReplyToken)
+            ? line.ReplyAsync(request.ReplyToken, message, ct)
+            : line.PushMessageAsync(request.LineUserId, message, ct);
+
+    private Task SendFlexAsync(
+        HandleCheckQuotaCommand request,
+        string altText,
+        object flexContainer,
+        CancellationToken ct) =>
+        !string.IsNullOrWhiteSpace(request.ReplyToken)
+            ? line.ReplyFlexMessageAsync(request.ReplyToken, altText, flexContainer, ct)
+            : line.PushFlexMessageAsync(request.LineUserId, altText, flexContainer, ct);
 }

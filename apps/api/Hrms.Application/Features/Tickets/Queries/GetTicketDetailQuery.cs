@@ -25,6 +25,7 @@ public class GetTicketDetailHandler(
             .Include(t => t.TargetDepartment)
             .Include(t => t.Category)
             .Include(t => t.Topic)
+            .Include(t => t.Subject)
             .Include(t => t.ReceiverEmployee)
             .Include(t => t.SupervisorAcceptedByEmployee)
             .Include(t => t.WorkStartedByEmployee)
@@ -40,6 +41,9 @@ public class GetTicketDetailHandler(
             .Include(t => t.Assignments).ThenInclude(a => a.EndedByEmployee)
             .Include(t => t.CancellationRequests).ThenInclude(c => c.RequestedByEmployee)
             .Include(t => t.CancellationRequests).ThenInclude(c => c.ReviewedByEmployee)
+            .Include(t => t.ProgressEntries).ThenInclude(p => p.OwnerEmployee)
+            .Include(t => t.ProgressEntries).ThenInclude(p => p.CreatedByEmployee)
+            .Include(t => t.ProgressEntries).ThenInclude(p => p.Attachments)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
             ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
 
@@ -97,9 +101,25 @@ public class GetTicketDetailHandler(
             ticket.Category.Name,
             ticket.TopicId,
             ticket.Topic.Name,
+            ticket.SubjectId,
+            ticket.Subject?.Name,
             ticket.OtherTopicText,
             ticket.Title,
             ticket.Detail,
+            ticket.WorkflowDefinitionId,
+            ticket.WorkflowName,
+            ticket.WorkflowAutoAcknowledgeAfterDays,
+            TicketWorkflowRuntime.DeserializeBoardSteps(ticket.WorkflowBoardStepsJson),
+            TicketWorkflowRuntime.DeserializeInProgressPresets(ticket.WorkflowInProgressPresetsJson),
+            TicketWorkflowRuntime.DeserializeActions(ticket.WorkflowActionsJson),
+            TicketWorkflowRuntime.DeserializeSteps(ticket.WorkflowStepsJson),
+            TicketWorkflowRuntime.DeserializeStatusStepMap(ticket.WorkflowStatusStepMapJson),
+            ticket.WorkflowCurrentStepKey,
+            ticket.CurrentWorkState,
+            ticket.CurrentBlockerReason,
+            ticket.CurrentNextAction,
+            ticket.SubjectGuidanceConfigId,
+            ticket.SubjectGuidanceConfigName,
             ticket.VehicleText,
             ticket.LocationText,
             ticket.ContactPhone,
@@ -136,12 +156,44 @@ public class GetTicketDetailHandler(
             ticket.CancelledAt,
             ticket.CancellationReason,
             current is null ? null : ToAssignmentDto(current),
+            ticket.ProgressEntries
+                .OrderByDescending(entry => entry.CreatedAt)
+                .Select(entry => new TicketProgressEntryDto(
+                    entry.Id,
+                    entry.WorkflowStepKey,
+                    entry.WorkState,
+                    entry.BlockerReason,
+                    entry.NextAction,
+                    entry.IsCompleted,
+                    entry.Note,
+                    entry.OwnerEmployeeId,
+                    entry.OwnerEmployee is null ? null : FullName(entry.OwnerEmployee),
+                    entry.DueAt,
+                    entry.CreatedByEmployeeId,
+                    FullName(entry.CreatedByEmployee),
+                    entry.CreatedAt,
+                    entry.Attachments
+                        .Where(attachment => canSeeInternalAttachments ||
+                            attachment.Visibility == Hrms.Domain.Enums.TicketAttachmentVisibility.Public)
+                        .OrderBy(attachment => attachment.CreatedAt)
+                        .Select(attachment => new TicketAttachmentDto(
+                            attachment.Id,
+                            attachment.TicketProgressEntryId,
+                            $"/tickets/{ticket.Id}/attachments/{attachment.Id}/content",
+                            attachment.FileName,
+                            InferContentType(attachment.ContentType, attachment.Url),
+                            attachment.SizeBytes,
+                            attachment.Stage,
+                            attachment.Visibility))
+                        .ToList()))
+                .ToList(),
             ticket.Attachments
                 .Where(a => canSeeInternalAttachments ||
                     a.Visibility == Hrms.Domain.Enums.TicketAttachmentVisibility.Public)
                 .OrderBy(a => a.CreatedAt)
                 .Select(a => new TicketAttachmentDto(
                     a.Id,
+                    a.TicketProgressEntryId,
                     $"/tickets/{ticket.Id}/attachments/{a.Id}/content",
                     a.FileName,
                     InferContentType(a.ContentType, a.Url),

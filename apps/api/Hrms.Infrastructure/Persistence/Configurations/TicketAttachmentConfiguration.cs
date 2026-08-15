@@ -12,6 +12,7 @@ public class TicketAttachmentConfiguration : IEntityTypeConfiguration<TicketAtta
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.TicketId).HasColumnType("char(36)").IsRequired();
+        builder.Property(x => x.TicketProgressEntryId).HasColumnType("char(36)");
         builder.Property(x => x.UploadedByEmployeeId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.Url).HasMaxLength(500).IsRequired();
         builder.Property(x => x.FileName).HasMaxLength(255);
@@ -26,6 +27,7 @@ public class TicketAttachmentConfiguration : IEntityTypeConfiguration<TicketAtta
         builder.Property(x => x.UpdatedAt).HasColumnType("datetime");
 
         builder.HasIndex(x => new { x.TicketId, x.Stage });
+        builder.HasIndex(x => x.TicketProgressEntryId);
 
         builder.HasOne(x => x.Ticket)
             .WithMany(x => x.Attachments)
@@ -35,6 +37,11 @@ public class TicketAttachmentConfiguration : IEntityTypeConfiguration<TicketAtta
         builder.HasOne(x => x.UploadedByEmployee)
             .WithMany()
             .HasForeignKey(x => x.UploadedByEmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.TicketProgressEntry)
+            .WithMany(x => x.Attachments)
+            .HasForeignKey(x => x.TicketProgressEntryId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

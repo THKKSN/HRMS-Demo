@@ -34,7 +34,8 @@ public class ResolveTicketHandler(
         if (string.IsNullOrWhiteSpace(ticket.ResolutionNote))
             throw new FluentValidation.ValidationException("กรุณาระบุรายละเอียดการแก้ไข");
         var hasEvidence = await db.TicketAttachments.AnyAsync(a =>
-            a.TicketId == ticket.Id && a.Stage == TicketAttachmentStage.Resolved, ct);
+            a.TicketId == ticket.Id &&
+            a.Stage == TicketAttachmentStage.Resolved, ct);
         if (!hasEvidence)
             throw new FluentValidation.ValidationException("กรุณาแนบหลักฐานหลังแก้ไขอย่างน้อย 1 ไฟล์");
 
@@ -44,6 +45,15 @@ public class ResolveTicketHandler(
         ticket.Status = TicketStatus.Resolved;
         ticket.ResolvedByEmployeeId = actorId;
         ticket.ResolvedAt = now;
+        TicketCommandSupport.SetWorkflowBoardState(ticket, "completed_review", workState: "ส่งปิดงานตรวจจบ");
+        TicketCommandSupport.AddProgressEntry(
+            db,
+            ticket,
+            actorId,
+            "completed_review",
+            workState: "ส่งปิดงานตรวจจบ",
+            note: ticket.ResolutionNote,
+            ownerEmployeeId: actorId);
         ticket.UpdatedBy = actorId;
         TicketStatusTransition.Record(
             db, ticket, TicketStatus.InProgress, TicketStatus.Resolved, actorId, now, "SubmittedForReview");

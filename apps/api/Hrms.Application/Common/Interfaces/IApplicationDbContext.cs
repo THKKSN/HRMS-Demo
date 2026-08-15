@@ -26,6 +26,10 @@ public interface IApplicationDbContext
     DbSet<AuditLog>        AuditLogs        { get; } // table: audit_logs
 
     DbSet<OtRequest>             OtRequests             { get; } // table: ot_requests
+    DbSet<ExpenseClaim>          ExpenseClaims          { get; } // table: expense_claims
+    DbSet<ExpenseOcrResult>       ExpenseOcrResults      { get; } // table: expense_ocr_results
+    DbSet<ExpenseBillingBatch>    ExpenseBillingBatches  { get; } // table: expense_billing_batches
+    DbSet<ExpenseBillingBatchItem> ExpenseBillingBatchItems { get; } // table: expense_billing_batch_items
     DbSet<EmployeeShiftOverride> EmployeeShiftOverrides { get; } // table: employee_shift_overrides
 
     DbSet<Location>     Locations      { get; } // table: locations
@@ -33,6 +37,7 @@ public interface IApplicationDbContext
     DbSet<Ticket>           Tickets           { get; } // table: tickets
     DbSet<TicketCategory>   TicketCategories  { get; } // table: ticket_categories
     DbSet<TicketTopic>      TicketTopics      { get; } // table: ticket_topics
+    DbSet<TicketSubject>    TicketSubjects    { get; } // table: ticket_subjects
     DbSet<TicketAttachment> TicketAttachments { get; } // table: ticket_attachments
     DbSet<TicketPendingUpload> TicketPendingUploads { get; }
     DbSet<TicketDailySequence> TicketDailySequences { get; }
@@ -41,6 +46,9 @@ public interface IApplicationDbContext
     DbSet<TicketReview>     TicketReviews     { get; } // table: ticket_reviews
     DbSet<TicketStatusHistory> TicketStatusHistory { get; } // table: ticket_status_history
     DbSet<TicketCancellationRequest> TicketCancellationRequests { get; } // table: ticket_cancellation_requests
+    DbSet<TicketProgressEntry> TicketProgressEntries { get; }
+    DbSet<TicketWorkflowDefinition> TicketWorkflowDefinitions { get; }
+    DbSet<TicketSubjectGuidanceConfig> TicketSubjectGuidanceConfigs { get; }
     DbSet<EmployeeResponsibility> EmployeeResponsibilities { get; }
     DbSet<NotificationOutbox> NotificationOutboxes { get; }
 

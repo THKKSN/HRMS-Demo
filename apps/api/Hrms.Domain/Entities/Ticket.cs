@@ -14,9 +14,24 @@ public class Ticket : BaseEntity
     public Guid TargetDepartmentId { get; set; }
     public Guid CategoryId { get; set; }
     public Guid TopicId { get; set; }
+    public Guid? SubjectId { get; set; }
+    public Guid? WorkflowDefinitionId { get; set; }
+    public Guid? SubjectGuidanceConfigId { get; set; }
     public string? OtherTopicText { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Detail { get; set; } = string.Empty;
+    public string? WorkflowName { get; set; }
+    public string? WorkflowStepsJson { get; set; }
+    public string? WorkflowStatusStepMapJson { get; set; }
+    public string? WorkflowBoardStepsJson { get; set; }
+    public string? WorkflowInProgressPresetsJson { get; set; }
+    public string? WorkflowActionsJson { get; set; }
+    public int? WorkflowAutoAcknowledgeAfterDays { get; set; }
+    public string? WorkflowCurrentStepKey { get; set; }
+    public string? CurrentWorkState { get; set; }
+    public string? CurrentBlockerReason { get; set; }
+    public string? CurrentNextAction { get; set; }
+    public string? SubjectGuidanceConfigName { get; set; }
     public TicketPriority Priority { get; set; } = TicketPriority.Medium;
     public TicketStatus Status { get; set; } = TicketStatus.Open;
     public TicketRoutingMode RoutingMode { get; set; } = TicketRoutingMode.SupervisorAssign;
@@ -57,6 +72,9 @@ public class Ticket : BaseEntity
     public Department TargetDepartment { get; set; } = null!;
     public TicketCategory Category { get; set; } = null!;
     public TicketTopic Topic { get; set; } = null!;
+    public TicketSubject? Subject { get; set; }
+    public TicketWorkflowDefinition? WorkflowDefinition { get; set; }
+    public TicketSubjectGuidanceConfig? SubjectGuidanceConfig { get; set; }
     public Employee? ReceiverEmployee { get; set; }
     public Employee? SupervisorAcceptedByEmployee { get; set; }
     public Employee? WorkStartedByEmployee { get; set; }
@@ -72,4 +90,5 @@ public class Ticket : BaseEntity
     public ICollection<TicketReview> Reviews { get; set; } = new List<TicketReview>();
     public ICollection<TicketStatusHistory> StatusHistory { get; set; } = new List<TicketStatusHistory>();
     public ICollection<TicketCancellationRequest> CancellationRequests { get; set; } = new List<TicketCancellationRequest>();
+    public ICollection<TicketProgressEntry> ProgressEntries { get; set; } = new List<TicketProgressEntry>();
 }

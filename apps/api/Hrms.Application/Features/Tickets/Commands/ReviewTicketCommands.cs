@@ -47,6 +47,22 @@ public class ReturnTicketForRevisionHandler(
             ticket.Status = TicketStatus.InProgress;
             ticket.ResolvedByEmployeeId = null;
             ticket.ResolvedAt = null;
+            TicketCommandSupport.SetWorkflowBoardState(
+                ticket,
+                "in_progress",
+                workState: "รอแก้ไขตามผลตรวจ",
+                blockerReason: "รอแก้ไขตามผลตรวจ",
+                nextAction: "ปรับแก้และส่งตรวจใหม่");
+            TicketCommandSupport.AddProgressEntry(
+                db,
+                ticket,
+                actorId,
+                "in_progress",
+                workState: "รอแก้ไขตามผลตรวจ",
+                blockerReason: "รอแก้ไขตามผลตรวจ",
+                nextAction: "ปรับแก้และส่งตรวจใหม่",
+                note: review.ReviewNote,
+                ownerEmployeeId: assignment.AssignedToEmployeeId);
             ticket.UpdatedBy = actorId;
             TicketStatusTransition.Record(db, ticket, TicketStatus.Resolved, TicketStatus.InProgress,
                 actorId, now, request.ReviewNote, assignment.Id);
@@ -119,7 +135,7 @@ public class CloseTicketHandler(
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
             ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
         await TicketSupervisorAccess.EnsureTicketAsync(db, currentUser, permissions, "ticket:close", ticket, ct);
-        if (ticket.Status == TicketStatus.Closed)
+        if (ticket.Status is TicketStatus.AwaitingRequesterConfirmation or TicketStatus.Closed)
             return new TicketActionResultDto(ticket.Id, ticket.Status, ticket.UpdatedAt);
         if (ticket.Status != TicketStatus.Resolved)
             throw new ConflictException("INVALID_TICKET_STATUS", "ปิดได้เฉพาะ Ticket ที่รอตรวจ");
@@ -158,18 +174,20 @@ public class CloseTicketHandler(
         await db.ExecuteInTransactionAsync(async transactionCt =>
         {
             db.TicketReviews.Add(review);
-            assignment.IsActive = false;
-            assignment.ActiveSlot = null;
-            assignment.EndedAt = now;
-            assignment.EndedByEmployeeId = actorId;
-            assignment.UpdatedBy = actorId;
-            ticket.Status = TicketStatus.Closed;
+            ticket.Status = TicketStatus.AwaitingRequesterConfirmation;
             ticket.VerifiedByEmployeeId = actorId;
             ticket.VerifiedAt = now;
-            ticket.ClosedByEmployeeId = actorId;
-            ticket.ClosedAt = now;
+            TicketCommandSupport.SetWorkflowBoardState(ticket, "accepted", workState: "ปิดงานเรียบร้อย");
+            TicketCommandSupport.AddProgressEntry(
+                db,
+                ticket,
+                actorId,
+                "accepted",
+                workState: "ปิดงานเรียบร้อย",
+                note: review.ReviewNote ?? "Approved",
+                ownerEmployeeId: ticket.RequesterEmployeeId);
             ticket.UpdatedBy = actorId;
-            TicketStatusTransition.Record(db, ticket, TicketStatus.Resolved, TicketStatus.Closed,
+            TicketStatusTransition.Record(db, ticket, TicketStatus.Resolved, TicketStatus.AwaitingRequesterConfirmation,
                 actorId, now, review.ReviewNote ?? "Approved", assignment.Id);
             var message = $"งาน {ticket.TicketNo} ผ่านการตรวจและปิดแล้ว";
             TicketCommandSupport.QueueNotification(
@@ -182,7 +200,7 @@ public class CloseTicketHandler(
             await auditLog.LogAsync("ticket", "Ticket", ticket.Id.ToString(), "close",
                 $"{TicketCommandSupport.FullName(actor)} ตรวจผ่านและปิด {ticket.TicketNo}",
                 new { Status = TicketStatus.Resolved },
-                new { ticket.Status, review.ReviewRound, ticket.VerifiedAt, ticket.ClosedAt }, transactionCt);
+                new { ticket.Status, review.ReviewRound, ticket.VerifiedAt }, transactionCt);
         }, ct);
 
         return new TicketActionResultDto(ticket.Id, ticket.Status, ticket.UpdatedAt);

@@ -20,6 +20,8 @@ public interface ILineMessagingService
 
     Task ReplyAsync(string replyToken, string message, CancellationToken ct = default);
 
+    Task ReplyHrMenuAsync(string replyToken, CancellationToken ct = default);
+
     Task ReplyWithLocationRequestAsync(string replyToken, string promptText, CancellationToken ct = default);
 
     Task ReplyFlexMessageAsync(string replyToken, string altText, object flexContainer, CancellationToken ct = default);

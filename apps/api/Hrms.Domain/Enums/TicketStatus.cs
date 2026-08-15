@@ -7,6 +7,7 @@ public enum TicketStatus
     InProgress,
     WaitingInfo,
     Resolved,
+    AwaitingRequesterConfirmation,
     Closed,
     Rejected,
     Cancelled

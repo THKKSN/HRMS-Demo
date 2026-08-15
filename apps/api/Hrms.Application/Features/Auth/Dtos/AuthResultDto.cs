@@ -14,4 +14,5 @@ public record AuthEmployeeDto(
     string FullName,
     string? AvatarUrl,
     Guid CompanyId,
-    IReadOnlyList<RoleClaim> Roles);
+    IReadOnlyList<RoleClaim> Roles,
+    IReadOnlyList<string> PermissionCodes);

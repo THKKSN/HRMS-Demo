@@ -17,6 +17,7 @@ internal sealed class TicketTestFixture : IAsyncDisposable
     public Guid OutsiderId { get; } = Guid.NewGuid();
     public Guid CategoryId { get; } = Guid.NewGuid();
     public Guid TopicId { get; } = Guid.NewGuid();
+    public Guid SubjectId { get; } = Guid.NewGuid();
     public HrmsDbContext Db { get; }
 
     public TicketTestFixture()
@@ -80,6 +81,17 @@ internal sealed class TicketTestFixture : IAsyncDisposable
             IsActive = true,
             RoutingMode = topicMode
         });
+        Db.TicketSubjects.Add(new TicketSubject
+        {
+            Id = SubjectId,
+            CompanyId = CompanyId,
+            DepartmentId = TargetDepartmentId,
+            CategoryId = CategoryId,
+            TopicId = TopicId,
+            Name = "Camera adhesive",
+            IsActive = true,
+            SortOrder = 10
+        });
         await Db.SaveChangesAsync();
         Db.ChangeTracker.Clear();
     }
@@ -98,6 +110,7 @@ internal sealed class TicketTestFixture : IAsyncDisposable
             TargetDepartmentId = TargetDepartmentId,
             CategoryId = CategoryId,
             TopicId = TopicId,
+            SubjectId = SubjectId,
             Title = "Camera adhesive",
             Detail = "Camera adhesive is loose",
             Status = status,

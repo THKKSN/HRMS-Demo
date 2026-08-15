@@ -6,6 +6,7 @@ using Hrms.Infrastructure.Jobs;
 using Hrms.Application.Common.Options;
 using Hrms.Infrastructure.Persistence;
 using Hrms.Infrastructure.Services;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,15 +32,16 @@ public static class DependencyInjection
             .UseSnakeCaseNamingConvention());
 
         services.AddScoped<IApplicationDbContext>(sp => sp.GetRequiredService<HrmsDbContext>());
+        services.AddMediatR(cfg =>
+            cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
 
-        services.AddStackExchangeRedisCache(opt =>
-        {
-            opt.Configuration = configuration.GetConnectionString("Redis");
-        });
+        services.AddDistributedMemoryCache();
 
         // Options
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<LineOptions>(configuration.GetSection(LineOptions.SectionName));
+        services.Configure<ExpenseOcrOptions>(configuration.GetSection(ExpenseOcrOptions.SectionName));
+        services.Configure<PiswinOptions>(configuration.GetSection(PiswinOptions.SectionName));
 
         // Seeder
         services.AddScoped<DataSeeder>();
@@ -57,11 +59,21 @@ public static class DependencyInjection
         services.AddScoped<ILineWebhookService, LineWebhookService>();
         services.AddScoped<ILeaveNotificationService, HangfireLeaveNotificationService>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddScoped<IExpenseOcrQueue, HangfireExpenseOcrQueue>();
+        services.AddHttpClient<IExpenseOcrEngine, HttpExpenseOcrEngine>();
+        services.AddHttpClient<IPiswinEmployeeClient, PiswinEmployeeClient>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PiswinOptions>>().Value;
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
+        });
         services.AddScoped<ITicketNumberGenerator, TicketNumberGenerator>();
         services.AddScoped<IShiftResolver, ShiftResolverService>();
         services.AddScoped<DailyAttendanceReportJob>();
         services.AddScoped<TicketUploadCleanupJob>();
         services.AddScoped<NotificationDeliveryJob>();
+        services.AddScoped<ExpenseOcrJob>();
+        services.AddScoped<TicketAutoConfirmationJob>();
+        services.AddSingleton<RecurringJobRegistrar>();
         services.AddSingleton<IGeofenceService, GeofenceService>();
 
         var hangfireConnectionString = new MySqlConnector.MySqlConnectionStringBuilder(connectionString)
@@ -88,7 +100,22 @@ public static class DependencyInjection
                 })));
 
         if (configuration.GetValue("Hangfire:ServerEnabled", true))
-            services.AddHangfireServer();
+        {
+            services.AddHangfireServer(options =>
+            {
+                var queues = configuration.GetSection("Hangfire:Queues").Get<string[]>()
+                    ?? ["default"];
+                options.Queues = queues
+                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Select(x => x.Trim().ToLowerInvariant())
+                    .DefaultIfEmpty("default")
+                    .ToArray();
+
+                var workerCount = configuration.GetValue<int?>("Hangfire:WorkerCount");
+                if (workerCount is > 0)
+                    options.WorkerCount = workerCount.Value;
+            });
+        }
 
         return services;
     }

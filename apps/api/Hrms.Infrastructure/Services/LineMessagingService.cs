@@ -64,6 +64,63 @@ public class LineMessagingService(
         await ReplyAsync(replyToken, new object[] { new { type = "text", text = message } }, ct);
     }
 
+    public async Task ReplyHrMenuAsync(string replyToken, CancellationToken ct = default)
+    {
+        var message = new
+        {
+            type = "text",
+            text = "สวัสดีครับ/ค่ะ! ยินดีต้อนรับสู่ระบบบริหารงานบุคคล กรุณาเลือกเมนูที่ต้องการ",
+            quickReply = new
+            {
+                items = new object[]
+                {
+                    new
+                    {
+                        type = "action",
+                        action = new
+                        {
+                            type = "message",
+                            label = "ลงเวลางาน",
+                            text = "ลงเวลา"
+                        }
+                    },
+                    new
+                    {
+                        type = "action",
+                        action = new
+                        {
+                            type = "uri",
+                            label = "ลางาน",
+                            uri = BuildLiffUri("/leaves/new")
+                        }
+                    },
+                    // new
+                    // {
+                    //     type = "action",
+                    //     action = new
+                    //     {
+                    //         type = "uri",
+                    //         label = "แจ้งปัญหา",
+                    //         uri = BuildLiffUri("/tickets/new")
+                    //     }
+                    // },
+                    new
+                    {
+                        type = "action",
+                        action = new
+                        {
+                            type = "message",
+                            label = "ตรวจสอบสิทธิ์",
+                            text = "ตรวจสอบสิทธิ์"
+                        }
+                    }
+                }
+            }
+        };
+
+        await ReplyAsync(replyToken, new object[] { message }, ct);
+    }
+
     public async Task ReplyWithLocationRequestAsync(string replyToken, string promptText, CancellationToken ct = default)
     {
         var message = new
@@ -74,7 +131,7 @@ public class LineMessagingService(
             {
                 items = new[]
                 {
-                    new { type = "action", action = new { type = "location", label = "📍 แชร์ตำแหน่ง" } }
+                    new { type = "action", action = new { type = "location", label = "แชร์ตำแหน่ง" } }
                 }
             }
         };
@@ -98,7 +155,7 @@ public class LineMessagingService(
             {
                 items = new[]
                 {
-                    new { type = "action", action = new { type = "location", label = "📍 แชร์ตำแหน่ง" } }
+                    new { type = "action", action = new { type = "location", label = "แชร์ตำแหน่ง" } }
                 }
             }
         };

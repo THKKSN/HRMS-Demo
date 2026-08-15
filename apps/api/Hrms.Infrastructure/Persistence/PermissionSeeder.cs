@@ -79,6 +79,17 @@ public class PermissionSeeder(HrmsDbContext db)
         ("ticket:return",             "ticket",    "update",        "ส่งใบแจ้งเรื่องกลับแก้ไข"),
         ("ticket:view-report",        "ticket",    "report",        "ดูรายงานใบแจ้งเรื่อง"),
         ("ticket:export-report",      "ticket",    "export",        "ส่งออกรายงานใบแจ้งเรื่อง"),
+        // expense
+        ("expense:create",            "expense",    "create",        "สร้างและส่งรายการวางบิล"),
+        ("expense:view-own",          "expense",    "view",          "ดูรายการวางบิลของตัวเอง"),
+        ("expense:update-draft",      "expense",    "update",        "แก้ไขรายการวางบิลแบบร่าง"),
+        ("expense:upload-attachment", "expense",    "create",        "อัปโหลดหลักฐานประกอบรายการวางบิล"),
+        ("expense:ocr",               "expense",    "create",        "อ่านข้อมูลจากหลักฐานวางบิลด้วย OCR"),
+        ("expense:view-all",          "expense",    "view",          "ดูรายการวางบิลทั้งหมด"),
+        ("expense:review",            "expense",    "review",        "ตรวจและอนุมัติบิลค่าใช้จ่าย"),
+        ("expense:export",            "expense",    "export",        "ส่งออกรายการวางบิล"),
+        ("expense:create-batch",      "expense",    "create",        "สร้างรอบวางบิลค่าใช้จ่าย"),
+        ("expense:mark-paid",         "expense",    "update",        "บันทึกจ่ายเงินรอบวางบิล"),
         // system
         ("system:manage-roles",     "system",     "manage",        "จัดการ Permission ของ Role"),
         ("system:view-audit-logs",  "system",     "view",          "ดู Audit Log"),
@@ -96,6 +107,7 @@ public class PermissionSeeder(HrmsDbContext db)
             "ot:request", "ot:view-own",
             "ticket:create", "ticket:view-own", "ticket:view-assigned",
             "ticket:update-status", "ticket:resolve", "ticket:comment", "ticket:add-attachment",
+            "expense:create", "expense:view-own", "expense:update-draft", "expense:upload-attachment", "expense:ocr",
         ],
         ["Supervisor"] =
         [
@@ -108,6 +120,7 @@ public class PermissionSeeder(HrmsDbContext db)
             "ticket:manage-categories", "ticket:manage-topics", "ticket:manage-responsibilities",
             "ticket:comment", "ticket:add-internal-note", "ticket:add-attachment",
             "ticket:return", "ticket:view-report",
+            "expense:create", "expense:view-own", "expense:update-draft", "expense:upload-attachment", "expense:ocr",
         ],
         ["Hr"] =
         [
@@ -122,6 +135,8 @@ public class PermissionSeeder(HrmsDbContext db)
             "ot:approve-supervisor", "ot:approve-hr",
             "ticket:create", "ticket:view-own", "ticket:view-team", "ticket:view-all",
             "ticket:comment", "ticket:add-attachment",
+            "expense:create", "expense:view-own", "expense:update-draft", "expense:upload-attachment", "expense:ocr",
+            "expense:view-all", "expense:review", "expense:export", "expense:create-batch", "expense:mark-paid",
         ],
         ["Executive"] =
         [
@@ -131,6 +146,7 @@ public class PermissionSeeder(HrmsDbContext db)
             "company:view",
             "ot:view-all",
             "ticket:view-all", "ticket:view-report",
+            "expense:view-all",
         ],
         ["Admin"] =
         [
@@ -149,6 +165,8 @@ public class PermissionSeeder(HrmsDbContext db)
             "ticket:manage-categories", "ticket:manage-topics", "ticket:manage-responsibilities",
             "ticket:comment", "ticket:add-internal-note", "ticket:add-attachment",
             "ticket:return", "ticket:view-report", "ticket:export-report",
+            "expense:create", "expense:view-own", "expense:update-draft", "expense:upload-attachment", "expense:ocr",
+            "expense:view-all", "expense:review", "expense:export", "expense:create-batch", "expense:mark-paid",
             "system:manage-roles", "system:view-audit-logs", "system:manage-notifications",
             "system:manage-companies",
         ],

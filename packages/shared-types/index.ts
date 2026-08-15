@@ -26,6 +26,7 @@ export type EmployeeSummaryDto = {
   avatarUrl?: string
   companyId: string
   roles: RoleClaim[]
+  permissionCodes?: string[]
 }
 
 export type EmployeeProfileDto = EmployeeSummaryDto & {
@@ -183,6 +184,7 @@ export type TicketStatus =
   | 'InProgress'
   | 'WaitingInfo'
   | 'Resolved'
+  | 'AwaitingRequesterConfirmation'
   | 'Closed'
   | 'Rejected'
   | 'Cancelled'
@@ -222,6 +224,18 @@ export type TicketTopicDto = {
   routingMode: TicketRoutingMode
 }
 
+export type TicketSubjectDto = {
+  id: string
+  companyId: string
+  departmentId: string
+  categoryId: string
+  topicId: string
+  name: string
+  description?: string
+  sortOrder: number
+  isActive: boolean
+}
+
 export type TicketManagementScopeDto = {
   companies: TicketLookupCompanyDto[]
   departments: TicketLookupDepartmentDto[]
@@ -229,6 +243,7 @@ export type TicketManagementScopeDto = {
 
 export type TicketAttachmentDto = {
   id: string
+  ticketProgressEntryId?: string
   url: string
   fileName?: string
   contentType?: string
@@ -253,11 +268,20 @@ export type TicketDto = {
   categoryName: string
   topicId: string
   topicName: string
+  subjectId?: string
+  subjectName?: string
   otherTopicText?: string
   title: string
   detail: string
   priority: TicketPriority
   status: TicketStatus
+  workflowDefinitionId?: string
+  workflowName?: string
+  workflowAutoAcknowledgeAfterDays?: number
+  workflowSteps: TicketWorkflowStepDto[]
+  workflowCurrentStepIndexByStatus: Partial<Record<TicketStatus, number>>
+  subjectGuidanceConfigId?: string
+  subjectGuidanceConfigName?: string
   vehicleText?: string
   locationText?: string
   contactPhone?: string
@@ -320,6 +344,11 @@ export type TicketInboxItemDto = {
   currentAssigneeName?: string
   assignedByEmployeeName?: string
   assignedAt?: string
+  workflowCurrentStepKey?: string
+  workflowCurrentStepLabel?: string
+  currentWorkState?: string
+  currentBlockerReason?: string
+  currentNextAction?: string
   createdAt: string
 }
 
@@ -446,9 +475,25 @@ export type TicketDetailDto = {
   categoryName: string
   topicId: string
   topicName: string
+  subjectId?: string
+  subjectName?: string
   otherTopicText?: string
   title: string
   detail: string
+  workflowDefinitionId?: string
+  workflowName?: string
+  workflowAutoAcknowledgeAfterDays?: number
+  workflowBoardSteps: TicketWorkflowStepDto[]
+  workflowInProgressPresets: TicketWorkflowInProgressPresetDto[]
+  workflowActions: TicketWorkflowActionDto[]
+  workflowSteps: TicketWorkflowStepDto[]
+  workflowCurrentStepIndexByStatus: Partial<Record<TicketStatus, number>>
+  workflowCurrentStepKey?: string
+  currentWorkState?: string
+  currentBlockerReason?: string
+  currentNextAction?: string
+  subjectGuidanceConfigId?: string
+  subjectGuidanceConfigName?: string
   vehicleText?: string
   locationText?: string
   contactPhone?: string
@@ -485,12 +530,30 @@ export type TicketDetailDto = {
   cancelledAt?: string
   cancellationReason?: string
   currentAssignment?: TicketAssignmentDto
+  progressEntries: TicketProgressEntryDto[]
   attachments: TicketAttachmentDto[]
   latestCancellationRequest?: TicketCancellationRequestDto
   auditEvents: TicketAuditEventDto[]
   actions: TicketActionFlagsDto
   createdAt: string
   updatedAt: string
+}
+
+export type TicketProgressEntryDto = {
+  id: string
+  workflowStepKey: string
+  workState?: string
+  blockerReason?: string
+  nextAction?: string
+  isCompleted: boolean
+  note?: string
+  ownerEmployeeId?: string
+  ownerEmployeeName?: string
+  dueAt?: string
+  createdByEmployeeId: string
+  createdByEmployeeName: string
+  createdAt: string
+  attachments: TicketAttachmentDto[]
 }
 
 export type TicketActionFlagsDto = {
@@ -663,6 +726,11 @@ export type AssignedTicketItemDto = {
   locationText?: string
   assignedAt: string
   workStartedAt?: string
+  workflowCurrentStepKey?: string
+  workflowCurrentStepLabel?: string
+  currentWorkState?: string
+  currentBlockerReason?: string
+  currentNextAction?: string
   updatedAt: string
 }
 
@@ -681,6 +749,7 @@ export type TicketActionResultDto = {
   ticketId: string
   status: TicketStatus
   updatedAt: string
+  progressEntryId?: string
 }
 
 // ─── Address Reference ───────────────────────────────────────────────────────
@@ -1074,6 +1143,153 @@ export type OtRequestDto = {
   createdAt: string
 }
 
+// ─── Expenses ────────────────────────────────────────────────────────────────
+
+export type ExpenseClaimType = 'Fuel' | 'Toll' | 'Parking' | 'Meal' | 'Other'
+
+export type ExpenseClaimStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected' | 'Cancelled' | 'Batched' | 'Paid'
+export type ExpenseBillingBatchStatus = 'Draft' | 'Exported' | 'Paid' | 'Cancelled'
+export type ExpenseAttachmentDocumentType = 'PaymentOrder' | 'Receipt' | 'Other'
+export type ExpenseOcrStatus = 'Pending' | 'Processing' | 'Succeeded' | 'Failed'
+
+export type ExpenseAttachmentFileDto = {
+  url: string
+  documentType: ExpenseAttachmentDocumentType
+  fileName?: string
+  contentType?: string
+  sizeBytes?: number
+}
+
+export type ExpenseClaimDto = {
+  id: string
+  employeeId: string
+  employeeName: string
+  type: ExpenseClaimType
+  status: ExpenseClaimStatus
+  expenseDate: string
+  amount: number
+  merchantName?: string
+  billNo?: string
+  receiptTid?: string
+  receiptBatch?: string
+  receiptMid?: string
+  receiptTrace?: string
+  driverName?: string
+  vehicleNo?: string
+  plateNo?: string
+  fuelLiters?: number
+  transportNo?: string
+  origin?: string
+  customerName?: string
+  tripCount?: number
+  note?: string
+  attachmentUrls: string[]
+  attachmentFiles: ExpenseAttachmentFileDto[]
+  createdAt: string
+}
+
+export type ExpenseOcrFieldSuggestionDto = {
+  value?: string
+  confidence?: number
+  source?: string
+  documentType?: ExpenseAttachmentDocumentType
+  attachmentUrl?: string
+}
+
+export type ExpenseOcrResultDto = {
+  id: string
+  attachmentUrl: string
+  documentType: ExpenseAttachmentDocumentType
+  provider: string
+  status: ExpenseOcrStatus
+  rawText?: string
+  rawLinesJson?: string
+  parsedFields: Record<string, ExpenseOcrFieldSuggestionDto>
+  confidenceScore?: number
+  durationMs?: number
+  profile?: string
+  maxSide?: number
+  preprocessVariant?: string
+  attemptCount: number
+  workerVersion?: string
+  modelVersion?: string
+  errorMessage?: string
+  processingStartedAt?: string
+  processedAt?: string
+  createdAt: string
+}
+
+export type ExpenseOcrStartDto = {
+  expenseClaimId: string
+  results: ExpenseOcrResultDto[]
+}
+
+export type ExpenseOcrSummaryDto = {
+  expenseClaimId: string
+  status: ExpenseOcrStatus
+  results: ExpenseOcrResultDto[]
+  suggestions: Record<string, ExpenseOcrFieldSuggestionDto>
+  canApply: boolean
+}
+
+export type ApplyExpenseOcrRequest = {
+  expenseDate?: string
+  amount?: number
+  merchantName?: string
+  billNo?: string
+  receiptTid?: string
+  receiptBatch?: string
+  receiptMid?: string
+  receiptTrace?: string
+  driverName?: string
+  vehicleNo?: string
+  plateNo?: string
+  fuelLiters?: number
+  transportNo?: string
+  origin?: string
+  customerName?: string
+  tripCount?: number
+}
+
+export type ExpenseBillingBatchListItemDto = {
+  id: string
+  batchNo: string
+  periodFrom: string
+  periodTo: string
+  status: ExpenseBillingBatchStatus
+  totalClaims: number
+  totalAmount: number
+  note?: string
+  createdByEmployeeId: string
+  createdByEmployeeName: string
+  exportedAt?: string
+  paidAt?: string
+  createdAt: string
+}
+
+export type ExpenseBillingBatchItemDto = {
+  id: string
+  expenseClaimId: string
+  employeeName: string
+  type: ExpenseClaimType
+  status: ExpenseClaimStatus
+  expenseDate: string
+  amount: number
+  amountSnapshot: number
+  merchantName?: string
+  billNo?: string
+  receiptTid?: string
+  receiptBatch?: string
+  receiptMid?: string
+  receiptTrace?: string
+  vehicleNo?: string
+  plateNo?: string
+}
+
+export type ExpenseBillingBatchDto = ExpenseBillingBatchListItemDto & {
+  items: ExpenseBillingBatchItemDto[]
+}
+
 // ─── Common ──────────────────────────────────────────────────────────────────
 
 export type PagedResult<T> = {
@@ -1088,4 +1304,524 @@ export type ApiError = {
   error: string
   message: string
   details?: unknown
+}
+
+export type TicketSubjectGuidanceRule = {
+  categoryNames?: string[]
+  topicNames?: string[]
+  subjectNames?: string[]
+  suggestions?: string[]
+  template?: string
+}
+
+export type TicketSubjectGuidance = {
+  suggestions: string[]
+  template: string
+}
+
+export const TICKET_SUBJECT_GUIDANCE_RULES: TicketSubjectGuidanceRule[] = [
+  {
+    categoryNames: ['Software'],
+    topicNames: ['SMMS'],
+    subjectNames: ['ปลดล็อคเอกสาร', 'ปลดล็อกเอกสาร'],
+    suggestions: [
+      'ใบแจ้งซ่อม',
+      'ใบส่งซ่อม',
+      'การส่งซ่อม',
+      'ใบแจ้งงาน',
+      'รายการซ่อมบำรุง',
+      'ใบปะหน้าค่าใช้จ่าย',
+    ],
+    template: ['ชื่อเอกสาร:', 'เลขที่เอกสาร:', 'ปัญหา:'].join('\n'),
+  },
+]
+
+type TicketSubjectGuidanceInput = {
+  categoryName?: string
+  topicName?: string
+  subjectName?: string
+}
+
+function normalizeTicketGuidanceValue(value?: string) {
+  return value?.trim() ?? ''
+}
+
+function matchesTicketGuidanceRule(values: string[], expected?: string[]) {
+  if (!expected || expected.length === 0) return true
+  return expected.some(item => values.includes(normalizeTicketGuidanceValue(item)))
+}
+
+export function getTicketSubjectGuidance({
+  categoryName,
+  topicName,
+  subjectName,
+}: TicketSubjectGuidanceInput): TicketSubjectGuidance | null {
+  const category = normalizeTicketGuidanceValue(categoryName)
+  const topic = normalizeTicketGuidanceValue(topicName)
+  const subject = normalizeTicketGuidanceValue(subjectName)
+
+  for (const rule of TICKET_SUBJECT_GUIDANCE_RULES) {
+    if (
+      matchesTicketGuidanceRule([category], rule.categoryNames)
+      && matchesTicketGuidanceRule([topic], rule.topicNames)
+      && matchesTicketGuidanceRule([subject], rule.subjectNames)
+      && rule.template
+    ) {
+      return {
+        suggestions: rule.suggestions ?? [],
+        template: rule.template,
+      }
+    }
+  }
+
+  return null
+}
+
+export function applyTicketDetailTemplate(currentDetail: string, guidance: TicketSubjectGuidance) {
+  return currentDetail.trim().length > 0 ? currentDetail : guidance.template
+}
+
+export function applyTicketDetailSuggestion(currentDetail: string, suggestion: string, guidance: TicketSubjectGuidance) {
+  const baseDetail = currentDetail.trim().length > 0 ? currentDetail : guidance.template
+  const lines = baseDetail.split(/\r?\n/)
+  const documentLineIndex = lines.findIndex(line => line.trim().startsWith('ชื่อเอกสาร:'))
+
+  if (documentLineIndex >= 0) {
+    lines[documentLineIndex] = `ชื่อเอกสาร: ${suggestion}`
+    return lines.join('\n')
+  }
+
+  return [`ชื่อเอกสาร: ${suggestion}`, ...lines].join('\n')
+}
+export type TicketGuidanceSuggestion = {
+  label: string
+  value: string
+}
+
+export type TicketSubjectGuidanceRuleV2 = {
+  key: string
+  categoryNames?: string[]
+  topicNames?: string[]
+  subjectNames?: string[]
+  suggestions?: TicketGuidanceSuggestion[]
+  template?: string
+  suggestionTargetLabel?: string
+  workflowKey?: string
+}
+
+export type ResolvedTicketSubjectGuidance = {
+  suggestions: TicketGuidanceSuggestion[]
+  template: string
+  suggestionTargetLabel?: string
+  workflowKey: string
+}
+
+export type TicketWorkflowStepDisplay = {
+  key: string
+  label: string
+}
+
+export type TicketBoardActorType = 'requester' | 'supervisor' | 'assignee' | 'system'
+
+export type TicketBoardStepKind = 'start' | 'queue' | 'working' | 'review' | 'acceptance' | 'end'
+
+export type TicketBoardStepState = 'complete' | 'current' | 'upcoming'
+
+export type TicketBoardStep = {
+  key: string
+  label: string
+  actorType: TicketBoardActorType
+  kind: TicketBoardStepKind
+}
+
+export type TicketBoardWorkflowDefinition = {
+  key: string
+  name: string
+  autoAcknowledgeAfterDays?: number
+  steps: TicketBoardStep[]
+  currentStepKeyByStatus: Partial<Record<TicketStatus, string>>
+}
+
+export type TicketWorkflowDisplayConfig = {
+  key: string
+  name: string
+  autoAcknowledgeAfterDays?: number
+  steps: TicketWorkflowStepDisplay[]
+  currentStepIndexByStatus: Partial<Record<TicketStatus, number>>
+}
+
+export type TicketWorkflowStepDto = {
+  key: string
+  label: string
+  sortOrder: number
+  actorType?: string
+  kind?: string
+}
+
+export type TicketWorkflowInProgressPresetDto = {
+  key: string
+  label: string
+  kind: string
+  sortOrder: number
+  isActive: boolean
+}
+
+export type TicketWorkflowActionDto = {
+  stepKey: string
+  actionKey: string
+  actionLabel: string
+  actorType: string
+  sortOrder: number
+}
+
+export type TicketWorkflowDefinitionDto = {
+  id: string
+  companyId: string
+  departmentId: string
+  code: string
+  name: string
+  description?: string
+  sortOrder: number
+  autoAcknowledgeAfterDays?: number
+  isActive: boolean
+  boardSteps: TicketWorkflowStepDto[]
+  inProgressPresets: TicketWorkflowInProgressPresetDto[]
+  actions: TicketWorkflowActionDto[]
+  steps: TicketWorkflowStepDto[]
+  currentStepIndexByStatus: Partial<Record<TicketStatus, number>>
+}
+
+export type TicketSubjectGuidanceConfigDto = {
+  id: string
+  companyId: string
+  departmentId: string
+  categoryId?: string
+  topicId?: string
+  subjectId?: string
+  workflowDefinitionId?: string
+  workflowName?: string
+  name: string
+  suggestionTargetLabel?: string
+  suggestions: TicketGuidanceSuggestion[]
+  template: string
+  priority: number
+  isActive: boolean
+}
+
+export type TicketResolvedSubjectGuidanceDto = {
+  guidanceConfigId?: string
+  guidanceConfigName?: string
+  suggestionTargetLabel?: string
+  suggestions: TicketGuidanceSuggestion[]
+  template?: string
+  workflowDefinitionId?: string
+  workflowName?: string
+  workflowAutoAcknowledgeAfterDays?: number
+  workflowSteps: TicketWorkflowStepDto[]
+  workflowCurrentStepIndexByStatus: Partial<Record<TicketStatus, number>>
+}
+
+export const DEFAULT_TICKET_BOARD_WORKFLOW: TicketBoardWorkflowDefinition = {
+  key: 'default',
+  name: 'Standard Service Board',
+  autoAcknowledgeAfterDays: 7,
+  steps: [
+    { key: 'submitted', label: 'แจ้งเรื่อง', actorType: 'requester', kind: 'start' },
+    { key: 'received', label: 'รับเรื่อง', actorType: 'supervisor', kind: 'queue' },
+    { key: 'assigned', label: 'จ่ายงาน', actorType: 'supervisor', kind: 'queue' },
+    { key: 'in_progress', label: 'กำลังดำเนินการ', actorType: 'assignee', kind: 'working' },
+    { key: 'completed_review', label: 'ตรวจสอบงาน', actorType: 'supervisor', kind: 'review' },
+    { key: 'accepted', label: 'คนแจ้งเรื่องตรวจรับงาน', actorType: 'requester', kind: 'end' },
+    { key: 'closed', label: 'จบงาน', actorType: 'system', kind: 'end' },
+  ],
+  currentStepKeyByStatus: {
+    Open: 'submitted',
+    Assigned: 'assigned',
+    InProgress: 'in_progress',
+    WaitingInfo: 'in_progress',
+    Resolved: 'completed_review',
+    AwaitingRequesterConfirmation: 'accepted',
+    Closed: 'closed',
+  },
+}
+
+export const TICKET_SUBJECT_GUIDANCE_RULES_V2: TicketSubjectGuidanceRuleV2[] = [
+  {
+    key: 'software-smms-document-unlock',
+    categoryNames: ['Software'],
+    topicNames: ['SMMS'],
+    subjectNames: ['ปลดล็อคเอกสาร', 'ปลดล็อกเอกสาร'],
+    suggestions: [
+      { label: 'ใบแจ้งซ่อม', value: 'ใบแจ้งซ่อม' },
+      { label: 'ใบส่งซ่อม', value: 'ใบส่งซ่อม' },
+      { label: 'การส่งซ่อม', value: 'การส่งซ่อม' },
+      { label: 'ใบแจ้งงาน', value: 'ใบแจ้งงาน' },
+      { label: 'รายการซ่อมบำรุง', value: 'รายการซ่อมบำรุง' },
+      { label: 'ใบปะหน้าค่าใช้จ่าย', value: 'ใบปะหน้าค่าใช้จ่าย' },
+    ],
+    template: ['ชื่อเอกสาร:', 'เลขที่เอกสาร:', 'ปัญหา:'].join('\n'),
+    suggestionTargetLabel: 'ชื่อเอกสาร:',
+    workflowKey: 'software-smms-document-unlock',
+  },
+  {
+    key: 'gps-repair-not-updating',
+    categoryNames: ['GPS'],
+    topicNames: ['แจ้งซ่อม'],
+    subjectNames: ['GPS ไม่อัปเดต'],
+    suggestions: [
+      { label: 'เพิ่มทะเบียนรถ', value: 'ทะเบียนรถ:' },
+      { label: 'เพิ่มเบอร์รถ', value: 'เบอร์รถ:' },
+      { label: 'เพิ่มสถานที่พบปัญหา', value: 'สถานที่พบปัญหา:' },
+      { label: 'เพิ่มอาการ', value: 'อาการ:' },
+    ],
+    template: ['ทะเบียนรถ:', 'เบอร์รถ:', 'สถานที่พบปัญหา:', 'อาการ:'].join('\n'),
+    workflowKey: 'gps-repair',
+  },
+]
+
+export const TICKET_WORKFLOW_DISPLAYS_V2: TicketWorkflowDisplayConfig[] = [
+  {
+    key: 'default',
+    name: 'Default Ticket Workflow',
+    steps: [
+      { key: 'submitted', label: 'ส่งเรื่อง' },
+      { key: 'accepted', label: 'รับเรื่อง' },
+      { key: 'working', label: 'เริ่มทำงาน' },
+      { key: 'resolved', label: 'จบงานรอตรวจ' },
+      { key: 'closed', label: 'ปิดงาน' },
+    ],
+    currentStepIndexByStatus: {
+      Open: 0,
+      Assigned: 1,
+      InProgress: 2,
+      WaitingInfo: 2,
+      Resolved: 3,
+      Closed: 4,
+    },
+  },
+  {
+    key: 'software-smms-document-unlock',
+    name: 'Software / SMMS / ปลดล็อคเอกสาร',
+    autoAcknowledgeAfterDays: 7,
+    steps: [
+      { key: 'submitted', label: 'ส่งเรื่อง' },
+      { key: 'accepted', label: 'รับเรื่อง' },
+      { key: 'working', label: 'เริ่มทำงาน' },
+      { key: 'resolved', label: 'จบงานรอตรวจ' },
+      { key: 'verified', label: 'ตรวจจบ' },
+      { key: 'acknowledged', label: 'ผู้แจ้งรับทราบ' },
+    ],
+    currentStepIndexByStatus: {
+      Open: 0,
+      Assigned: 1,
+      InProgress: 2,
+      WaitingInfo: 2,
+      Resolved: 3,
+      Closed: 5,
+    },
+  },
+  {
+    key: 'gps-repair',
+    name: 'GPS / แจ้งซ่อม / GPS ไม่อัปเดต',
+    autoAcknowledgeAfterDays: 7,
+    steps: [
+      { key: 'submitted', label: 'ส่งเรื่อง' },
+      { key: 'accepted', label: 'รับเรื่อง' },
+      { key: 'dispatched', label: 'จ่ายงาน' },
+      { key: 'working', label: 'เริ่มทำงาน' },
+      { key: 'procurement', label: 'จัดซื้ออุปกรณ์' },
+      { key: 'resolved', label: 'จบงานรอตรวจ' },
+      { key: 'verified', label: 'ตรวจจบ' },
+      { key: 'acknowledged', label: 'ผู้แจ้งรับทราบ' },
+    ],
+    currentStepIndexByStatus: {
+      Open: 0,
+      Assigned: 2,
+      InProgress: 3,
+      WaitingInfo: 4,
+      Resolved: 5,
+      Closed: 7,
+    },
+  },
+]
+
+export const TICKET_BOARD_WORKFLOWS: TicketBoardWorkflowDefinition[] = [
+  DEFAULT_TICKET_BOARD_WORKFLOW,
+  {
+    ...DEFAULT_TICKET_BOARD_WORKFLOW,
+    key: 'software-smms-document-unlock',
+    name: 'Software / SMMS / ปลดล็อคเอกสาร',
+  },
+  {
+    ...DEFAULT_TICKET_BOARD_WORKFLOW,
+    key: 'gps-repair',
+    name: 'GPS / แจ้งซ่อม / GPS ไม่อัปเดต',
+  },
+]
+
+type TicketSubjectGuidanceLookupInputV2 = {
+  categoryName?: string
+  topicName?: string
+  subjectName?: string
+}
+
+function normalizeTicketGuidanceValueV2(value?: string) {
+  return value?.trim() ?? ''
+}
+
+function matchesTicketGuidanceRuleV2(value: string, expected?: string[]) {
+  if (!expected || expected.length === 0) return true
+  return expected.some(item => normalizeTicketGuidanceValueV2(item) === value)
+}
+
+export function resolveTicketSubjectGuidance(input: TicketSubjectGuidanceLookupInputV2): ResolvedTicketSubjectGuidance | null {
+  const category = normalizeTicketGuidanceValueV2(input.categoryName)
+  const topic = normalizeTicketGuidanceValueV2(input.topicName)
+  const subject = normalizeTicketGuidanceValueV2(input.subjectName)
+
+  for (const rule of TICKET_SUBJECT_GUIDANCE_RULES_V2) {
+    if (
+      matchesTicketGuidanceRuleV2(category, rule.categoryNames)
+      && matchesTicketGuidanceRuleV2(topic, rule.topicNames)
+      && matchesTicketGuidanceRuleV2(subject, rule.subjectNames)
+      && rule.template
+      && rule.workflowKey
+    ) {
+      return {
+        suggestions: rule.suggestions ?? [],
+        template: rule.template,
+        suggestionTargetLabel: rule.suggestionTargetLabel,
+        workflowKey: rule.workflowKey,
+      }
+    }
+  }
+
+  return null
+}
+
+export function resolveTicketWorkflowDisplay(input: TicketSubjectGuidanceLookupInputV2): TicketWorkflowDisplayConfig {
+  const workflowKey = resolveTicketSubjectGuidance(input)?.workflowKey ?? 'default'
+  return TICKET_WORKFLOW_DISPLAYS_V2.find(item => item.key === workflowKey) ?? TICKET_WORKFLOW_DISPLAYS_V2[0]
+}
+
+export function resolveTicketBoardWorkflow(input: TicketSubjectGuidanceLookupInputV2): TicketBoardWorkflowDefinition {
+  const workflowKey = resolveTicketSubjectGuidance(input)?.workflowKey ?? 'default'
+  return TICKET_BOARD_WORKFLOWS.find(item => item.key === workflowKey) ?? TICKET_BOARD_WORKFLOWS[0]
+}
+
+export function createTicketWorkflowDisplayFromDto(input: {
+  workflowName?: string
+  workflowAutoAcknowledgeAfterDays?: number
+  workflowSteps?: TicketWorkflowStepDto[]
+  workflowCurrentStepIndexByStatus?: Partial<Record<TicketStatus, number>>
+}) {
+  if (!input.workflowSteps || input.workflowSteps.length === 0) return null
+
+  return {
+    key: 'ticket-snapshot',
+    name: input.workflowName ?? 'Ticket Workflow',
+    autoAcknowledgeAfterDays: input.workflowAutoAcknowledgeAfterDays,
+    steps: input.workflowSteps.map(step => ({ key: step.key, label: step.label })),
+    currentStepIndexByStatus: input.workflowCurrentStepIndexByStatus ?? {},
+  } satisfies TicketWorkflowDisplayConfig
+}
+
+export function createTicketBoardWorkflowFromDto(input: {
+  workflowName?: string
+  workflowAutoAcknowledgeAfterDays?: number
+  workflowSteps?: TicketWorkflowStepDto[]
+  workflowCurrentStepIndexByStatus?: Partial<Record<TicketStatus, number>>
+}) {
+  if (!input.workflowSteps || input.workflowSteps.length === 0) return null
+
+  const steps: TicketBoardStep[] = input.workflowSteps.map((step, index, allSteps) => ({
+    key: step.key,
+    label: step.label,
+    actorType: index === 0 ? 'requester' : index === 1 || index === allSteps.length - 2 ? 'supervisor' : index === allSteps.length - 1 ? 'requester' : 'assignee',
+    kind: index === 0
+      ? 'start'
+      : index === allSteps.length - 1
+        ? 'end'
+        : step.key.includes('progress') || step.key.includes('working') || step.key.includes('start')
+          ? 'working'
+          : step.key.includes('review') || step.key.includes('resolve') || step.key.includes('close')
+            ? 'review'
+            : 'queue',
+  }))
+
+  return {
+    key: 'ticket-snapshot',
+    name: input.workflowName ?? 'Ticket Workflow',
+    autoAcknowledgeAfterDays: input.workflowAutoAcknowledgeAfterDays,
+    steps,
+    currentStepKeyByStatus: Object.entries(input.workflowCurrentStepIndexByStatus ?? {}).reduce((result, [status, stepIndex]) => {
+      if (typeof stepIndex === 'number' && steps[stepIndex]) {
+        result[status as TicketStatus] = steps[stepIndex].key
+      }
+      return result
+    }, {} as Partial<Record<TicketStatus, string>>),
+  } satisfies TicketBoardWorkflowDefinition
+}
+
+export function getTicketWorkflowStepStateV2(
+  workflow: TicketWorkflowDisplayConfig,
+  status: TicketStatus,
+  stepIndex: number,
+): 'complete' | 'current' | 'upcoming' {
+  const currentStepIndex = workflow.currentStepIndexByStatus[status]
+  if (currentStepIndex === undefined) return stepIndex === 0 ? 'current' : 'upcoming'
+  if (stepIndex < currentStepIndex) return 'complete'
+  if (stepIndex === currentStepIndex) return 'current'
+  return 'upcoming'
+}
+
+export function getTicketBoardWorkflowStepState(
+  workflow: TicketBoardWorkflowDefinition,
+  status: TicketStatus,
+  stepIndex: number,
+  currentStepKeyOverride?: string,
+): TicketBoardStepState {
+  if (status === 'Closed') return 'complete'
+
+  const currentStepKey = currentStepKeyOverride ?? workflow.currentStepKeyByStatus[status]
+  if (!currentStepKey) return stepIndex === 0 ? 'current' : 'upcoming'
+
+  const currentStepIndex = workflow.steps.findIndex(step => step.key === currentStepKey)
+  if (currentStepIndex < 0) return stepIndex === 0 ? 'current' : 'upcoming'
+  if (stepIndex < currentStepIndex) return 'complete'
+  if (stepIndex === currentStepIndex) return 'current'
+  return 'upcoming'
+}
+
+export function applyTicketGuidanceTemplate(
+  currentDetail: string,
+  guidance: ResolvedTicketSubjectGuidance,
+) {
+  return currentDetail.trim().length > 0 ? currentDetail : guidance.template
+}
+
+export function applyTicketGuidanceSuggestion(
+  currentDetail: string,
+  suggestion: TicketGuidanceSuggestion,
+  guidance: ResolvedTicketSubjectGuidance,
+) {
+  const baseDetail = currentDetail.trim().length > 0 ? currentDetail : guidance.template
+  const lines = baseDetail.split(/\r?\n/)
+
+  if (guidance.suggestionTargetLabel) {
+    const targetLineIndex = lines.findIndex(line => line.trim().startsWith(guidance.suggestionTargetLabel!))
+
+    if (targetLineIndex >= 0) {
+      lines[targetLineIndex] = `${guidance.suggestionTargetLabel} ${suggestion.value}`
+      return lines.join('\n')
+    }
+
+    return [`${guidance.suggestionTargetLabel} ${suggestion.value}`, ...lines].join('\n')
+  }
+
+  if (lines.some(line => line.trim() === suggestion.value.trim())) {
+    return lines.join('\n')
+  }
+
+  return [suggestion.value, ...lines].join('\n')
 }

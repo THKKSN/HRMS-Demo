@@ -20,5 +20,6 @@ public class TicketTopic : BaseEntity
     public TicketCategory Category { get; set; } = null!;
     public Employee? CreatedByEmployee { get; set; }
     public ICollection<Ticket> Tickets { get; set; } = new List<Ticket>();
+    public ICollection<TicketSubject> Subjects { get; set; } = new List<TicketSubject>();
     public ICollection<EmployeeResponsibility> Responsibilities { get; set; } = new List<EmployeeResponsibility>();
 }

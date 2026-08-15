@@ -5,6 +5,7 @@ using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace Hrms.Application.Features.Tickets.Commands;
 
@@ -24,8 +25,6 @@ public class CreateTicketHandler(
         if (!await permService.HasPermissionAsync(currentUser, "ticket:create", ct))
             throw new AppForbiddenException("ไม่มีสิทธิ์: ticket:create");
 
-        if (string.IsNullOrWhiteSpace(request.Title))
-            throw new FluentValidation.ValidationException("กรุณาระบุหัวข้อ");
         if (string.IsNullOrWhiteSpace(request.Detail))
             throw new FluentValidation.ValidationException("กรุณาระบุรายละเอียดปัญหา");
 
@@ -62,8 +61,18 @@ public class CreateTicketHandler(
                 t.IsActive, ct)
             ?? throw new FluentValidation.ValidationException("ไม่พบหัวข้อย่อยที่ระบุ");
 
+        var subject = await db.TicketSubjects
+            .FirstOrDefaultAsync(s =>
+                s.Id == request.SubjectId &&
+                s.TopicId == request.TopicId &&
+                s.CategoryId == request.CategoryId &&
+                s.CompanyId == request.TargetCompanyId &&
+                s.DepartmentId == request.TargetDepartmentId &&
+                s.IsActive, ct)
+            ?? throw new FluentValidation.ValidationException("ไม่พบหัวข้อที่ระบุ");
+
         var otherTopicText = TrimOrNull(request.OtherTopicText);
-        if (topic.Name.Trim().Equals("อื่น ๆ", StringComparison.OrdinalIgnoreCase) && otherTopicText is null)
+        if (subject.Name.Trim().Equals("อื่น ๆ", StringComparison.OrdinalIgnoreCase) && otherTopicText is null)
             throw new FluentValidation.ValidationException("กรุณาระบุหัวข้ออื่น ๆ");
 
         var now = DateTime.UtcNow.AddHours(7);
@@ -85,6 +94,14 @@ public class CreateTicketHandler(
         var routing = await routingService.ResolveAsync(
             request.TargetCompanyId, request.TargetDepartmentId, request.CategoryId, request.TopicId,
             DateOnly.FromDateTime(now), ct);
+        var resolvedGuidance = await TicketWorkflowRuntime.ResolveGuidanceAsync(
+            db,
+            request.TargetCompanyId,
+            request.TargetDepartmentId,
+            request.CategoryId,
+            request.TopicId,
+            subject.Id,
+            ct);
 
         var ticket = new Ticket
         {
@@ -97,9 +114,21 @@ public class CreateTicketHandler(
             TargetDepartmentId = request.TargetDepartmentId,
             CategoryId = request.CategoryId,
             TopicId = request.TopicId,
+            SubjectId = subject.Id,
+            WorkflowDefinitionId = resolvedGuidance?.Workflow?.WorkflowDefinitionId,
+            SubjectGuidanceConfigId = resolvedGuidance?.GuidanceConfigId,
             OtherTopicText = otherTopicText,
-            Title = request.Title.Trim(),
+            Title = subject.Name.Trim(),
             Detail = request.Detail.Trim(),
+            WorkflowName = resolvedGuidance?.Workflow?.Name,
+            WorkflowBoardStepsJson = resolvedGuidance?.Workflow is null ? null : JsonSerializer.Serialize(resolvedGuidance.Workflow.BoardSteps),
+            WorkflowInProgressPresetsJson = resolvedGuidance?.Workflow is null ? null : JsonSerializer.Serialize(resolvedGuidance.Workflow.InProgressPresets),
+            WorkflowActionsJson = resolvedGuidance?.Workflow is null ? null : JsonSerializer.Serialize(resolvedGuidance.Workflow.Actions),
+            WorkflowStepsJson = resolvedGuidance?.Workflow is null ? null : System.Text.Json.JsonSerializer.Serialize(resolvedGuidance.Workflow.Steps),
+            WorkflowStatusStepMapJson = resolvedGuidance?.Workflow is null ? null : System.Text.Json.JsonSerializer.Serialize(resolvedGuidance.Workflow.CurrentStepIndexByStatus),
+            WorkflowAutoAcknowledgeAfterDays = resolvedGuidance?.Workflow?.AutoAcknowledgeAfterDays,
+            WorkflowCurrentStepKey = resolvedGuidance?.Workflow?.BoardSteps.FirstOrDefault()?.Key,
+            SubjectGuidanceConfigName = resolvedGuidance?.GuidanceConfigName,
             Priority = request.Priority,
             Status = TicketStatus.Open,
             RoutingMode = routing.Mode,
@@ -171,7 +200,7 @@ public class CreateTicketHandler(
                 "ticket", "Ticket", ticket.Id.ToString(), "create",
                 $"{employee.FirstName} {employee.LastName} เปิดใบแจ้งเรื่อง {ticket.TicketNo}: {ticket.Title}",
                 null, new { ticket.TicketNo, ticket.TargetCompanyId, ticket.TargetDepartmentId,
-                    ticket.CategoryId, ticket.TopicId, ticket.Priority, ticket.Status,
+                    ticket.CategoryId, ticket.TopicId, ticket.SubjectId, ticket.Priority, ticket.Status,
                     routing.Level, routing.Mode, routing.Outcome }, transactionCt);
             var routingAction = routing.Outcome switch
             {
@@ -202,17 +231,26 @@ public class CreateTicketHandler(
             category.Name,
             topic.Id,
             topic.Name,
+            subject.Id,
+            subject.Name,
             ticket.OtherTopicText,
             ticket.Title,
             ticket.Detail,
             ticket.Priority,
             ticket.Status,
+            ticket.WorkflowDefinitionId,
+            ticket.WorkflowName,
+            ticket.WorkflowAutoAcknowledgeAfterDays,
+            resolvedGuidance?.Workflow?.Steps ?? [],
+            resolvedGuidance?.Workflow?.CurrentStepIndexByStatus ?? new Dictionary<TicketStatus, int>(),
+            ticket.SubjectGuidanceConfigId,
+            ticket.SubjectGuidanceConfigName,
             ticket.VehicleText,
             ticket.LocationText,
             ticket.ContactPhone,
             ticket.ContactNote,
             ticket.Attachments.Select(a => new TicketAttachmentDto(
-                a.Id, a.Url, a.FileName, a.ContentType, a.SizeBytes, a.Stage, a.Visibility)).ToList(),
+                a.Id, a.TicketProgressEntryId, a.Url, a.FileName, a.ContentType, a.SizeBytes, a.Stage, a.Visibility)).ToList(),
             ticket.CreatedAt,
             new TicketRoutingSummaryDto(routing.Mode, routing.Level, routing.Outcome,
                 autoCandidate?.EmployeeId, autoCandidate?.EmployeeName));

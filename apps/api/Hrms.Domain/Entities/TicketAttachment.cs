@@ -6,6 +6,7 @@ namespace Hrms.Domain.Entities;
 public class TicketAttachment : BaseEntity
 {
     public Guid TicketId { get; set; }
+    public Guid? TicketProgressEntryId { get; set; }
     public Guid UploadedByEmployeeId { get; set; }
     public string Url { get; set; } = string.Empty;
     public string? FileName { get; set; }
@@ -16,5 +17,6 @@ public class TicketAttachment : BaseEntity
     public string? StorageKey { get; set; }
 
     public Ticket Ticket { get; set; } = null!;
+    public TicketProgressEntry? TicketProgressEntry { get; set; }
     public Employee UploadedByEmployee { get; set; } = null!;
 }

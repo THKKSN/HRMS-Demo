@@ -76,6 +76,7 @@ public class ClaimTicketHandler(
         ticket.SupervisorAcceptedAt ??= now;
         ticket.ReceiverEmployeeId ??= employeeId;
         ticket.Status = TicketStatus.Assigned;
+        TicketCommandSupport.SetWorkflowBoardState(ticket, "assigned");
         ticket.UpdatedBy = employeeId;
         TicketStatusTransition.Record(
             db, ticket, TicketStatus.Open, TicketStatus.Assigned, employeeId, now,

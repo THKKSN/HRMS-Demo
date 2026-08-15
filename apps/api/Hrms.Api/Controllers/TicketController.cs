@@ -27,8 +27,8 @@ public class TicketController(IMediator mediator, IFileStorageService storage) :
                 request.TargetDepartmentId,
                 request.CategoryId,
                 request.TopicId,
+                request.SubjectId,
                 request.OtherTopicText,
-                request.Title,
                 request.Detail,
                 request.Priority,
                 request.VehicleText,
@@ -182,6 +182,11 @@ public class TicketController(IMediator mediator, IFileStorageService storage) :
         => Ok(await mediator.Send(new UpdateTicketWorkDetailCommand(
             id, request.ProblemType, request.InitialInspectionNote, request.ResolutionNote, request.ExpectedUpdatedAt), ct));
 
+    [HttpPost("{id:guid}/progress")]
+    public async Task<IActionResult> UpdateProgress(Guid id, [FromBody] UpdateTicketProgressRequest request, CancellationToken ct)
+        => Ok(await mediator.Send(new UpdateTicketProgressCommand(
+            id, request.WorkState, request.BlockerReason, request.NextAction, request.IsCompleted, request.Note, request.ExpectedUpdatedAt), ct));
+
     [HttpPost("{id:guid}/request-info")]
     public async Task<IActionResult> RequestInfo(Guid id, [FromBody] RequestTicketInfoRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new RequestTicketInfoCommand(id, request.Message, request.ExpectedUpdatedAt), ct));
@@ -227,6 +232,10 @@ public class TicketController(IMediator mediator, IFileStorageService storage) :
     public async Task<IActionResult> Close(Guid id, [FromBody] ReviewTicketRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new CloseTicketCommand(id, request.ReviewNote, request.ExpectedUpdatedAt), ct));
 
+    [HttpPost("{id:guid}/confirm-completion")]
+    public async Task<IActionResult> ConfirmCompletion(Guid id, [FromBody] TicketVersionRequest request, CancellationToken ct)
+        => Ok(await mediator.Send(new ConfirmTicketCompletionCommand(id, request.ExpectedUpdatedAt), ct));
+
     [HttpPost("{id:guid}/comments")]
     public async Task<IActionResult> AddComment(Guid id, [FromBody] AddTicketCommentRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new AddTicketCommentCommand(
@@ -236,7 +245,7 @@ public class TicketController(IMediator mediator, IFileStorageService storage) :
     public async Task<IActionResult> AddAttachment(Guid id, [FromBody] AddTicketAttachmentRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new AddTicketAttachmentCommand(
             id, request.Url, request.FileName, request.ContentType, request.SizeBytes,
-            request.Stage, request.Visibility), ct));
+            request.Stage, request.Visibility, request.TicketProgressEntryId), ct));
 
     [HttpDelete("{id:guid}/attachments/{attachmentId:guid}")]
     public async Task<IActionResult> DeleteAttachment(Guid id, Guid attachmentId, CancellationToken ct)
@@ -347,6 +356,44 @@ public class TicketTopicController(IMediator mediator) : ControllerBase
 }
 
 [ApiController]
+[Route("v1/ticket-subjects")]
+[Authorize]
+public class TicketSubjectController(IMediator mediator) : ControllerBase
+{
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] Guid? companyId,
+        [FromQuery] Guid? departmentId,
+        [FromQuery] Guid? categoryId,
+        [FromQuery] Guid? topicId,
+        CancellationToken ct)
+        => Ok(await mediator.Send(new GetTicketSubjectsQuery(companyId, departmentId, categoryId, topicId), ct));
+
+    [HttpGet("manage")]
+    public async Task<IActionResult> GetManaged(
+        [FromQuery] Guid companyId,
+        [FromQuery] Guid departmentId,
+        [FromQuery] Guid categoryId,
+        [FromQuery] Guid topicId,
+        CancellationToken ct)
+        => Ok(await mediator.Send(new GetManagedTicketSubjectsQuery(companyId, departmentId, categoryId, topicId), ct));
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateTicketSubjectRequest request, CancellationToken ct)
+    {
+        var result = await mediator.Send(new CreateTicketSubjectCommand(
+            request.CompanyId, request.DepartmentId, request.CategoryId, request.TopicId,
+            request.Name, request.Description, request.SortOrder), ct);
+        return Created($"/v1/ticket-subjects/{result.Id}", result);
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTicketTaxonomyItemRequest request, CancellationToken ct)
+        => Ok(await mediator.Send(new UpdateTicketSubjectCommand(
+            id, request.Name, request.Description, request.SortOrder, request.IsActive), ct));
+}
+
+[ApiController]
 [Route("v1/ticket-management")]
 [Authorize]
 public class TicketManagementController(IMediator mediator) : ControllerBase
@@ -362,8 +409,8 @@ public record CreateTicketRequest(
     Guid TargetDepartmentId,
     Guid CategoryId,
     Guid TopicId,
+    Guid SubjectId,
     string? OtherTopicText,
-    string Title,
     string Detail,
     TicketPriority Priority,
     string? VehicleText,
@@ -383,6 +430,15 @@ public record CreateTicketTopicRequest(
     Guid CompanyId,
     Guid DepartmentId,
     Guid CategoryId,
+    string Name,
+    string? Description,
+    int SortOrder);
+
+public record CreateTicketSubjectRequest(
+    Guid CompanyId,
+    Guid DepartmentId,
+    Guid CategoryId,
+    Guid TopicId,
     string Name,
     string? Description,
     int SortOrder);
@@ -417,6 +473,14 @@ public record UpdateTicketWorkDetailRequest(
     string? ResolutionNote,
     DateTime? ExpectedUpdatedAt);
 
+public record UpdateTicketProgressRequest(
+    string? WorkState,
+    string? BlockerReason,
+    string? NextAction,
+    bool IsCompleted,
+    string? Note,
+    DateTime? ExpectedUpdatedAt);
+
 public record RequestTicketInfoRequest(string Message, DateTime? ExpectedUpdatedAt);
 
 public record AddTicketCommentRequest(
@@ -430,7 +494,8 @@ public record AddTicketAttachmentRequest(
     string? ContentType,
     long SizeBytes,
     TicketAttachmentStage Stage,
-    TicketAttachmentVisibility Visibility = TicketAttachmentVisibility.Public);
+    TicketAttachmentVisibility Visibility = TicketAttachmentVisibility.Public,
+    Guid? TicketProgressEntryId = null);
 
 public record ReviewTicketRequest(string? ReviewNote, DateTime? ExpectedUpdatedAt);
 

@@ -64,6 +64,30 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
                 ce.Message,
                 (object?)null),
 
+            ExternalEmployeeNotFoundException => (
+                StatusCodes.Status404NotFound,
+                "EXTERNAL_EMPLOYEE_NOT_FOUND",
+                "ไม่พบพนักงานจากระบบต้นทาง",
+                (object?)null),
+
+            ExternalEmployeeDataException => (
+                StatusCodes.Status422UnprocessableEntity,
+                "EXTERNAL_DATA_INVALID",
+                "ข้อมูลพนักงานจากระบบต้นทางไม่ถูกต้อง",
+                (object?)null),
+
+            ExternalServiceUnavailableException esu => (
+                StatusCodes.Status502BadGateway,
+                "EXTERNAL_SERVICE_UNAVAILABLE",
+                "ไม่สามารถเชื่อมต่อระบบต้นทางได้",
+                ExternalServiceDetails(esu)),
+
+            ExternalServiceTimeoutException => (
+                StatusCodes.Status504GatewayTimeout,
+                "EXTERNAL_SERVICE_TIMEOUT",
+                "ระบบต้นทางใช้เวลาตอบกลับนานเกินไป",
+                (object?)null),
+
             DbUpdateConcurrencyException => (
                 StatusCodes.Status409Conflict,
                 "TICKET_CONCURRENCY_CONFLICT",
@@ -95,5 +119,17 @@ public sealed class GlobalExceptionMiddleware(RequestDelegate next, ILogger<Glob
         return errors.Length > 0
             ? errors
             : [new { field = string.Empty, error = exception.Message }];
+    }
+
+    private object? ExternalServiceDetails(ExternalServiceUnavailableException exception)
+    {
+        if (!env.IsDevelopment() || (exception.StatusCode is null && exception.ResponseBodySnippet is null))
+            return null;
+
+        return new
+        {
+            upstreamStatusCode = exception.StatusCode,
+            upstreamBody = exception.ResponseBodySnippet
+        };
     }
 }

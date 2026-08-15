@@ -113,6 +113,22 @@ public class RequestTicketInfoHandler(
         ticket.Status = TicketStatus.WaitingInfo;
         ticket.WaitingInfoByEmployeeId = actorId;
         ticket.WaitingInfoAt = now;
+        TicketCommandSupport.SetWorkflowBoardState(
+            ticket,
+            "in_progress",
+            workState: "รอข้อมูลเพิ่มเติม",
+            blockerReason: "รอข้อมูลเพิ่มเติม",
+            nextAction: "ติดตามผู้แจ้งเรื่อง");
+        TicketCommandSupport.AddProgressEntry(
+            db,
+            ticket,
+            actorId,
+            "in_progress",
+            workState: "รอข้อมูลเพิ่มเติม",
+            blockerReason: "รอข้อมูลเพิ่มเติม",
+            nextAction: "ติดตามผู้แจ้งเรื่อง",
+            note: request.Message,
+            ownerEmployeeId: actorId);
         ticket.UpdatedBy = actorId;
         TicketStatusTransition.Record(
             db, ticket, TicketStatus.InProgress, TicketStatus.WaitingInfo, actorId, now, request.Message);
@@ -161,6 +177,15 @@ public class ResumeTicketWorkHandler(
         var actor = await db.Employees.FirstAsync(e => e.Id == actorId, ct);
         var now = DateTime.UtcNow.AddHours(7);
         ticket.Status = TicketStatus.InProgress;
+        TicketCommandSupport.SetWorkflowBoardState(ticket, "in_progress", workState: "ดำเนินการต่อ");
+        TicketCommandSupport.AddProgressEntry(
+            db,
+            ticket,
+            actorId,
+            "in_progress",
+            workState: "ดำเนินการต่อ",
+            note: "WorkResumed",
+            ownerEmployeeId: actorId);
         ticket.UpdatedBy = actorId;
         TicketStatusTransition.Record(
             db, ticket, TicketStatus.WaitingInfo, TicketStatus.InProgress, actorId, now, "WorkResumed");

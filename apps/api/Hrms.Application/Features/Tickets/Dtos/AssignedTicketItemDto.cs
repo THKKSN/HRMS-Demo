@@ -15,4 +15,9 @@ public record AssignedTicketItemDto(
     string? LocationText,
     DateTime AssignedAt,
     DateTime? WorkStartedAt,
+    string? WorkflowCurrentStepKey,
+    string? WorkflowCurrentStepLabel,
+    string? CurrentWorkState,
+    string? CurrentBlockerReason,
+    string? CurrentNextAction,
     DateTime UpdatedAt);
