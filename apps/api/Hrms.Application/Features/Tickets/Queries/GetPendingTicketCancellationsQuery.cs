@@ -58,6 +58,7 @@ public class GetPendingTicketCancellationsHandler(
                 cancellation.Ticket.TicketNo,
                 cancellation.Ticket.Title,
                 cancellation.RequestedByEmployeeId,
+                cancellation.RequestedByExternalReporterId,
                 cancellation.RequestedByEmployee == null
                     ? cancellation.Ticket.RequesterNameSnapshot ?? "External requester"
                     : (cancellation.RequestedByEmployee.FirstName + " " +

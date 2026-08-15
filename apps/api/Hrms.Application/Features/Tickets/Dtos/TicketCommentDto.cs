@@ -6,6 +6,7 @@ public record TicketCommentDto(
     Guid Id,
     Guid TicketId,
     Guid? EmployeeId,
+    Guid? ExternalReporterId,
     string EmployeeName,
     TicketCommentType CommentType,
     string Message,

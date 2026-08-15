@@ -8,6 +8,7 @@ public record TicketCancellationRequestDto(
     string TicketNo,
     string TicketTitle,
     Guid? RequestedByEmployeeId,
+    Guid? RequestedByExternalReporterId,
     string RequestedByEmployeeName,
     string Reason,
     TicketCancellationStatus Status,

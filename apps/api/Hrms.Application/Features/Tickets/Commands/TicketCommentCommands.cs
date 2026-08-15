@@ -85,7 +85,7 @@ public class AddTicketCommentHandler(
         await auditLog.LogAsync("ticket", "Ticket", ticket.Id.ToString(), "add-comment",
             $"{actorName} เพิ่มความคิดเห็นใน {ticket.TicketNo}", null,
             new { comment.CommentType, comment.IsInternal }, ct);
-        return new TicketCommentDto(comment.Id, ticket.Id, actorId, actorName,
+        return new TicketCommentDto(comment.Id, ticket.Id, actorId, null, actorName,
             comment.CommentType, comment.Message, comment.IsInternal, comment.CreatedAt);
     }
 }

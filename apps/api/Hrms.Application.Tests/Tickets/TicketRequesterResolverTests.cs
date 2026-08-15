@@ -168,4 +168,42 @@ public class TicketRequesterResolverTests
         result.Requester.Email.Should().Be("external@example.com");
         result.Requester.Organization.Should().Be("External Organization");
     }
+
+    [Fact]
+    public async Task StaffQueries_ShouldExposeExternalActorIdsForPublicActivity()
+    {
+        await using var fixture = new TicketTestFixture(ExternalCompanyId);
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddExternalTicketAsync(TicketStatus.InProgress);
+        var reporterId = ticket.ExternalReporterId!.Value;
+        fixture.Db.TicketComments.Add(new TicketComment
+        {
+            TicketId = ticket.Id,
+            ExternalReporterId = reporterId,
+            CommentType = TicketCommentType.Response,
+            Message = "ข้อมูลจากผู้แจ้งภายนอก"
+        });
+        fixture.Db.TicketProgressEntries.Add(new TicketProgressEntry
+        {
+            TicketId = ticket.Id,
+            CreatedByExternalReporterId = reporterId,
+            WorkflowStepKey = "in-progress",
+            Note = "External public activity"
+        });
+        await fixture.Db.SaveChangesAsync();
+        fixture.Db.ChangeTracker.Clear();
+        var user = new TestCurrentUser(
+            fixture.SupervisorId, fixture.CompanyId, fixture.TargetDepartmentId, RoleType.Supervisor);
+        var permissions = new TestPermissionService("ticket:view-team");
+
+        var comments = await new GetTicketCommentsHandler(fixture.Db, user, permissions)
+            .Handle(new GetTicketCommentsQuery(ticket.Id), default);
+        var detail = await new GetTicketDetailHandler(fixture.Db, user, permissions, _resolver)
+            .Handle(new GetTicketDetailQuery(ticket.Id), default);
+
+        comments.Single().EmployeeId.Should().BeNull();
+        comments.Single().ExternalReporterId.Should().Be(reporterId);
+        detail.ProgressEntries.Single().CreatedByEmployeeId.Should().BeNull();
+        detail.ProgressEntries.Single().CreatedByExternalReporterId.Should().Be(reporterId);
+    }
 }

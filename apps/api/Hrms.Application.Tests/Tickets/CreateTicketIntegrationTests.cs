@@ -4,6 +4,7 @@ using Hrms.Application.Features.Tickets;
 using Hrms.Application.Features.Tickets.Commands;
 using Hrms.Application.Tests.Support;
 using Hrms.Domain.Enums;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Moq;
 
@@ -79,6 +80,46 @@ public class CreateTicketIntegrationTests
         result.Status.Should().Be(TicketStatus.Open);
         (await fixture.Db.TicketAssignments.CountAsync()).Should().Be(0);
         (await fixture.Db.NotificationOutboxes.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task EmployeeCreateEndpoint_ShouldRejectExternalRequestTypeBeforePersistence()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var handler = Handler(fixture, new TicketRoutingResult(
+            TicketRoutingLevel.None,
+            TicketRoutingMode.SupervisorAssign,
+            TicketRoutingOutcome.NoMatch,
+            []));
+        var command = Command(fixture) with { RequestType = TicketRequestType.External };
+
+        var act = () => handler.Handle(command, default);
+
+        await act.Should().ThrowAsync<ValidationException>()
+            .WithMessage("*Internal*");
+        (await fixture.Db.Tickets.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Create_ShouldBoundRequesterNameSnapshotToColumnLength()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var employee = await fixture.Db.Employees.SingleAsync(x => x.Id == fixture.RequesterId);
+        employee.FirstName = new string('A', 100);
+        employee.LastName = new string('B', 100);
+        await fixture.Db.SaveChangesAsync();
+        var handler = Handler(fixture, new TicketRoutingResult(
+            TicketRoutingLevel.None,
+            TicketRoutingMode.SupervisorAssign,
+            TicketRoutingOutcome.NoMatch,
+            []));
+
+        var result = await handler.Handle(Command(fixture), default);
+
+        var ticket = await fixture.Db.Tickets.SingleAsync(x => x.Id == result.Id);
+        ticket.RequesterNameSnapshot.Should().HaveLength(200);
     }
 
     private static CreateTicketHandler Handler(

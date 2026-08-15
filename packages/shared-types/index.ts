@@ -387,7 +387,8 @@ export type TicketCancellationRequestDto = {
   ticketId: string
   ticketNo: string
   ticketTitle: string
-  requestedByEmployeeId: string
+  requestedByEmployeeId?: string
+  requestedByExternalReporterId?: string
   requestedByEmployeeName: string
   reason: string
   status: TicketCancellationStatus
@@ -564,7 +565,8 @@ export type TicketProgressEntryDto = {
   ownerEmployeeId?: string
   ownerEmployeeName?: string
   dueAt?: string
-  createdByEmployeeId: string
+  createdByEmployeeId?: string
+  createdByExternalReporterId?: string
   createdByEmployeeName: string
   createdAt: string
   attachments: TicketAttachmentDto[]
@@ -719,7 +721,8 @@ export type TicketRoutingReportDto = {
 export type TicketCommentDto = {
   id: string
   ticketId: string
-  employeeId: string
+  employeeId?: string
+  externalReporterId?: string
   employeeName: string
   commentType: TicketCommentType
   message: string

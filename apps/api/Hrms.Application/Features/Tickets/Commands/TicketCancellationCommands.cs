@@ -347,6 +347,7 @@ internal static class TicketCancellationMapping
             ticket.TicketNo,
             ticket.Title,
             cancellation.RequestedByEmployeeId,
+            cancellation.RequestedByExternalReporterId,
             ticket.RequesterEmployee is null
                 ? ticket.RequesterNameSnapshot ?? "External requester"
                 : TicketCommandSupport.FullName(ticket.RequesterEmployee),

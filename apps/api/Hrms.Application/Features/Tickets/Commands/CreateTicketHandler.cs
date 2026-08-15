@@ -26,6 +26,10 @@ public class CreateTicketHandler(
         if (!await permService.HasPermissionAsync(currentUser, "ticket:create", ct))
             throw new AppForbiddenException("ไม่มีสิทธิ์: ticket:create");
 
+        if (request.RequestType != TicketRequestType.Internal)
+            throw new FluentValidation.ValidationException(
+                "Employee Ticket endpoint accepts Internal requests only");
+
         if (string.IsNullOrWhiteSpace(request.Detail))
             throw new FluentValidation.ValidationException("กรุณาระบุรายละเอียดปัญหา");
 
@@ -140,7 +144,7 @@ public class CreateTicketHandler(
             LocationText = TrimOrNull(request.LocationText),
             ContactPhone = TrimOrNull(request.ContactPhone ?? employee.Phone),
             ContactNote = TrimOrNull(request.ContactNote),
-            RequesterNameSnapshot = requester.DisplayName,
+            RequesterNameSnapshot = Bound(requester.DisplayName, 200),
             RequesterPhoneSnapshot = requester.Phone,
             RequesterEmailSnapshot = requester.Email,
             RequesterOrganizationSnapshot = requester.Organization,
@@ -324,6 +328,9 @@ public class CreateTicketHandler(
 
     private static string? TrimOrNull(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string Bound(string value, int maxLength)
+        => value.Length <= maxLength ? value : value[..maxLength];
 
     private static string PriorityLabel(TicketPriority priority) => priority switch
     {

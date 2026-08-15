@@ -175,6 +175,7 @@ public class GetTicketDetailHandler(
                     entry.OwnerEmployee is null ? null : FullName(entry.OwnerEmployee),
                     entry.DueAt,
                     entry.CreatedByEmployeeId,
+                    entry.CreatedByExternalReporterId,
                     entry.CreatedByEmployee is null
                         ? ticket.RequesterNameSnapshot ?? "External requester"
                         : FullName(entry.CreatedByEmployee),
@@ -214,6 +215,7 @@ public class GetTicketDetailHandler(
                 ticket.TicketNo,
                 ticket.Title,
                 latestCancellation.RequestedByEmployeeId,
+                latestCancellation.RequestedByExternalReporterId,
                 latestCancellation.RequestedByEmployee is null
                     ? ticket.RequesterNameSnapshot ?? "External requester"
                     : FullName(latestCancellation.RequestedByEmployee),

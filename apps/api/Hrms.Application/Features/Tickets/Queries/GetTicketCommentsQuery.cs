@@ -30,7 +30,7 @@ public class GetTicketCommentsHandler(
             .Where(c => c.TicketId == ticket.Id && (canSeeInternal || !c.IsInternal))
             .OrderBy(c => c.CreatedAt)
             .Select(c => new TicketCommentDto(
-                c.Id, c.TicketId, c.EmployeeId,
+                c.Id, c.TicketId, c.EmployeeId, c.ExternalReporterId,
                 c.Employee == null
                     ? c.Ticket.RequesterNameSnapshot ?? "External requester"
                     : (c.Employee.FirstName + " " + c.Employee.LastName).Trim(),
