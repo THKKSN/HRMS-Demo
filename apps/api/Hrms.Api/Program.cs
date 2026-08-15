@@ -80,6 +80,7 @@ try
 
     builder.Services.AddHttpContextAccessor();
     builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+    builder.Services.AddScoped<IExternalCurrentUser, ExternalCurrentUser>();
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
     {
         options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
@@ -97,6 +98,8 @@ try
     // ── JWT Bearer ───────────────────────────────────────────────────────────
     var jwt = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
         ?? throw new InvalidOperationException("Jwt options not configured.");
+    var externalJwt = builder.Configuration.GetSection(ExternalJwtOptions.SectionName).Get<ExternalJwtOptions>()
+        ?? throw new InvalidOperationException("ExternalJwt options not configured.");
 
     JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Clear();
 
@@ -145,6 +148,48 @@ try
                     });
                 }
             };
+        })
+        .AddJwtBearer(ExternalAuthDefaults.Scheme, options =>
+        {
+            options.MapInboundClaims = false;
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = externalJwt.Issuer,
+                ValidAudience = externalJwt.Audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(externalJwt.Secret)),
+                ClockSkew = TimeSpan.Zero,
+                NameClaimType = JwtRegisteredClaimNames.Sub
+            };
+            options.Events = new JwtBearerEvents
+            {
+                OnChallenge = async context =>
+                {
+                    context.HandleResponse();
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        traceId = context.HttpContext.TraceIdentifier,
+                        error = "EXTERNAL_UNAUTHORIZED",
+                        message = "กรุณาเข้าสู่ระบบผู้แจ้งภายนอกอีกครั้ง"
+                    });
+                },
+                OnForbidden = async context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        traceId = context.HttpContext.TraceIdentifier,
+                        error = "EXTERNAL_FORBIDDEN",
+                        message = "ไม่มีสิทธิ์เข้าถึงข้อมูลผู้แจ้งภายนอก"
+                    });
+                }
+            };
         });
 
     builder.Services.AddAuthorization(opt =>
@@ -157,6 +202,11 @@ try
             p => p.RequireRole("Admin"));
         opt.AddPolicy(AuthPolicies.RequireExecutive,
             p => p.RequireRole("Executive", "Admin"));
+        opt.AddPolicy(ExternalAuthDefaults.Policy, policy => policy
+            .AddAuthenticationSchemes(ExternalAuthDefaults.Scheme)
+            .RequireAuthenticatedUser()
+            .RequireClaim("actor_type", "external")
+            .RequireClaim("external_reporter_id"));
     });
 
     builder.Services.AddCors(opt =>
@@ -221,6 +271,41 @@ try
                 PermitLimit = 5,
                 Window      = TimeSpan.FromMinutes(1),
                 QueueLimit  = 0
+            });
+        });
+
+        options.AddPolicy("external_auth", context =>
+        {
+            var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            return RateLimitPartition.GetFixedWindowLimiter($"external-auth:{ip}", _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            });
+        });
+
+        options.AddPolicy("external_create", context =>
+        {
+            var reporterId = context.User.FindFirst("external_reporter_id")?.Value;
+            var partition = reporterId ?? $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+            return RateLimitPartition.GetFixedWindowLimiter($"external-create:{partition}", _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromHours(1),
+                QueueLimit = 0
+            });
+        });
+
+        options.AddPolicy("external_write", context =>
+        {
+            var reporterId = context.User.FindFirst("external_reporter_id")?.Value;
+            var partition = reporterId ?? $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+            return RateLimitPartition.GetFixedWindowLimiter($"external-write:{partition}", _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromHours(1),
+                QueueLimit = 0
             });
         });
     });

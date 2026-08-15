@@ -39,6 +39,7 @@ public static class DependencyInjection
 
         // Options
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
+        services.Configure<ExternalJwtOptions>(configuration.GetSection(ExternalJwtOptions.SectionName));
         services.Configure<LineOptions>(configuration.GetSection(LineOptions.SectionName));
         services.Configure<ExpenseOcrOptions>(configuration.GetSection(ExpenseOcrOptions.SectionName));
         services.Configure<PiswinOptions>(configuration.GetSection(PiswinOptions.SectionName));
@@ -51,6 +52,7 @@ public static class DependencyInjection
         services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IJwtService, JwtService>();
+        services.AddScoped<IExternalTokenService, ExternalTokenService>();
         services.AddScoped<IOtpService, OtpService>();
         services.AddScoped<IPasswordService, PasswordService>();
         services.AddScoped<IWorkingDayCalculator, WorkingDayCalculator>();

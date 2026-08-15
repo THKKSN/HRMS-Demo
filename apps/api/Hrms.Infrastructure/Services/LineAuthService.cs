@@ -20,10 +20,7 @@ public class LineAuthService(HttpClient http, IOptions<LineOptions> options) : I
             $"https://api.line.me/oauth2/v2.1/verify?access_token={Uri.EscapeDataString(accessToken)}", ct);
 
         if (!verifyResp.IsSuccessStatusCode)
-        {
-            var body = await verifyResp.Content.ReadAsStringAsync(ct);
-            throw new AppUnauthorizedException($"Invalid LINE access token. Status={verifyResp.StatusCode} Body={body}");
-        }
+            throw new AppUnauthorizedException("INVALID_LINE_TOKEN");
 
         var verify = await verifyResp.Content.ReadFromJsonAsync<LineVerifyResponse>(ct);
         if (verify is null || verify.ClientId != _opt.ChannelId)
@@ -47,6 +44,21 @@ public class LineAuthService(HttpClient http, IOptions<LineOptions> options) : I
         return new LineProfile(profile.UserId, profile.DisplayName, profile.PictureUrl);
     }
 
+    public async Task<bool> GetFriendshipStatusAsync(string accessToken, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "https://api.line.me/friendship/v1/status");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        using var response = await http.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+            return false;
+
+        var result = await response.Content.ReadFromJsonAsync<LineFriendshipResponse>(ct);
+        return result?.FriendFlag is true;
+    }
+
     private sealed class LineVerifyResponse
     {
         [JsonPropertyName("scope")] public string? Scope { get; set; }
@@ -59,5 +71,10 @@ public class LineAuthService(HttpClient http, IOptions<LineOptions> options) : I
         [JsonPropertyName("userId")] public string UserId { get; set; } = string.Empty;
         [JsonPropertyName("displayName")] public string DisplayName { get; set; } = string.Empty;
         [JsonPropertyName("pictureUrl")] public string? PictureUrl { get; set; }
+    }
+
+    private sealed class LineFriendshipResponse
+    {
+        [JsonPropertyName("friendFlag")] public bool FriendFlag { get; set; }
     }
 }

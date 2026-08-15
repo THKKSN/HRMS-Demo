@@ -5,4 +5,5 @@ namespace Hrms.Application.Common.Interfaces;
 public interface ILineAuthService
 {
     Task<LineProfile> VerifyAccessTokenAsync(string accessToken, CancellationToken ct);
+    Task<bool> GetFriendshipStatusAsync(string accessToken, CancellationToken ct);
 }
