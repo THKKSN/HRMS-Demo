@@ -8,7 +8,9 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
 {
     public void Configure(EntityTypeBuilder<AuditLog> builder)
     {
-        builder.ToTable("audit_logs");
+        builder.ToTable("audit_logs", table => table.HasCheckConstraint(
+            "ck_audit_logs_actor",
+            "NOT (performed_by_employee_id IS NOT NULL AND performed_by_external_reporter_id IS NOT NULL)"));
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Module).HasMaxLength(50).IsRequired();
@@ -19,9 +21,16 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
         builder.Property(x => x.OldValues).HasColumnType("TEXT");
         builder.Property(x => x.NewValues).HasColumnType("TEXT");
         builder.Property(x => x.PerformedByName).HasMaxLength(200);
+        builder.Property(x => x.PerformedByExternalReporterId).HasColumnType("char(36)");
+        builder.Property(x => x.PerformedByActorType).HasConversion<string>().HasMaxLength(20);
 
         builder.HasIndex(x => x.CreatedAt);
         builder.HasIndex(x => new { x.Module, x.EntityType, x.EntityId });
         builder.HasIndex(x => x.PerformedByEmployeeId);
+        builder.HasIndex(x => x.PerformedByExternalReporterId);
+        builder.HasOne<ExternalReporter>()
+            .WithMany()
+            .HasForeignKey(x => x.PerformedByExternalReporterId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

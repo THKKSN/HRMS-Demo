@@ -13,10 +13,12 @@ public class TicketProgressEntry : BaseEntity
     public string? Note { get; set; }
     public Guid? OwnerEmployeeId { get; set; }
     public DateTime? DueAt { get; set; }
-    public Guid CreatedByEmployeeId { get; set; }
+    public Guid? CreatedByEmployeeId { get; set; }
+    public Guid? CreatedByExternalReporterId { get; set; }
 
     public Ticket Ticket { get; set; } = null!;
     public Employee? OwnerEmployee { get; set; }
-    public Employee CreatedByEmployee { get; set; } = null!;
+    public Employee? CreatedByEmployee { get; set; }
+    public ExternalReporter? CreatedByExternalReporter { get; set; }
     public ICollection<TicketAttachment> Attachments { get; set; } = new List<TicketAttachment>();
 }

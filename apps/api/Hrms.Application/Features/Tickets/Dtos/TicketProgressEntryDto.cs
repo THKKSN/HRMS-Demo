@@ -11,7 +11,7 @@ public record TicketProgressEntryDto(
     Guid? OwnerEmployeeId,
     string? OwnerEmployeeName,
     DateTime? DueAt,
-    Guid CreatedByEmployeeId,
+    Guid? CreatedByEmployeeId,
     string CreatedByEmployeeName,
     DateTime CreatedAt,
     IReadOnlyList<TicketAttachmentDto> Attachments);

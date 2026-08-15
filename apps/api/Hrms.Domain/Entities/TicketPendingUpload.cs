@@ -4,7 +4,8 @@ namespace Hrms.Domain.Entities;
 
 public class TicketPendingUpload : BaseEntity
 {
-    public Guid UploadedByEmployeeId { get; set; }
+    public Guid? UploadedByEmployeeId { get; set; }
+    public Guid? UploadedByExternalReporterId { get; set; }
     public string StorageKey { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
@@ -12,5 +13,6 @@ public class TicketPendingUpload : BaseEntity
     public DateTime? LinkedAt { get; set; }
     public Guid? TicketAttachmentId { get; set; }
 
-    public Employee UploadedByEmployee { get; set; } = null!;
+    public Employee? UploadedByEmployee { get; set; }
+    public ExternalReporter? UploadedByExternalReporter { get; set; }
 }

@@ -38,8 +38,11 @@ public class GetPendingTicketCancellationsHandler(
             query = query.Where(cancellation =>
                 cancellation.Ticket.TicketNo.ToLower().Contains(search) ||
                 cancellation.Ticket.Title.ToLower().Contains(search) ||
-                cancellation.RequestedByEmployee.FirstName.ToLower().Contains(search) ||
-                cancellation.RequestedByEmployee.LastName.ToLower().Contains(search));
+                (cancellation.RequestedByEmployee != null &&
+                    (cancellation.RequestedByEmployee.FirstName.ToLower().Contains(search) ||
+                     cancellation.RequestedByEmployee.LastName.ToLower().Contains(search))) ||
+                (cancellation.Ticket.RequesterNameSnapshot != null &&
+                    cancellation.Ticket.RequesterNameSnapshot.ToLower().Contains(search)));
         }
 
         var totalCount = await query.CountAsync(ct);
@@ -55,8 +58,10 @@ public class GetPendingTicketCancellationsHandler(
                 cancellation.Ticket.TicketNo,
                 cancellation.Ticket.Title,
                 cancellation.RequestedByEmployeeId,
-                (cancellation.RequestedByEmployee.FirstName + " " +
-                 cancellation.RequestedByEmployee.LastName).Trim(),
+                cancellation.RequestedByEmployee == null
+                    ? cancellation.Ticket.RequesterNameSnapshot ?? "External requester"
+                    : (cancellation.RequestedByEmployee.FirstName + " " +
+                       cancellation.RequestedByEmployee.LastName).Trim(),
                 cancellation.Reason,
                 cancellation.Status,
                 cancellation.RequestedAt,

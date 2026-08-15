@@ -5,7 +5,7 @@ namespace Hrms.Application.Features.Tickets.Dtos;
 public record TicketCommentDto(
     Guid Id,
     Guid TicketId,
-    Guid EmployeeId,
+    Guid? EmployeeId,
     string EmployeeName,
     TicketCommentType CommentType,
     string Message,

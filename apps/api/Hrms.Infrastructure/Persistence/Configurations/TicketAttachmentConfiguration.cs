@@ -8,12 +8,16 @@ public class TicketAttachmentConfiguration : IEntityTypeConfiguration<TicketAtta
 {
     public void Configure(EntityTypeBuilder<TicketAttachment> builder)
     {
-        builder.ToTable("ticket_attachments");
+        builder.ToTable("ticket_attachments", table => table.HasCheckConstraint(
+            "ck_ticket_attachments_actor",
+            "((uploaded_by_employee_id IS NOT NULL AND uploaded_by_external_reporter_id IS NULL) OR " +
+            "(uploaded_by_employee_id IS NULL AND uploaded_by_external_reporter_id IS NOT NULL))"));
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.TicketId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.TicketProgressEntryId).HasColumnType("char(36)");
-        builder.Property(x => x.UploadedByEmployeeId).HasColumnType("char(36)").IsRequired();
+        builder.Property(x => x.UploadedByEmployeeId).HasColumnType("char(36)");
+        builder.Property(x => x.UploadedByExternalReporterId).HasColumnType("char(36)");
         builder.Property(x => x.Url).HasMaxLength(500).IsRequired();
         builder.Property(x => x.FileName).HasMaxLength(255);
         builder.Property(x => x.ContentType).HasMaxLength(100);
@@ -28,6 +32,7 @@ public class TicketAttachmentConfiguration : IEntityTypeConfiguration<TicketAtta
 
         builder.HasIndex(x => new { x.TicketId, x.Stage });
         builder.HasIndex(x => x.TicketProgressEntryId);
+        builder.HasIndex(x => x.UploadedByExternalReporterId);
 
         builder.HasOne(x => x.Ticket)
             .WithMany(x => x.Attachments)
@@ -37,6 +42,10 @@ public class TicketAttachmentConfiguration : IEntityTypeConfiguration<TicketAtta
         builder.HasOne(x => x.UploadedByEmployee)
             .WithMany()
             .HasForeignKey(x => x.UploadedByEmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.UploadedByExternalReporter)
+            .WithMany()
+            .HasForeignKey(x => x.UploadedByExternalReporterId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.TicketProgressEntry)

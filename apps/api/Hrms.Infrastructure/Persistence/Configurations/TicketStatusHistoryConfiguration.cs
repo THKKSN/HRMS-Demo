@@ -8,13 +8,16 @@ public class TicketStatusHistoryConfiguration : IEntityTypeConfiguration<TicketS
 {
     public void Configure(EntityTypeBuilder<TicketStatusHistory> builder)
     {
-        builder.ToTable("ticket_status_history");
+        builder.ToTable("ticket_status_history", table => table.HasCheckConstraint(
+            "ck_ticket_status_history_actor",
+            "NOT (changed_by_employee_id IS NOT NULL AND changed_by_external_reporter_id IS NOT NULL)"));
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.TicketId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.FromStatus).HasConversion<string>().HasMaxLength(30);
         builder.Property(x => x.ToStatus).HasConversion<string>().HasMaxLength(30);
         builder.Property(x => x.ChangedByEmployeeId).HasColumnType("char(36)");
+        builder.Property(x => x.ChangedByExternalReporterId).HasColumnType("char(36)");
         builder.Property(x => x.ChangedAt).HasColumnType("datetime");
         builder.Property(x => x.Reason).HasMaxLength(1000);
         builder.Property(x => x.AssignmentId).HasColumnType("char(36)");
@@ -23,8 +26,10 @@ public class TicketStatusHistoryConfiguration : IEntityTypeConfiguration<TicketS
 
         builder.HasIndex(x => new { x.TicketId, x.ChangedAt });
         builder.HasIndex(x => new { x.ToStatus, x.ChangedAt });
+        builder.HasIndex(x => x.ChangedByExternalReporterId);
         builder.HasOne(x => x.Ticket).WithMany(x => x.StatusHistory).HasForeignKey(x => x.TicketId).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne(x => x.ChangedByEmployee).WithMany().HasForeignKey(x => x.ChangedByEmployeeId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne(x => x.ChangedByExternalReporter).WithMany().HasForeignKey(x => x.ChangedByExternalReporterId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.Assignment).WithMany().HasForeignKey(x => x.AssignmentId).OnDelete(DeleteBehavior.SetNull);
     }
 }

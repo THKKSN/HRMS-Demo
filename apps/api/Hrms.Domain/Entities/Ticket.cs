@@ -7,8 +7,9 @@ public class Ticket : BaseEntity
 {
     public string TicketNo { get; set; } = string.Empty;
     public TicketRequestType RequestType { get; set; } = TicketRequestType.Internal;
-    public Guid RequesterEmployeeId { get; set; }
-    public Guid SourceCompanyId { get; set; }
+    public Guid? RequesterEmployeeId { get; set; }
+    public Guid? ExternalReporterId { get; set; }
+    public Guid? SourceCompanyId { get; set; }
     public Guid? SourceDepartmentId { get; set; }
     public Guid TargetCompanyId { get; set; }
     public Guid TargetDepartmentId { get; set; }
@@ -42,6 +43,11 @@ public class Ticket : BaseEntity
     public string? LocationText { get; set; }
     public string? ContactPhone { get; set; }
     public string? ContactNote { get; set; }
+    public string? RequesterNameSnapshot { get; set; }
+    public string? RequesterPhoneSnapshot { get; set; }
+    public string? RequesterEmailSnapshot { get; set; }
+    public string? RequesterOrganizationSnapshot { get; set; }
+    public string? RequesterLineDisplayNameSnapshot { get; set; }
     public Guid? ReceiverEmployeeId { get; set; }
     public Guid? SupervisorAcceptedByEmployeeId { get; set; }
     public DateTime? SupervisorAcceptedAt { get; set; }
@@ -55,6 +61,7 @@ public class Ticket : BaseEntity
     public Guid? ResolvedByEmployeeId { get; set; }
     public DateTime? ResolvedAt { get; set; }
     public Guid? ClosedByEmployeeId { get; set; }
+    public Guid? ClosedByExternalReporterId { get; set; }
     public DateTime? ClosedAt { get; set; }
     public Guid? VerifiedByEmployeeId { get; set; }
     public DateTime? VerifiedAt { get; set; }
@@ -65,8 +72,9 @@ public class Ticket : BaseEntity
     public DateTime? CancelledAt { get; set; }
     public string? CancellationReason { get; set; }
 
-    public Employee RequesterEmployee { get; set; } = null!;
-    public Company SourceCompany { get; set; } = null!;
+    public Employee? RequesterEmployee { get; set; }
+    public ExternalReporter? ExternalReporter { get; set; }
+    public Company? SourceCompany { get; set; }
     public Department? SourceDepartment { get; set; }
     public Company TargetCompany { get; set; } = null!;
     public Department TargetDepartment { get; set; } = null!;
@@ -81,6 +89,7 @@ public class Ticket : BaseEntity
     public Employee? WaitingInfoByEmployee { get; set; }
     public Employee? ResolvedByEmployee { get; set; }
     public Employee? ClosedByEmployee { get; set; }
+    public ExternalReporter? ClosedByExternalReporter { get; set; }
     public Employee? VerifiedByEmployee { get; set; }
     public Employee? RejectedByEmployee { get; set; }
     public Employee? CancelledByEmployee { get; set; }

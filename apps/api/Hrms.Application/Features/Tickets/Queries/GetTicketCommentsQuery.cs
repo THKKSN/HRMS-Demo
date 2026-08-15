@@ -31,7 +31,9 @@ public class GetTicketCommentsHandler(
             .OrderBy(c => c.CreatedAt)
             .Select(c => new TicketCommentDto(
                 c.Id, c.TicketId, c.EmployeeId,
-                (c.Employee.FirstName + " " + c.Employee.LastName).Trim(),
+                c.Employee == null
+                    ? c.Ticket.RequesterNameSnapshot ?? "External requester"
+                    : (c.Employee.FirstName + " " + c.Employee.LastName).Trim(),
                 c.CommentType, c.Message, c.IsInternal, c.CreatedAt))
             .ToListAsync(ct);
     }

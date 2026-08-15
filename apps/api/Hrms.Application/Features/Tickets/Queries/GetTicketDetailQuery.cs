@@ -88,9 +88,11 @@ public class GetTicketDetailHandler(
             ticket.Status,
             ticket.Priority,
             ticket.RequesterEmployeeId,
-            FullName(ticket.RequesterEmployee),
+            ticket.RequesterEmployee is null
+                ? ticket.RequesterNameSnapshot ?? "External requester"
+                : FullName(ticket.RequesterEmployee),
             ticket.SourceCompanyId,
-            ticket.SourceCompany.Name,
+            ticket.SourceCompany?.Name,
             ticket.SourceDepartmentId,
             ticket.SourceDepartment?.Name,
             ticket.TargetCompanyId,
@@ -170,7 +172,9 @@ public class GetTicketDetailHandler(
                     entry.OwnerEmployee is null ? null : FullName(entry.OwnerEmployee),
                     entry.DueAt,
                     entry.CreatedByEmployeeId,
-                    FullName(entry.CreatedByEmployee),
+                    entry.CreatedByEmployee is null
+                        ? ticket.RequesterNameSnapshot ?? "External requester"
+                        : FullName(entry.CreatedByEmployee),
                     entry.CreatedAt,
                     entry.Attachments
                         .Where(attachment => canSeeInternalAttachments ||
@@ -207,7 +211,9 @@ public class GetTicketDetailHandler(
                 ticket.TicketNo,
                 ticket.Title,
                 latestCancellation.RequestedByEmployeeId,
-                FullName(latestCancellation.RequestedByEmployee),
+                latestCancellation.RequestedByEmployee is null
+                    ? ticket.RequesterNameSnapshot ?? "External requester"
+                    : FullName(latestCancellation.RequestedByEmployee),
                 latestCancellation.Reason,
                 latestCancellation.Status,
                 latestCancellation.RequestedAt,

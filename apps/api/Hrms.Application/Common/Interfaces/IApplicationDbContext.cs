@@ -24,6 +24,7 @@ public interface IApplicationDbContext
     DbSet<Permission>       Permissions      { get; } // table: permissions
     DbSet<RolePermission>  RolePermissions  { get; } // table: role_permissions
     DbSet<AuditLog>        AuditLogs        { get; } // table: audit_logs
+    DbSet<ExternalReporter> ExternalReporters { get; }
 
     DbSet<OtRequest>             OtRequests             { get; } // table: ot_requests
     DbSet<ExpenseClaim>          ExpenseClaims          { get; } // table: expense_claims

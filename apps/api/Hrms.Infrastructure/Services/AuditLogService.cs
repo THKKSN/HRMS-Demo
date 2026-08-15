@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Domain.Entities;
+using Hrms.Domain.Enums;
 using Hrms.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -41,6 +42,9 @@ public class AuditLogService(HrmsDbContext db, ICurrentUser currentUser) : IAudi
             OldValues              = oldValues is null ? null : JsonSerializer.Serialize(oldValues, JsonOpts),
             NewValues              = newValues is null ? null : JsonSerializer.Serialize(newValues, JsonOpts),
             PerformedByEmployeeId  = currentUser.EmployeeId,
+            PerformedByActorType   = currentUser.EmployeeId.HasValue
+                ? AuditActorType.Employee
+                : AuditActorType.System,
             PerformedByName        = performedByName,
         };
 

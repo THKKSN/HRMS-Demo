@@ -8,13 +8,17 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
 {
     public void Configure(EntityTypeBuilder<Ticket> builder)
     {
-        builder.ToTable("tickets");
+        builder.ToTable("tickets", table => table.HasCheckConstraint(
+            "ck_tickets_requester_actor",
+            "((requester_employee_id IS NOT NULL AND external_reporter_id IS NULL AND request_type = 'Internal') OR " +
+            "(requester_employee_id IS NULL AND external_reporter_id IS NOT NULL AND request_type = 'External'))"));
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.TicketNo).HasMaxLength(30).IsRequired();
         builder.Property(x => x.RequestType).HasConversion<string>().HasMaxLength(20);
-        builder.Property(x => x.RequesterEmployeeId).HasColumnType("char(36)").IsRequired();
-        builder.Property(x => x.SourceCompanyId).HasColumnType("char(36)").IsRequired();
+        builder.Property(x => x.RequesterEmployeeId).HasColumnType("char(36)");
+        builder.Property(x => x.ExternalReporterId).HasColumnType("char(36)");
+        builder.Property(x => x.SourceCompanyId).HasColumnType("char(36)");
         builder.Property(x => x.SourceDepartmentId).HasColumnType("char(36)");
         builder.Property(x => x.TargetCompanyId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.TargetDepartmentId).HasColumnType("char(36)").IsRequired();
@@ -50,6 +54,11 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.Property(x => x.LocationText).HasMaxLength(200);
         builder.Property(x => x.ContactPhone).HasMaxLength(30);
         builder.Property(x => x.ContactNote).HasMaxLength(500);
+        builder.Property(x => x.RequesterNameSnapshot).HasMaxLength(200);
+        builder.Property(x => x.RequesterPhoneSnapshot).HasMaxLength(20);
+        builder.Property(x => x.RequesterEmailSnapshot).HasMaxLength(320);
+        builder.Property(x => x.RequesterOrganizationSnapshot).HasMaxLength(200);
+        builder.Property(x => x.RequesterLineDisplayNameSnapshot).HasMaxLength(200);
         builder.Property(x => x.ReceiverEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.SupervisorAcceptedByEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.WorkStartedByEmployeeId).HasColumnType("char(36)");
@@ -59,6 +68,7 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.Property(x => x.ResolutionNote).HasMaxLength(2000);
         builder.Property(x => x.ResolvedByEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.ClosedByEmployeeId).HasColumnType("char(36)");
+        builder.Property(x => x.ClosedByExternalReporterId).HasColumnType("char(36)");
         builder.Property(x => x.VerifiedByEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.RejectedByEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.RejectionReason).HasMaxLength(1000);
@@ -77,6 +87,7 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
 
         builder.HasIndex(x => x.TicketNo).IsUnique();
         builder.HasIndex(x => new { x.RequesterEmployeeId, x.Status });
+        builder.HasIndex(x => new { x.ExternalReporterId, x.Status });
         builder.HasIndex(x => new { x.TargetDepartmentId, x.Status });
         builder.HasIndex(x => new { x.CategoryId, x.TopicId, x.Status });
         builder.HasIndex(x => new { x.SubjectId, x.Status });
@@ -85,6 +96,7 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.HasIndex(x => new { x.RoutingOutcome, x.CreatedAt });
 
         builder.HasOne(x => x.RequesterEmployee).WithMany().HasForeignKey(x => x.RequesterEmployeeId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.ExternalReporter).WithMany().HasForeignKey(x => x.ExternalReporterId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.SourceCompany).WithMany().HasForeignKey(x => x.SourceCompanyId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne(x => x.SourceDepartment).WithMany().HasForeignKey(x => x.SourceDepartmentId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.TargetCompany).WithMany().HasForeignKey(x => x.TargetCompanyId).OnDelete(DeleteBehavior.Restrict);
@@ -100,6 +112,7 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.HasOne(x => x.WaitingInfoByEmployee).WithMany().HasForeignKey(x => x.WaitingInfoByEmployeeId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.ResolvedByEmployee).WithMany().HasForeignKey(x => x.ResolvedByEmployeeId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.ClosedByEmployee).WithMany().HasForeignKey(x => x.ClosedByEmployeeId).OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne(x => x.ClosedByExternalReporter).WithMany().HasForeignKey(x => x.ClosedByExternalReporterId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.VerifiedByEmployee).WithMany().HasForeignKey(x => x.VerifiedByEmployeeId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.RejectedByEmployee).WithMany().HasForeignKey(x => x.RejectedByEmployeeId).OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.CancelledByEmployee).WithMany().HasForeignKey(x => x.CancelledByEmployeeId).OnDelete(DeleteBehavior.SetNull);

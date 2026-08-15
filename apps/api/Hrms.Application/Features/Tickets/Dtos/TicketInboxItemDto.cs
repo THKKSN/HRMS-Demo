@@ -8,7 +8,7 @@ public record TicketInboxItemDto(
     string Title,
     TicketStatus Status,
     TicketPriority Priority,
-    Guid RequesterEmployeeId,
+    Guid? RequesterEmployeeId,
     string RequesterName,
     string? SourceDepartmentName,
     Guid TargetCompanyId,

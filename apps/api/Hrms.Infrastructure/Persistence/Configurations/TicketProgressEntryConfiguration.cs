@@ -8,7 +8,10 @@ public class TicketProgressEntryConfiguration : IEntityTypeConfiguration<TicketP
 {
     public void Configure(EntityTypeBuilder<TicketProgressEntry> builder)
     {
-        builder.ToTable("ticket_progress_entries");
+        builder.ToTable("ticket_progress_entries", table => table.HasCheckConstraint(
+            "ck_ticket_progress_entries_actor",
+            "((created_by_employee_id IS NOT NULL AND created_by_external_reporter_id IS NULL) OR " +
+            "(created_by_employee_id IS NULL AND created_by_external_reporter_id IS NOT NULL))"));
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.TicketId).HasColumnType("char(36)").IsRequired();
@@ -19,13 +22,15 @@ public class TicketProgressEntryConfiguration : IEntityTypeConfiguration<TicketP
         builder.Property(x => x.IsCompleted).HasDefaultValue(false);
         builder.Property(x => x.Note).HasMaxLength(2000);
         builder.Property(x => x.OwnerEmployeeId).HasColumnType("char(36)");
-        builder.Property(x => x.CreatedByEmployeeId).HasColumnType("char(36)").IsRequired();
+        builder.Property(x => x.CreatedByEmployeeId).HasColumnType("char(36)");
+        builder.Property(x => x.CreatedByExternalReporterId).HasColumnType("char(36)");
         builder.Property(x => x.DueAt).HasColumnType("datetime");
         builder.Property(x => x.CreatedAt).HasColumnType("datetime");
         builder.Property(x => x.UpdatedAt).HasColumnType("datetime");
 
         builder.HasIndex(x => new { x.TicketId, x.CreatedAt });
         builder.HasIndex(x => new { x.TicketId, x.WorkflowStepKey, x.CreatedAt });
+        builder.HasIndex(x => x.CreatedByExternalReporterId);
 
         builder.HasOne(x => x.Ticket)
             .WithMany(x => x.ProgressEntries)
@@ -40,6 +45,10 @@ public class TicketProgressEntryConfiguration : IEntityTypeConfiguration<TicketP
         builder.HasOne(x => x.CreatedByEmployee)
             .WithMany()
             .HasForeignKey(x => x.CreatedByEmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.CreatedByExternalReporter)
+            .WithMany()
+            .HasForeignKey(x => x.CreatedByExternalReporterId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

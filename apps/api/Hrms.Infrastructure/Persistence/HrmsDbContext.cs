@@ -25,6 +25,7 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
     public DbSet<Permission>      Permissions     => Set<Permission>();
     public DbSet<RolePermission>  RolePermissions => Set<RolePermission>();
     public DbSet<AuditLog>        AuditLogs       => Set<AuditLog>();
+    public DbSet<ExternalReporter> ExternalReporters => Set<ExternalReporter>();
 
     public DbSet<OtRequest>             OtRequests             => Set<OtRequest>();
     public DbSet<ExpenseClaim>          ExpenseClaims          => Set<ExpenseClaim>();
@@ -65,8 +66,10 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
         base.OnModelCreating(modelBuilder);
     }
 
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
+        await ValidateTicketActorInvariantsAsync(cancellationToken);
+
         foreach (var entry in ChangeTracker.Entries<Domain.Common.BaseEntity>())
         {
             if (entry.State == EntityState.Modified)
@@ -79,7 +82,108 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
                 entry.Entity.Version = entry.Property(x => x.Version).OriginalValue + 1;
         }
 
-        return base.SaveChangesAsync(cancellationToken);
+        return await base.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task ValidateTicketActorInvariantsAsync(CancellationToken cancellationToken)
+    {
+        foreach (var entry in ChangedEntries<Ticket>())
+        {
+            var ticket = entry.Entity;
+            var hasEmployee = ticket.RequesterEmployeeId.HasValue;
+            var hasExternal = ticket.ExternalReporterId.HasValue;
+            if (hasEmployee == hasExternal ||
+                ticket.RequestType == Domain.Enums.TicketRequestType.Internal && !hasEmployee ||
+                ticket.RequestType == Domain.Enums.TicketRequestType.External && !hasExternal)
+                throw new InvalidOperationException("TICKET_REQUESTER_EXACTLY_ONE_REQUIRED");
+
+            if (ticket.RequestType == Domain.Enums.TicketRequestType.Internal && !ticket.SourceCompanyId.HasValue)
+                throw new InvalidOperationException("INTERNAL_TICKET_SOURCE_COMPANY_REQUIRED");
+
+            if (ticket.RequestType == Domain.Enums.TicketRequestType.External)
+            {
+                if (ticket.TargetCompanyId != Guid.Parse("c89cb0d1-7548-4c1b-a36a-929f094f0b30"))
+                    throw new InvalidOperationException("EXTERNAL_TICKET_TARGET_COMPANY_INVALID");
+                if (string.IsNullOrWhiteSpace(ticket.RequesterNameSnapshot) ||
+                    string.IsNullOrWhiteSpace(ticket.RequesterPhoneSnapshot) ||
+                    string.IsNullOrWhiteSpace(ticket.RequesterEmailSnapshot) ||
+                    string.IsNullOrWhiteSpace(ticket.RequesterOrganizationSnapshot))
+                    throw new InvalidOperationException("EXTERNAL_TICKET_REQUESTER_SNAPSHOT_REQUIRED");
+            }
+        }
+
+        var externalTicketActors = new List<(Guid TicketId, Guid ExternalReporterId)>();
+        foreach (var entry in ChangedEntries<TicketComment>())
+        {
+            EnsureExactlyOneActor(entry.Entity.EmployeeId, entry.Entity.ExternalReporterId);
+            if (entry.Entity.ExternalReporterId is { } reporterId)
+                externalTicketActors.Add((entry.Entity.TicketId, reporterId));
+        }
+        foreach (var entry in ChangedEntries<TicketAttachment>())
+        {
+            EnsureExactlyOneActor(entry.Entity.UploadedByEmployeeId, entry.Entity.UploadedByExternalReporterId);
+            if (entry.Entity.UploadedByExternalReporterId is { } reporterId)
+                externalTicketActors.Add((entry.Entity.TicketId, reporterId));
+        }
+        foreach (var entry in ChangedEntries<TicketPendingUpload>())
+            EnsureExactlyOneActor(entry.Entity.UploadedByEmployeeId, entry.Entity.UploadedByExternalReporterId);
+        foreach (var entry in ChangedEntries<TicketCancellationRequest>())
+        {
+            EnsureExactlyOneActor(entry.Entity.RequestedByEmployeeId, entry.Entity.RequestedByExternalReporterId);
+            if (entry.Entity.RequestedByExternalReporterId is { } reporterId)
+                externalTicketActors.Add((entry.Entity.TicketId, reporterId));
+        }
+        foreach (var entry in ChangedEntries<TicketProgressEntry>())
+        {
+            EnsureExactlyOneActor(entry.Entity.CreatedByEmployeeId, entry.Entity.CreatedByExternalReporterId);
+            if (entry.Entity.CreatedByExternalReporterId is { } reporterId)
+                externalTicketActors.Add((entry.Entity.TicketId, reporterId));
+        }
+        foreach (var entry in ChangedEntries<TicketStatusHistory>())
+        {
+            if (entry.Entity.ChangedByEmployeeId.HasValue && entry.Entity.ChangedByExternalReporterId.HasValue)
+                throw new InvalidOperationException("TICKET_ACTOR_EXACTLY_ONE_REQUIRED");
+            if (entry.Entity.ChangedByExternalReporterId is { } reporterId)
+                externalTicketActors.Add((entry.Entity.TicketId, reporterId));
+        }
+
+        foreach (var actor in externalTicketActors.Distinct())
+        {
+            var trackedTicket = ChangeTracker.Entries<Ticket>()
+                .FirstOrDefault(x => x.Entity.Id == actor.TicketId)?.Entity;
+            var ownerId = trackedTicket?.ExternalReporterId ?? await Tickets
+                .AsNoTracking()
+                .Where(x => x.Id == actor.TicketId)
+                .Select(x => x.ExternalReporterId)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (ownerId != actor.ExternalReporterId)
+                throw new InvalidOperationException("EXTERNAL_ACTOR_DOES_NOT_OWN_TICKET");
+        }
+
+        foreach (var entry in ChangedEntries<AuditLog>())
+        {
+            var log = entry.Entity;
+            var valid = log.PerformedByActorType switch
+            {
+                Domain.Enums.AuditActorType.System => !log.PerformedByEmployeeId.HasValue && !log.PerformedByExternalReporterId.HasValue,
+                Domain.Enums.AuditActorType.Employee => log.PerformedByEmployeeId.HasValue && !log.PerformedByExternalReporterId.HasValue,
+                Domain.Enums.AuditActorType.External => !log.PerformedByEmployeeId.HasValue && log.PerformedByExternalReporterId.HasValue,
+                _ => false
+            };
+            if (!valid)
+                throw new InvalidOperationException("AUDIT_ACTOR_INVALID");
+        }
+    }
+
+    private IEnumerable<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<TEntity>> ChangedEntries<TEntity>()
+        where TEntity : class
+        => ChangeTracker.Entries<TEntity>()
+            .Where(entry => entry.State is EntityState.Added or EntityState.Modified);
+
+    private static void EnsureExactlyOneActor(Guid? employeeId, Guid? externalReporterId)
+    {
+        if (employeeId.HasValue == externalReporterId.HasValue)
+            throw new InvalidOperationException("TICKET_ACTOR_EXACTLY_ONE_REQUIRED");
     }
 
     public async Task ExecuteInTransactionAsync(

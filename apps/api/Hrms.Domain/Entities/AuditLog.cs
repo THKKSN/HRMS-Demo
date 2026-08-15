@@ -1,4 +1,5 @@
 using Hrms.Domain.Common;
+using Hrms.Domain.Enums;
 
 namespace Hrms.Domain.Entities;
 
@@ -12,5 +13,7 @@ public class AuditLog : BaseEntity
     public string? OldValues { get; set; }                    // JSON snapshot before
     public string? NewValues { get; set; }                    // JSON snapshot after
     public Guid? PerformedByEmployeeId { get; set; }
+    public Guid? PerformedByExternalReporterId { get; set; }
+    public AuditActorType PerformedByActorType { get; set; } = AuditActorType.System;
     public string? PerformedByName { get; set; }
 }
