@@ -21,6 +21,7 @@ public class ConfirmTicketCompletionHandler(
     {
         var ticket = await db.Tickets
             .Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary)).ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
             ?? throw new KeyNotFoundException("Ticket not found");
@@ -59,14 +60,14 @@ public class ConfirmTicketCompletionHandler(
                     assignment.AssignedToEmployee.LineUserId, message, ticket);
             }
             TicketCommandSupport.QueueNotification(
-                db, "TicketRequesterConfirmed", ticket.Id, ticket.RequesterEmployeeId,
-                ticket.RequesterEmployee.LineUserId, message, ticket);
+                db, "TicketRequesterConfirmed", ticket.Id, TicketCommandSupport.Requester(ticket),
+                message, ticket);
             ticket.UpdatedBy = actorId;
             await db.SaveChangesAsync(transactionCt);
         }, ct);
 
         await auditLog.LogAsync("ticket", "Ticket", ticket.Id.ToString(), "requester-confirm-completion",
-            $"{TicketCommandSupport.FullName(ticket.RequesterEmployee)} confirmed {ticket.TicketNo}",
+            $"{TicketCommandSupport.Requester(ticket).DisplayName} confirmed {ticket.TicketNo}",
             new { Status = TicketStatus.AwaitingRequesterConfirmation }, new { ticket.Status, ticket.ClosedAt }, ct);
         return new TicketActionResultDto(ticket.Id, ticket.Status, ticket.UpdatedAt);
     }

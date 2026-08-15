@@ -71,8 +71,7 @@ public class ReturnTicketForRevisionHandler(
                 db, "TicketReturned", review.Id, assignment.AssignedToEmployeeId,
                 assignment.AssignedToEmployee.LineUserId, message, ticket);
             TicketCommandSupport.QueueNotification(
-                db, "TicketReturned", review.Id, ticket.RequesterEmployeeId,
-                ticket.RequesterEmployee.LineUserId, message, ticket);
+                db, "TicketReturned", review.Id, TicketCommandSupport.Requester(ticket), message, ticket);
             await db.SaveChangesAsync(transactionCt);
             await auditLog.LogAsync("ticket", "Ticket", ticket.Id.ToString(), "return-for-revision",
                 $"{TicketCommandSupport.FullName(actor)} ส่ง {ticket.TicketNo} กลับแก้ไขรอบที่ {review.ReviewRound}",
@@ -86,6 +85,7 @@ public class ReturnTicketForRevisionHandler(
     private async Task<Ticket> LoadTicket(Guid id, CancellationToken ct)
         => await db.Tickets
             .Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .Include(t => t.Attachments)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary)).ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == id, ct)
@@ -130,6 +130,7 @@ public class CloseTicketHandler(
     {
         var ticket = await db.Tickets
             .Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .Include(t => t.Attachments)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary)).ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
@@ -194,8 +195,7 @@ public class CloseTicketHandler(
                 db, "TicketClosed", review.Id, assignment.AssignedToEmployeeId,
                 assignment.AssignedToEmployee.LineUserId, message, ticket);
             TicketCommandSupport.QueueNotification(
-                db, "TicketClosed", review.Id, ticket.RequesterEmployeeId,
-                ticket.RequesterEmployee.LineUserId, message, ticket);
+                db, "TicketClosed", review.Id, TicketCommandSupport.Requester(ticket), message, ticket);
             await db.SaveChangesAsync(transactionCt);
             await auditLog.LogAsync("ticket", "Ticket", ticket.Id.ToString(), "close",
                 $"{TicketCommandSupport.FullName(actor)} ตรวจผ่านและปิด {ticket.TicketNo}",

@@ -8,7 +8,7 @@ namespace Hrms.Application.Tests.Support;
 
 internal sealed class TicketTestFixture : IAsyncDisposable
 {
-    public Guid CompanyId { get; } = Guid.NewGuid();
+    public Guid CompanyId { get; }
     public Guid SourceDepartmentId { get; } = Guid.NewGuid();
     public Guid TargetDepartmentId { get; } = Guid.NewGuid();
     public Guid RequesterId { get; } = Guid.NewGuid();
@@ -20,14 +20,72 @@ internal sealed class TicketTestFixture : IAsyncDisposable
     public Guid SubjectId { get; } = Guid.NewGuid();
     public HrmsDbContext Db { get; }
 
-    public TicketTestFixture()
+    public TicketTestFixture(Guid? companyId = null)
     {
+        CompanyId = companyId ?? Guid.NewGuid();
         var options = new DbContextOptionsBuilder<HrmsDbContext>()
             .UseInMemoryDatabase($"ticket-tests-{Guid.NewGuid():N}")
             .ConfigureWarnings(warnings =>
                 warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .Options;
         Db = new HrmsDbContext(options);
+    }
+
+    public async Task<Ticket> AddExternalTicketAsync(
+        TicketStatus status = TicketStatus.Open,
+        bool activeAssignment = false)
+    {
+        var reporter = new ExternalReporter
+        {
+            LineUserId = $"U-{Guid.NewGuid():N}",
+            LineDisplayName = "External LINE",
+            FullName = "External Reporter",
+            Phone = "0812345678",
+            Email = "external@example.com",
+            Organization = "External Organization",
+            IsActive = true,
+            LastLoginAt = DateTime.UtcNow
+        };
+        var ticket = new Ticket
+        {
+            TicketNo = $"EXT-{Guid.NewGuid():N}"[..20],
+            RequestType = TicketRequestType.External,
+            ExternalReporterId = reporter.Id,
+            TargetCompanyId = CompanyId,
+            TargetDepartmentId = TargetDepartmentId,
+            CategoryId = CategoryId,
+            TopicId = TopicId,
+            SubjectId = SubjectId,
+            Title = "External camera issue",
+            Detail = "External requester detail",
+            Status = status,
+            Priority = TicketPriority.Medium,
+            RequesterNameSnapshot = "External Reporter",
+            RequesterPhoneSnapshot = "0812345678",
+            RequesterEmailSnapshot = "external@example.com",
+            RequesterOrganizationSnapshot = "External Organization",
+            RequesterLineDisplayNameSnapshot = "External LINE"
+        };
+        Db.ExternalReporters.Add(reporter);
+        Db.Tickets.Add(ticket);
+        if (activeAssignment)
+        {
+            Db.TicketAssignments.Add(new TicketAssignment
+            {
+                TicketId = ticket.Id,
+                AssignedToEmployeeId = AssigneeId,
+                AssignedByEmployeeId = SupervisorId,
+                AssignedAt = DateTime.UtcNow.AddHours(7),
+                IsPrimary = true,
+                IsActive = true,
+                ActiveSlot = "Primary",
+                AssignmentSource = TicketAssignmentSource.Manual
+            });
+        }
+
+        await Db.SaveChangesAsync();
+        Db.ChangeTracker.Clear();
+        return await Db.Tickets.FirstAsync(x => x.Id == ticket.Id);
     }
 
     public async Task SeedOrganizationAsync(

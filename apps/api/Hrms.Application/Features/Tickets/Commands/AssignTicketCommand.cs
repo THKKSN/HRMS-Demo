@@ -36,6 +36,7 @@ public class AssignTicketHandler(
     {
         var ticket = await db.Tickets
             .Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary))
                 .ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
@@ -139,8 +140,7 @@ public class AssignTicketHandler(
             $"คุณได้รับมอบหมายงาน {ticket.TicketNo}\nเรื่อง: {ticket.Title}\nสถานที่: {ticket.LocationText ?? "-"}\nผู้มอบหมาย: {actorName}",
             ticket);
         TicketCommandSupport.QueueNotification(
-            db, eventType, newAssignment.Id, ticket.RequesterEmployeeId,
-            ticket.RequesterEmployee.LineUserId,
+            db, eventType, newAssignment.Id, TicketCommandSupport.Requester(ticket),
             $"ใบแจ้งเรื่อง {ticket.TicketNo} ได้รับการมอบหมายแล้ว\nผู้รับผิดชอบ: {assigneeName}",
             ticket);
         if (currentAssignment is not null)

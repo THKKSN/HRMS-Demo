@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Hrms.Application.Features.Tickets;
 using Hrms.Application.Features.Tickets.Queries;
 using Hrms.Application.Tests.Support;
 using Hrms.Domain.Entities;
@@ -36,7 +37,8 @@ public class TicketPrivacyIntegrationTests
                 fixture.SourceDepartmentId,
                 RoleType.Employee),
             new TestPermissionService(
-                "ticket:view-own", "ticket:comment", "ticket:add-attachment"));
+                "ticket:view-own", "ticket:comment", "ticket:add-attachment"),
+            new TicketRequesterResolver());
 
         var detail = await handler.Handle(new GetTicketDetailQuery(ticket.Id), default);
 

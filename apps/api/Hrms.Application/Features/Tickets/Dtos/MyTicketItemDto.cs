@@ -8,6 +8,7 @@ public record MyTicketItemDto(
     string Title,
     TicketStatus Status,
     TicketPriority Priority,
+    TicketRequesterDto Requester,
     string TargetCompanyName,
     string TargetDepartmentName,
     string CategoryName,

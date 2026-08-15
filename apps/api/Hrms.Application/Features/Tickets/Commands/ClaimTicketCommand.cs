@@ -28,6 +28,7 @@ public class ClaimTicketHandler(
 
         var ticket = await db.Tickets
             .Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary))
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
             ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
@@ -83,8 +84,7 @@ public class ClaimTicketHandler(
             "SelfClaim", assignment.Id);
         var employeeName = TicketCommandSupport.FullName(employee);
         TicketCommandSupport.QueueNotification(
-            db, "TicketClaimed", assignment.Id, ticket.RequesterEmployeeId,
-            ticket.RequesterEmployee.LineUserId,
+            db, "TicketClaimed", assignment.Id, TicketCommandSupport.Requester(ticket),
             $"ใบแจ้งเรื่อง {ticket.TicketNo} มีผู้รับผิดชอบแล้ว\nผู้รับผิดชอบ: {employeeName}",
             ticket);
 

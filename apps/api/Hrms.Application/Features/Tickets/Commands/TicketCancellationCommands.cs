@@ -41,6 +41,7 @@ public class RequestTicketCancellationHandler(
             ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
         var ticket = await db.Tickets
             .Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .Include(t => t.TargetCompany)
             .Include(t => t.TargetDepartment).ThenInclude(d => d.ManagerEmployee)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary))
@@ -78,7 +79,8 @@ public class RequestTicketCancellationHandler(
 
         db.TicketCancellationRequests.Add(cancellation);
         ticket.UpdatedBy = employeeId;
-        var message = $"มีคำขอยกเลิก {ticket.TicketNo}\nผู้แจ้ง: {TicketCommandSupport.FullName(ticket.RequesterEmployee)}\nเหตุผล: {cancellation.Reason}";
+        var requester = TicketCommandSupport.Requester(ticket);
+        var message = $"มีคำขอยกเลิก {ticket.TicketNo}\nผู้แจ้ง: {requester.DisplayName}\nเหตุผล: {cancellation.Reason}";
         var recipients = new HashSet<string>(StringComparer.Ordinal);
         var manager = ticket.TargetDepartment.ManagerEmployee;
         if (!string.IsNullOrWhiteSpace(manager?.LineUserId) && recipients.Add(manager.LineUserId))
@@ -129,7 +131,7 @@ public class RequestTicketCancellationHandler(
             "Ticket",
             ticket.Id.ToString(),
             "request-cancellation",
-            $"{TicketCommandSupport.FullName(ticket.RequesterEmployee)} ขอยกเลิก {ticket.TicketNo}",
+            $"{requester.DisplayName} ขอยกเลิก {ticket.TicketNo}",
             new { ticket.Status },
             new { CancellationRequestId = cancellation.Id, cancellation.Reason },
             ct);
@@ -286,6 +288,7 @@ internal static class TicketCancellationSupport
         CancellationToken ct)
         => await db.Tickets
             .Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary))
                 .ThenInclude(a => a.AssignedToEmployee)
             .Include(t => t.CancellationRequests.Where(c =>
@@ -314,12 +317,12 @@ internal static class TicketCancellationSupport
         string message)
     {
         var recipients = new HashSet<string>(StringComparer.Ordinal);
-        if (!string.IsNullOrWhiteSpace(ticket.RequesterEmployee.LineUserId) &&
-            recipients.Add(ticket.RequesterEmployee.LineUserId))
+        var requester = TicketCommandSupport.Requester(ticket);
+        if (!string.IsNullOrWhiteSpace(requester.LineUserId) &&
+            recipients.Add(requester.LineUserId))
         {
             TicketCommandSupport.QueueNotification(
-                db, eventType, occurrenceId, ticket.RequesterEmployeeId,
-                ticket.RequesterEmployee.LineUserId, message, ticket);
+                db, eventType, occurrenceId, requester, message, ticket);
         }
 
         foreach (var assignment in ticket.Assignments)

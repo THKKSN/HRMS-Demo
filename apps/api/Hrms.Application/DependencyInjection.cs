@@ -2,6 +2,7 @@ using FluentValidation;
 using Hrms.Application.Common.Behaviours;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Common.Services;
+using Hrms.Application.Features.Tickets;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -21,6 +22,7 @@ public static class DependencyInjection
 
         services.AddScoped<IScopeGuard, ScopeGuard>();
         services.AddScoped<ITicketRoutingService, TicketRoutingService>();
+        services.AddSingleton<ITicketRequesterResolver, TicketRequesterResolver>();
 
         return services;
     }

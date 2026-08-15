@@ -31,6 +31,7 @@ public class RejectTicketHandler(
     {
         var ticket = await db.Tickets
             .Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary))
                 .ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
@@ -72,8 +73,7 @@ public class RejectTicketHandler(
             ticket.RejectionReason, currentAssignment?.Id);
         var occurrenceId = Guid.NewGuid();
         TicketCommandSupport.QueueNotification(
-            db, "TicketRejected", occurrenceId, ticket.RequesterEmployeeId,
-            ticket.RequesterEmployee.LineUserId,
+            db, "TicketRejected", occurrenceId, TicketCommandSupport.Requester(ticket),
             $"ใบแจ้งเรื่อง {ticket.TicketNo} ถูกปฏิเสธ\nเหตุผล: {ticket.RejectionReason}",
             ticket);
         if (currentAssignment is not null)

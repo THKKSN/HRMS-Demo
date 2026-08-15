@@ -11,7 +11,8 @@ public record GetTicketDetailQuery(Guid TicketId) : IRequest<TicketDetailDto>;
 public class GetTicketDetailHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
-    IPermissionService permissionService)
+    IPermissionService permissionService,
+    ITicketRequesterResolver requesterResolver)
     : IRequestHandler<GetTicketDetailQuery, TicketDetailDto>
 {
     public async Task<TicketDetailDto> Handle(GetTicketDetailQuery request, CancellationToken ct)
@@ -19,6 +20,8 @@ public class GetTicketDetailHandler(
         var ticket = await db.Tickets
             .AsNoTracking()
             .Include(t => t.RequesterEmployee)
+                .ThenInclude(e => e!.Company)
+            .Include(t => t.ExternalReporter)
             .Include(t => t.SourceCompany)
             .Include(t => t.SourceDepartment)
             .Include(t => t.TargetCompany)
@@ -80,6 +83,7 @@ public class GetTicketDetailHandler(
         var latestCancellation = ticket.CancellationRequests
             .OrderByDescending(c => c.RequestedAt)
             .FirstOrDefault();
+        var requester = requesterResolver.FromTicket(ticket);
 
         return new TicketDetailDto(
             ticket.Id,
@@ -88,9 +92,8 @@ public class GetTicketDetailHandler(
             ticket.Status,
             ticket.Priority,
             ticket.RequesterEmployeeId,
-            ticket.RequesterEmployee is null
-                ? ticket.RequesterNameSnapshot ?? "External requester"
-                : FullName(ticket.RequesterEmployee),
+            requester.DisplayName,
+            requester.ToDto(includeContact: true),
             ticket.SourceCompanyId,
             ticket.SourceCompany?.Name,
             ticket.SourceDepartmentId,

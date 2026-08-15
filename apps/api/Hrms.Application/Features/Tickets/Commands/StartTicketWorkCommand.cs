@@ -20,6 +20,7 @@ public class StartTicketWorkHandler(
     {
         var ticket = await db.Tickets
             .Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
             ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
         await TicketAccess.EnsureActiveAssigneeAsync(db, currentUser, permissions, "ticket:update-status", ticket, ct);
@@ -50,8 +51,7 @@ public class StartTicketWorkHandler(
         TicketStatusTransition.Record(
             db, ticket, TicketStatus.Assigned, TicketStatus.InProgress, actorId, now, "WorkStarted");
         TicketCommandSupport.QueueNotification(
-            db, "TicketStarted", Guid.NewGuid(), ticket.RequesterEmployeeId,
-            ticket.RequesterEmployee.LineUserId,
+            db, "TicketStarted", Guid.NewGuid(), TicketCommandSupport.Requester(ticket),
             $"ทีมเริ่มดำเนินการ {ticket.TicketNo} แล้ว\nเรื่อง: {ticket.Title}", ticket);
         await db.SaveChangesAsync(ct);
 

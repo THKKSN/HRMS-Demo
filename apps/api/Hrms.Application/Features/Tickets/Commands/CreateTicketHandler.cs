@@ -15,7 +15,8 @@ public class CreateTicketHandler(
     IPermissionService permService,
     IAuditLogService auditLog,
     ITicketRoutingService routingService,
-    ITicketNumberGenerator ticketNumberGenerator) : IRequestHandler<CreateTicketCommand, TicketDto>
+    ITicketNumberGenerator ticketNumberGenerator,
+    ITicketRequesterResolver requesterResolver) : IRequestHandler<CreateTicketCommand, TicketDto>
 {
     public async Task<TicketDto> Handle(CreateTicketCommand request, CancellationToken ct)
     {
@@ -33,6 +34,7 @@ public class CreateTicketHandler(
             .Include(e => e.Department)
             .FirstOrDefaultAsync(e => e.Id == employeeId && e.IsActive, ct)
             ?? throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND");
+        var requester = requesterResolver.FromEmployee(employee);
 
         var targetDepartment = await db.Departments
             .Include(d => d.Company)
@@ -138,6 +140,10 @@ public class CreateTicketHandler(
             LocationText = TrimOrNull(request.LocationText),
             ContactPhone = TrimOrNull(request.ContactPhone ?? employee.Phone),
             ContactNote = TrimOrNull(request.ContactNote),
+            RequesterNameSnapshot = requester.DisplayName,
+            RequesterPhoneSnapshot = requester.Phone,
+            RequesterEmailSnapshot = requester.Email,
+            RequesterOrganizationSnapshot = requester.Organization,
             ReceiverEmployeeId = targetDepartment.ManagerEmployeeId
         };
 
@@ -220,7 +226,8 @@ public class CreateTicketHandler(
             ticket.TicketNo,
             ticket.RequestType,
             employee.Id,
-            $"{employee.FirstName} {employee.LastName}".Trim(),
+            requester.DisplayName,
+            requester.ToDto(includeContact: true),
             employee.CompanyId,
             employee.DepartmentId,
             targetDepartment.CompanyId,

@@ -21,6 +21,7 @@ public class AcceptTicketHandler(
     {
         var ticket = await db.Tickets
             .Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
             ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
         await TicketSupervisorAccess.EnsureTicketAsync(
@@ -43,8 +44,7 @@ public class AcceptTicketHandler(
         TicketCommandSupport.SetWorkflowBoardState(ticket, "received");
         ticket.UpdatedBy = actorId;
         TicketCommandSupport.QueueNotification(
-            db, "TicketAccepted", ticket.Id, ticket.RequesterEmployeeId,
-            ticket.RequesterEmployee.LineUserId,
+            db, "TicketAccepted", ticket.Id, TicketCommandSupport.Requester(ticket),
             $"ใบแจ้งเรื่อง {ticket.TicketNo} ได้รับการรับเรื่องแล้ว\nผู้รับเรื่อง: {TicketCommandSupport.FullName(actor)}",
             ticket);
         await db.SaveChangesAsync(ct);

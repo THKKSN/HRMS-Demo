@@ -46,8 +46,12 @@ public class GetClaimableTicketsHandler(
             query = query.Where(t =>
                 t.TicketNo.ToLower().Contains(search) ||
                 t.Title.ToLower().Contains(search) ||
-                t.RequesterEmployee.FirstName.ToLower().Contains(search) ||
-                t.RequesterEmployee.LastName.ToLower().Contains(search) ||
+                (t.RequesterEmployee != null &&
+                    (t.RequesterEmployee.FirstName.ToLower().Contains(search) ||
+                     t.RequesterEmployee.LastName.ToLower().Contains(search))) ||
+                (t.RequesterNameSnapshot != null && t.RequesterNameSnapshot.ToLower().Contains(search)) ||
+                (t.RequesterOrganizationSnapshot != null &&
+                    t.RequesterOrganizationSnapshot.ToLower().Contains(search)) ||
                 (t.VehicleText != null && t.VehicleText.ToLower().Contains(search)) ||
                 (t.LocationText != null && t.LocationText.ToLower().Contains(search)));
         }
@@ -69,7 +73,14 @@ public class GetClaimableTicketsHandler(
                 t.Title,
                 t.Status,
                 t.Priority,
-                RequesterName = (t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName).Trim(),
+                t.RequestType,
+                t.RequesterEmployeeId,
+                t.ExternalReporterId,
+                RequesterName = t.RequesterEmployee != null
+                    ? (t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName).Trim()
+                    : t.RequesterNameSnapshot ?? t.RequesterLineDisplayNameSnapshot ?? "External requester",
+                RequesterOrganization = t.RequesterOrganizationSnapshot ??
+                    (t.SourceCompany != null ? t.SourceCompany.Name : null),
                 CategoryName = t.Category.Name,
                 TopicName = t.Topic.Name,
                 t.VehicleText,
@@ -98,6 +109,14 @@ public class GetClaimableTicketsHandler(
                     t.Status,
                     t.Priority,
                     t.RequesterName,
+                    new TicketRequesterDto(
+                        t.RequestType,
+                        t.RequesterEmployeeId,
+                        t.ExternalReporterId,
+                        t.RequesterName,
+                        null,
+                        null,
+                        t.RequesterOrganization),
                     t.CategoryName,
                     t.TopicName,
                     t.VehicleText,

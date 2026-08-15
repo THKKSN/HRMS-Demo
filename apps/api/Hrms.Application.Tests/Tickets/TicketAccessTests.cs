@@ -9,6 +9,9 @@ namespace Hrms.Application.Tests.Tickets;
 
 public class TicketAccessTests
 {
+    private static readonly Guid ExternalCompanyId =
+        Guid.Parse("c89cb0d1-7548-4c1b-a36a-929f094f0b30");
+
     private static readonly string[] WorkerPermissions =
     [
         "ticket:view-assigned",
@@ -101,5 +104,25 @@ public class TicketAccessTests
             ticket, default);
 
         await act.Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task TargetDepartmentSupervisor_ShouldAccessAndAcceptExternalTicket()
+    {
+        await using var fixture = new TicketTestFixture(ExternalCompanyId);
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddExternalTicketAsync();
+        var user = new TestCurrentUser(
+            fixture.SupervisorId, fixture.CompanyId, fixture.TargetDepartmentId, RoleType.Supervisor);
+        var permissions = new TestPermissionService("ticket:view-team", "ticket:update-status");
+
+        var view = () => TicketAccess.EnsureCanViewAsync(
+            fixture.Db, user, permissions, ticket, default);
+        var actions = await TicketAccess.GetActionFlagsAsync(
+            fixture.Db, user, permissions, ticket, default);
+
+        await view.Should().NotThrowAsync();
+        actions.IsRequester.Should().BeFalse();
+        actions.CanAccept.Should().BeTrue();
     }
 }

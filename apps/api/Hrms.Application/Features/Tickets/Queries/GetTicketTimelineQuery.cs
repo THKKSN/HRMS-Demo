@@ -57,7 +57,12 @@ public class GetTicketTimelineHandler(
             .Where(c => c.TicketId == ticket.Id && (canSeeInternal || !c.IsInternal))
             .Select(c => new TicketTimelineEventDto(
                 c.Id.ToString(), "Comment", c.CommentType.ToString(), c.Message,
-                c.EmployeeId, (c.Employee.FirstName + " " + c.Employee.LastName).Trim(),
+                c.EmployeeId,
+                c.Employee != null
+                    ? (c.Employee.FirstName + " " + c.Employee.LastName).Trim()
+                    : c.ExternalReporter != null
+                        ? c.ExternalReporter.FullName ?? c.ExternalReporter.LineDisplayName
+                        : "External requester",
                 c.IsInternal, c.CreatedAt))
             .ToListAsync(ct);
 

@@ -31,6 +31,7 @@ public class AddTicketCommentHandler(
         await currentUser.ThrowIfNoPermissionAsync(permissions, "ticket:comment", ct);
         var ticket = await db.Tickets
             .Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary)).ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
             ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
@@ -64,13 +65,20 @@ public class AddTicketCommentHandler(
         var actorName = TicketCommandSupport.FullName(actor);
         if (!comment.IsInternal)
         {
-            var target = actorId == ticket.RequesterEmployeeId
-                ? ticket.Assignments.FirstOrDefault()?.AssignedToEmployee
-                : ticket.RequesterEmployee;
-            TicketCommandSupport.QueueNotification(
-                db, "TicketCommented", comment.Id, target?.Id, target?.LineUserId,
-                $"มีข้อความใหม่ใน {ticket.TicketNo}\nจาก: {actorName}\n{comment.Message}",
-                ticket);
+            var message = $"มีข้อความใหม่ใน {ticket.TicketNo}\nจาก: {actorName}\n{comment.Message}";
+            if (actorId == ticket.RequesterEmployeeId)
+            {
+                var target = ticket.Assignments.FirstOrDefault()?.AssignedToEmployee;
+                TicketCommandSupport.QueueNotification(
+                    db, "TicketCommented", comment.Id, target?.Id, target?.LineUserId,
+                    message, ticket);
+            }
+            else
+            {
+                TicketCommandSupport.QueueNotification(
+                    db, "TicketCommented", comment.Id, TicketCommandSupport.Requester(ticket),
+                    message, ticket);
+            }
         }
         await db.SaveChangesAsync(ct);
 
@@ -100,6 +108,7 @@ public class RequestTicketInfoHandler(
     public async Task<TicketActionResultDto> Handle(RequestTicketInfoCommand request, CancellationToken ct)
     {
         var ticket = await db.Tickets.Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
             ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
         await TicketAccess.EnsureWorkerOrManagerAsync(db, currentUser, permissions, "ticket:update-status", ticket, ct);
@@ -139,8 +148,7 @@ public class RequestTicketInfoHandler(
         };
         db.TicketComments.Add(comment);
         TicketCommandSupport.QueueNotification(
-            db, "TicketWaitingInfo", comment.Id, ticket.RequesterEmployeeId,
-            ticket.RequesterEmployee.LineUserId,
+            db, "TicketWaitingInfo", comment.Id, TicketCommandSupport.Requester(ticket),
             $"ทีมขอข้อมูลเพิ่มสำหรับ {ticket.TicketNo}\n{request.Message.Trim()}", ticket);
         await db.SaveChangesAsync(ct);
 
@@ -164,6 +172,7 @@ public class ResumeTicketWorkHandler(
     public async Task<TicketActionResultDto> Handle(ResumeTicketWorkCommand request, CancellationToken ct)
     {
         var ticket = await db.Tickets.Include(t => t.RequesterEmployee)
+            .Include(t => t.ExternalReporter)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
             ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
         await TicketAccess.EnsureActiveAssigneeAsync(db, currentUser, permissions, "ticket:update-status", ticket, ct);
@@ -190,8 +199,7 @@ public class ResumeTicketWorkHandler(
         TicketStatusTransition.Record(
             db, ticket, TicketStatus.WaitingInfo, TicketStatus.InProgress, actorId, now, "WorkResumed");
         TicketCommandSupport.QueueNotification(
-            db, "TicketStarted", Guid.NewGuid(), ticket.RequesterEmployeeId,
-            ticket.RequesterEmployee.LineUserId,
+            db, "TicketStarted", Guid.NewGuid(), TicketCommandSupport.Requester(ticket),
             $"ทีมกลับมาดำเนินการ {ticket.TicketNo} แล้ว", ticket);
         await db.SaveChangesAsync(ct);
         var actorName = TicketCommandSupport.FullName(actor);

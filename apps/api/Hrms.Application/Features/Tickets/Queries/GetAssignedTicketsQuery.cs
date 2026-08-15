@@ -38,8 +38,13 @@ public class GetAssignedTicketsHandler(
             assignments = assignments.Where(a =>
                 a.Ticket.TicketNo.ToLower().Contains(search) ||
                 a.Ticket.Title.ToLower().Contains(search) ||
-                a.Ticket.RequesterEmployee.FirstName.ToLower().Contains(search) ||
-                a.Ticket.RequesterEmployee.LastName.ToLower().Contains(search) ||
+                (a.Ticket.RequesterEmployee != null &&
+                    (a.Ticket.RequesterEmployee.FirstName.ToLower().Contains(search) ||
+                     a.Ticket.RequesterEmployee.LastName.ToLower().Contains(search))) ||
+                (a.Ticket.RequesterNameSnapshot != null &&
+                    a.Ticket.RequesterNameSnapshot.ToLower().Contains(search)) ||
+                (a.Ticket.RequesterOrganizationSnapshot != null &&
+                    a.Ticket.RequesterOrganizationSnapshot.ToLower().Contains(search)) ||
                 (a.Ticket.VehicleText != null && a.Ticket.VehicleText.ToLower().Contains(search)) ||
                 (a.Ticket.LocationText != null && a.Ticket.LocationText.ToLower().Contains(search)));
         }
@@ -61,7 +66,14 @@ public class GetAssignedTicketsHandler(
                 a.Ticket.Title,
                 a.Ticket.Status,
                 a.Ticket.Priority,
-                RequesterName = (a.Ticket.RequesterEmployee.FirstName + " " + a.Ticket.RequesterEmployee.LastName).Trim(),
+                a.Ticket.RequestType,
+                a.Ticket.RequesterEmployeeId,
+                a.Ticket.ExternalReporterId,
+                RequesterName = a.Ticket.RequesterEmployee != null
+                    ? (a.Ticket.RequesterEmployee.FirstName + " " + a.Ticket.RequesterEmployee.LastName).Trim()
+                    : a.Ticket.RequesterNameSnapshot ?? a.Ticket.RequesterLineDisplayNameSnapshot ?? "External requester",
+                RequesterOrganization = a.Ticket.RequesterOrganizationSnapshot ??
+                    (a.Ticket.SourceCompany != null ? a.Ticket.SourceCompany.Name : null),
                 CategoryName = a.Ticket.Category.Name,
                 TopicName = a.Ticket.Topic.Name,
                 a.Ticket.VehicleText,
@@ -90,6 +102,14 @@ public class GetAssignedTicketsHandler(
                     a.Status,
                     a.Priority,
                     a.RequesterName,
+                    new TicketRequesterDto(
+                        a.RequestType,
+                        a.RequesterEmployeeId,
+                        a.ExternalReporterId,
+                        a.RequesterName,
+                        null,
+                        null,
+                        a.RequesterOrganization),
                     a.CategoryName,
                     a.TopicName,
                     a.VehicleText,

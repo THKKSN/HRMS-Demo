@@ -30,14 +30,16 @@ public class ExportTicketReportExcelHandler(
                 t.ClosedAt,
                 t.Status,
                 t.Priority,
-                SourceCompany = t.SourceCompany.Name,
+                SourceCompany = t.SourceCompany != null ? t.SourceCompany.Name : "",
                 SourceDepartment = t.SourceDepartment != null ? t.SourceDepartment.Name : "",
                 TargetCompany = t.TargetCompany.Name,
                 TargetDepartment = t.TargetDepartment.Name,
                 Category = t.Category.Name,
                 Topic = t.Topic.Name,
                 t.ProblemType,
-                Requester = t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName,
+                Requester = t.RequesterEmployee != null
+                    ? t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName
+                    : t.RequesterNameSnapshot ?? t.RequesterLineDisplayNameSnapshot ?? "External requester",
                 Responsible = t.Assignments
                     .OrderByDescending(a => a.AssignedAt)
                     .Select(a => a.AssignedToEmployee.FirstName + " " + a.AssignedToEmployee.LastName)

@@ -69,6 +69,17 @@ public class GetMyTicketsHandler(
                 ticket.Title,
                 ticket.Status,
                 ticket.Priority,
+                new TicketRequesterDto(
+                    ticket.RequestType,
+                    ticket.RequesterEmployeeId,
+                    ticket.ExternalReporterId,
+                    ticket.RequesterEmployee != null
+                        ? (ticket.RequesterEmployee.FirstName + " " + ticket.RequesterEmployee.LastName).Trim()
+                        : ticket.RequesterNameSnapshot ?? "Employee requester",
+                    null,
+                    null,
+                    ticket.RequesterOrganizationSnapshot ??
+                        (ticket.SourceCompany != null ? ticket.SourceCompany.Name : null)),
                 ticket.TargetCompany.Name,
                 ticket.TargetDepartment.Name,
                 ticket.Category.Name,

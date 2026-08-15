@@ -54,8 +54,12 @@ public class GetTicketInboxHandler(
             query = query.Where(t =>
                 t.TicketNo.ToLower().Contains(search) ||
                 t.Title.ToLower().Contains(search) ||
-                t.RequesterEmployee.FirstName.ToLower().Contains(search) ||
-                t.RequesterEmployee.LastName.ToLower().Contains(search) ||
+                (t.RequesterEmployee != null &&
+                    (t.RequesterEmployee.FirstName.ToLower().Contains(search) ||
+                     t.RequesterEmployee.LastName.ToLower().Contains(search))) ||
+                (t.RequesterNameSnapshot != null && t.RequesterNameSnapshot.ToLower().Contains(search)) ||
+                (t.RequesterOrganizationSnapshot != null &&
+                    t.RequesterOrganizationSnapshot.ToLower().Contains(search)) ||
                 (t.VehicleText != null && t.VehicleText.ToLower().Contains(search)));
         }
 
@@ -74,8 +78,14 @@ public class GetTicketInboxHandler(
                 t.Title,
                 t.Status,
                 t.Priority,
+                t.RequestType,
                 t.RequesterEmployeeId,
-                RequesterName = (t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName).Trim(),
+                t.ExternalReporterId,
+                RequesterName = t.RequesterEmployee != null
+                    ? (t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName).Trim()
+                    : t.RequesterNameSnapshot ?? t.RequesterLineDisplayNameSnapshot ?? "External requester",
+                RequesterOrganization = t.RequesterOrganizationSnapshot ??
+                    (t.SourceCompany != null ? t.SourceCompany.Name : null),
                 SourceDepartmentName = t.SourceDepartment != null ? t.SourceDepartment.Name : null,
                 t.TargetCompanyId,
                 TargetCompanyName = t.TargetCompany.Name,
@@ -133,6 +143,14 @@ public class GetTicketInboxHandler(
                     t.Priority,
                     t.RequesterEmployeeId,
                     t.RequesterName,
+                    new TicketRequesterDto(
+                        t.RequestType,
+                        t.RequesterEmployeeId,
+                        t.ExternalReporterId,
+                        t.RequesterName,
+                        null,
+                        null,
+                        t.RequesterOrganization),
                     t.SourceDepartmentName,
                     t.TargetCompanyId,
                     t.TargetCompanyName,

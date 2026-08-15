@@ -168,6 +168,16 @@ export type DepartmentListItemDto = DepartmentDto & {
 // ─── Tickets ────────────────────────────────────────────────────────────────
 
 export type TicketRequestType = 'Internal' | 'External'
+export type TicketRequesterType = TicketRequestType
+export type TicketRequesterDto = {
+  type: TicketRequesterType
+  employeeId?: string
+  externalReporterId?: string
+  name: string
+  phone?: string
+  email?: string
+  organization?: string
+}
 export type TicketPriority = 'Low' | 'Medium' | 'High' | 'Critical'
 export type TicketProblemType = 'SystemDefect' | 'Enhancement' | 'Other'
 export type TicketCommentType = 'General' | 'RequestInfo' | 'Response' | 'Progress'
@@ -256,9 +266,10 @@ export type TicketDto = {
   id: string
   ticketNo: string
   requestType: TicketRequestType
-  requesterEmployeeId: string
+  requesterEmployeeId?: string
   requesterName: string
-  sourceCompanyId: string
+  requester: TicketRequesterDto
+  sourceCompanyId?: string
   sourceDepartmentId?: string
   targetCompanyId: string
   targetCompanyName: string
@@ -324,8 +335,9 @@ export type TicketInboxItemDto = {
   title: string
   status: TicketStatus
   priority: TicketPriority
-  requesterEmployeeId: string
+  requesterEmployeeId?: string
   requesterName: string
+  requester: TicketRequesterDto
   sourceDepartmentName?: string
   targetCompanyId: string
   targetCompanyName: string
@@ -358,6 +370,7 @@ export type MyTicketItemDto = {
   title: string
   status: TicketStatus
   priority: TicketPriority
+  requester: TicketRequesterDto
   targetCompanyName: string
   targetDepartmentName: string
   categoryName: string
@@ -461,10 +474,11 @@ export type TicketDetailDto = {
   requestType: TicketRequestType
   status: TicketStatus
   priority: TicketPriority
-  requesterEmployeeId: string
+  requesterEmployeeId?: string
   requesterName: string
-  sourceCompanyId: string
-  sourceCompanyName: string
+  requester: TicketRequesterDto
+  sourceCompanyId?: string
+  sourceCompanyName?: string
   sourceDepartmentId?: string
   sourceDepartmentName?: string
   targetCompanyId: string
@@ -720,6 +734,7 @@ export type AssignedTicketItemDto = {
   status: TicketStatus
   priority: TicketPriority
   requesterName: string
+  requester: TicketRequesterDto
   categoryName: string
   topicName: string
   vehicleText?: string

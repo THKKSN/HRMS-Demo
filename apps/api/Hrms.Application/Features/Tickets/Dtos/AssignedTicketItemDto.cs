@@ -9,6 +9,7 @@ public record AssignedTicketItemDto(
     TicketStatus Status,
     TicketPriority Priority,
     string RequesterName,
+    TicketRequesterDto Requester,
     string CategoryName,
     string TopicName,
     string? VehicleText,

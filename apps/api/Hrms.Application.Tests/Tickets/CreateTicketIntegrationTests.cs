@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Features.Tickets;
 using Hrms.Application.Features.Tickets.Commands;
 using Hrms.Application.Tests.Support;
 using Hrms.Domain.Enums;
@@ -107,7 +108,8 @@ public class CreateTicketIntegrationTests
             new TestPermissionService("ticket:create"),
             new TestAuditLogService(),
             routingService.Object,
-            number.Object);
+            number.Object,
+            new TicketRequesterResolver());
     }
 
     private static CreateTicketCommand Command(TicketTestFixture fixture)

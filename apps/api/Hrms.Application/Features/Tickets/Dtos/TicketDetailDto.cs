@@ -10,6 +10,7 @@ public record TicketDetailDto(
     TicketPriority Priority,
     Guid? RequesterEmployeeId,
     string RequesterName,
+    TicketRequesterDto Requester,
     Guid? SourceCompanyId,
     string? SourceCompanyName,
     Guid? SourceDepartmentId,

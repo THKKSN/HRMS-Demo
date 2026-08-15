@@ -17,6 +17,9 @@ internal static class TicketCommandSupport
     public static string FullName(Employee employee)
         => $"{employee.FirstName} {employee.LastName}".Trim();
 
+    public static TicketRequesterContext Requester(Ticket ticket)
+        => new TicketRequesterResolver().FromTicket(ticket);
+
     public static void SetWorkflowBoardState(
         Ticket ticket,
         string workflowStepKey,
@@ -61,6 +64,22 @@ internal static class TicketCommandSupport
         db.TicketProgressEntries.Add(entry);
         return entry;
     }
+
+    public static void QueueNotification(
+        IApplicationDbContext db,
+        string eventType,
+        Guid occurrenceId,
+        TicketRequesterContext requester,
+        string message,
+        Ticket ticket)
+        => QueueNotification(
+            db,
+            eventType,
+            occurrenceId,
+            requester.EmployeeId,
+            requester.LineUserId,
+            message,
+            ticket);
 
     public static void QueueNotification(
         IApplicationDbContext db,
