@@ -8,9 +8,7 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
 {
     public void Configure(EntityTypeBuilder<AuditLog> builder)
     {
-        builder.ToTable("audit_logs", table => table.HasCheckConstraint(
-            "ck_audit_logs_actor",
-            "NOT (performed_by_employee_id IS NOT NULL AND performed_by_external_reporter_id IS NOT NULL)"));
+        builder.ToTable("audit_logs");
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.Module).HasMaxLength(50).IsRequired();

@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Hrms.Infrastructure.Migrations
 {
     [DbContext(typeof(HrmsDbContext))]
-    [Migration("20260815120504_AddExternalTicketRequesterFoundation")]
+    [Migration("20260816132504_AddExternalTicketRequesterFoundation")]
     partial class AddExternalTicketRequesterFoundation
     {
         /// <inheritdoc />
@@ -282,10 +282,7 @@ namespace Hrms.Infrastructure.Migrations
                     b.HasIndex("Module", "EntityType", "EntityId")
                         .HasDatabaseName("ix_audit_logs_module_entity_type_entity_id");
 
-                    b.ToTable("audit_logs", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_audit_logs_actor", "NOT (performed_by_employee_id IS NOT NULL AND performed_by_external_reporter_id IS NOT NULL)");
-                        });
+                    b.ToTable("audit_logs", (string)null);
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.Company", b =>
@@ -3607,10 +3604,7 @@ namespace Hrms.Infrastructure.Migrations
                     b.HasIndex("ToStatus", "ChangedAt")
                         .HasDatabaseName("ix_ticket_status_history_to_status_changed_at");
 
-                    b.ToTable("ticket_status_history", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_ticket_status_history_actor", "NOT (changed_by_employee_id IS NOT NULL AND changed_by_external_reporter_id IS NOT NULL)");
-                        });
+                    b.ToTable("ticket_status_history", (string)null);
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.TicketSubject", b =>

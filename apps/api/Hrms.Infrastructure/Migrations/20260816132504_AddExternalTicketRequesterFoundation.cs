@@ -266,11 +266,6 @@ namespace Hrms.Infrastructure.Migrations
                 table: "ticket_status_history",
                 column: "changed_by_external_reporter_id");
 
-            migrationBuilder.AddCheckConstraint(
-                name: "ck_ticket_status_history_actor",
-                table: "ticket_status_history",
-                sql: "NOT (changed_by_employee_id IS NOT NULL AND changed_by_external_reporter_id IS NOT NULL)");
-
             migrationBuilder.CreateIndex(
                 name: "ix_ticket_progress_entries_created_by_external_reporter_id",
                 table: "ticket_progress_entries",
@@ -325,11 +320,6 @@ namespace Hrms.Infrastructure.Migrations
                 name: "ix_audit_logs_performed_by_external_reporter_id",
                 table: "audit_logs",
                 column: "performed_by_external_reporter_id");
-
-            migrationBuilder.AddCheckConstraint(
-                name: "ck_audit_logs_actor",
-                table: "audit_logs",
-                sql: "NOT (performed_by_employee_id IS NOT NULL AND performed_by_external_reporter_id IS NOT NULL)");
 
             migrationBuilder.CreateIndex(
                 name: "ix_external_reporters_is_active_last_login_at",
@@ -473,10 +463,6 @@ namespace Hrms.Infrastructure.Migrations
                 name: "ix_ticket_status_history_changed_by_external_reporter_id",
                 table: "ticket_status_history");
 
-            migrationBuilder.DropCheckConstraint(
-                name: "ck_ticket_status_history_actor",
-                table: "ticket_status_history");
-
             migrationBuilder.DropIndex(
                 name: "ix_ticket_progress_entries_created_by_external_reporter_id",
                 table: "ticket_progress_entries");
@@ -519,10 +505,6 @@ namespace Hrms.Infrastructure.Migrations
 
             migrationBuilder.DropIndex(
                 name: "ix_audit_logs_performed_by_external_reporter_id",
-                table: "audit_logs");
-
-            migrationBuilder.DropCheckConstraint(
-                name: "ck_audit_logs_actor",
                 table: "audit_logs");
 
             migrationBuilder.DropColumn(

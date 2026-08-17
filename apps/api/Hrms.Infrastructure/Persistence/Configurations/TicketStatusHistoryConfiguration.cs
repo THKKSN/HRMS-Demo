@@ -8,9 +8,7 @@ public class TicketStatusHistoryConfiguration : IEntityTypeConfiguration<TicketS
 {
     public void Configure(EntityTypeBuilder<TicketStatusHistory> builder)
     {
-        builder.ToTable("ticket_status_history", table => table.HasCheckConstraint(
-            "ck_ticket_status_history_actor",
-            "NOT (changed_by_employee_id IS NOT NULL AND changed_by_external_reporter_id IS NOT NULL)"));
+        builder.ToTable("ticket_status_history");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.TicketId).HasColumnType("char(36)").IsRequired();

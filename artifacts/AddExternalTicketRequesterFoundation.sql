@@ -76,8 +76,6 @@ ALTER TABLE `tickets` ADD CONSTRAINT `ck_tickets_requester_actor` CHECK (((reque
 
 CREATE INDEX `ix_ticket_status_history_changed_by_external_reporter_id` ON `ticket_status_history` (`changed_by_external_reporter_id`);
 
-ALTER TABLE `ticket_status_history` ADD CONSTRAINT `ck_ticket_status_history_actor` CHECK (NOT (changed_by_employee_id IS NOT NULL AND changed_by_external_reporter_id IS NOT NULL));
-
 CREATE INDEX `ix_ticket_progress_entries_created_by_external_reporter_id` ON `ticket_progress_entries` (`created_by_external_reporter_id`);
 
 ALTER TABLE `ticket_progress_entries` ADD CONSTRAINT `ck_ticket_progress_entries_actor` CHECK (((created_by_employee_id IS NOT NULL AND created_by_external_reporter_id IS NULL) OR (created_by_employee_id IS NULL AND created_by_external_reporter_id IS NOT NULL)));
@@ -99,8 +97,6 @@ CREATE INDEX `ix_ticket_attachments_uploaded_by_external_reporter_id` ON `ticket
 ALTER TABLE `ticket_attachments` ADD CONSTRAINT `ck_ticket_attachments_actor` CHECK (((uploaded_by_employee_id IS NOT NULL AND uploaded_by_external_reporter_id IS NULL) OR (uploaded_by_employee_id IS NULL AND uploaded_by_external_reporter_id IS NOT NULL)));
 
 CREATE INDEX `ix_audit_logs_performed_by_external_reporter_id` ON `audit_logs` (`performed_by_external_reporter_id`);
-
-ALTER TABLE `audit_logs` ADD CONSTRAINT `ck_audit_logs_actor` CHECK (NOT (performed_by_employee_id IS NOT NULL AND performed_by_external_reporter_id IS NOT NULL));
 
 CREATE INDEX `ix_external_reporters_is_active_last_login_at` ON `external_reporters` (`is_active`, `last_login_at`);
 
@@ -125,7 +121,7 @@ ALTER TABLE `tickets` ADD CONSTRAINT `fk_tickets_external_reporters_closed_by_ex
 ALTER TABLE `tickets` ADD CONSTRAINT `fk_tickets_external_reporters_external_reporter_id` FOREIGN KEY (`external_reporter_id`) REFERENCES `external_reporters` (`id`) ON DELETE RESTRICT;
 
 INSERT INTO `__EFMigrationsHistory` (`migration_id`, `product_version`)
-VALUES ('20260815120504_AddExternalTicketRequesterFoundation', '8.0.30');
+VALUES ('20260816132504_AddExternalTicketRequesterFoundation', '8.0.30');
 
 COMMIT;
 
