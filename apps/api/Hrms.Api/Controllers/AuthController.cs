@@ -62,7 +62,7 @@ public class AuthController(IMediator mediator) : ControllerBase
         try
         {
             var result = await mediator.Send(
-                new RequestOtpCommand(request.AccessToken, request.EmployeeCode, request.NationalId), ct);
+                new RequestOtpCommand(request.AccessToken, request.NationalId), ct);
             return Ok(result);
         }
         catch (AppUnauthorizedException ex)
@@ -124,6 +124,6 @@ public class AuthController(IMediator mediator) : ControllerBase
 
 public record LineLoginRequest(string AccessToken);
 public record RefreshRequest(string RefreshToken);
-public record OtpRequest(string AccessToken, string EmployeeCode, string NationalId);
+public record OtpRequest(string AccessToken, string NationalId);
 public record LinkRequest(string AccessToken, string Otp);
 public record PasswordLoginRequest(string Email, string Password);

@@ -15,14 +15,15 @@ public class RequestOtpHandler(
     {
         var profile = await line.VerifyAccessTokenAsync(request.AccessToken, ct);
 
-        var employee = await db.Employees
-            .FirstOrDefaultAsync(e =>
-                e.EmployeeCode == request.EmployeeCode &&
-                e.NationalId == request.NationalId &&
-                e.IsActive, ct);
+        var matches = await db.Employees
+            .Where(employee => employee.NationalId == request.NationalId && employee.IsActive)
+            .Take(2)
+            .ToListAsync(ct);
 
-        if (employee is null)
+        if (matches.Count != 1)
             throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND");
+
+        var employee = matches[0];
 
         if (employee.LineUserId is not null)
             throw new ConflictException("ALREADY_LINKED", "This employee is already linked to a LINE account.");
