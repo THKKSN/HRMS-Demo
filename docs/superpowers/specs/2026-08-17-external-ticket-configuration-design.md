@@ -1,31 +1,31 @@
-# External Ticket Configuration Design
+# การออกแบบการตั้งค่า External Ticket
 
-**Date:** 2026-08-17
+**วันที่:** 2026-08-17
 
-## Scope
+## ขอบเขต
 
-Implement Phase 2, Task 4 of the external ticket work: secure backend configuration and taxonomy APIs. This task does not add the Admin UI, an external ticket creation endpoint, a Rich Menu route, or any production deployment operation.
+พัฒนา Phase 2, Task 4 ของระบบ external ticket: backend สำหรับตั้งค่าช่องทางและ API taxonomy ที่ปลอดภัย งานนี้ยังไม่รวม Admin UI, endpoint สำหรับสร้าง external ticket, route จาก Rich Menu หรือการ deploy ไป production.
 
-## Data Model
+## แบบจำลองข้อมูล
 
-Add exactly these external tables in a new `AddExternalTicketConfiguration` migration:
+เพิ่มเฉพาะตาราง external ต่อไปนี้ใน migration ใหม่ `AddExternalTicketConfiguration`:
 
-- `external_ticket_configurations`: one configuration row for the fixed company. It stores `TargetDepartmentId`, `IsEnabled`, `RequireOaFriendship`, privacy notice version and URL, and `UpdatedAt`.
+- `external_ticket_configurations`: configuration หนึ่งแถวของบริษัทที่กำหนดตายตัว เก็บ `TargetDepartmentId`, `IsEnabled`, `RequireOaFriendship`, version และ URL ของ privacy notice รวมถึง `UpdatedAt`
 - `external_ticket_categories`
 - `external_ticket_topics`
 - `external_ticket_subjects`
 
-The category, topic, and subject tables form an external-only hierarchy with display name, description, sort order, and active state. Only an external subject stores `InternalTicketSubjectId`.
+ตาราง category, topic และ subject เป็นลำดับชั้นสำหรับ external โดยเฉพาะ มีชื่อที่แสดง, คำอธิบาย, ลำดับ และสถานะ active มีเพียง external subject ที่เก็บ `InternalTicketSubjectId`.
 
-The fixed company is `c89cb0d1-7548-4c1b-a36a-929f094f0b30`, represented by `ExternalTicketConstants.TargetCompanyId`. No API request accepts a company identifier. Categories, topics, and subjects use soft activation only.
+บริษัทที่กำหนดตายตัวคือ `c89cb0d1-7548-4c1b-a36a-929f094f0b30` แทนด้วย `ExternalTicketConstants.TargetCompanyId` API จะไม่รับ company identifier จาก request และ category, topic, subject ใช้การเปิด/ปิดสถานะแทนการลบจริงเท่านั้น.
 
-The migration creates only these tables, their indexes and foreign keys, plus a disabled configuration row. It must not change the Phase 1 requester/actor schema or unrelated tables.
+Migration สร้างเฉพาะตาราง, index, foreign key ของชุดนี้ และ configuration เริ่มต้นที่ปิดใช้งาน ห้ามแก้ schema requester/actor จาก Phase 1 หรือตารางอื่นที่ไม่เกี่ยวข้อง.
 
-## Authorization and APIs
+## สิทธิ์และ API
 
-Add the `ticket:manage-external-config` permission and assign it to the Admin default role. Every administrative command checks this permission in the application handler.
+เพิ่ม permission `ticket:manage-external-config` และกำหนดให้ role Admin โดยค่าเริ่มต้น ทุก administrative command ต้องตรวจ permission นี้ใน application handler.
 
-Administrative APIs:
+Administrative API:
 
 ```text
 GET  /v1/external-ticket-config
@@ -38,26 +38,26 @@ POST /v1/external-ticket-config/subjects
 PUT  /v1/external-ticket-config/subjects/{id}
 ```
 
-The public external-session API is `GET /v1/external/ticket-form`. It returns only active external taxonomy and data necessary to render the future form. It never returns internal taxonomy identifiers or mappings.
+Public API สำหรับ external session คือ `GET /v1/external/ticket-form` ซึ่งคืนเฉพาะ external taxonomy ที่ active และข้อมูลจำเป็นต่อการแสดง form ในอนาคต โดยห้ามคืน internal taxonomy identifier หรือ mapping.
 
-## Validation and Concurrency
+## การตรวจสอบข้อมูลและ Concurrency
 
-Enabling the channel requires:
+ก่อนเปิดใช้งานช่องทาง ต้องมี:
 
-- an active target department in the fixed company;
-- non-empty privacy notice version and URL;
-- at least one active external subject mapped to an active internal subject in the same company and target department.
+- target department ที่ active และอยู่ในบริษัทที่กำหนดตายตัว
+- privacy notice version และ URL ที่ไม่ว่าง
+- external subject ที่ active อย่างน้อยหนึ่งรายการ ซึ่ง map ไปยัง internal subject ที่ active ในบริษัทและ target department เดียวกัน
 
-All taxonomy mapping validation rejects cross-company, cross-department, inactive, and missing internal subjects. Updates receive `ExpectedUpdatedAt`; a stale value returns `409 CONFIG_CHANGED` rather than overwriting the latest configuration.
+การตรวจ mapping ต้องปฏิเสธ internal subject ที่ข้ามบริษัท, ข้าม department, inactive หรือไม่พบ ทุก update รับ `ExpectedUpdatedAt`; หากเป็นค่าเก่าต้องตอบ `409 CONFIG_CHANGED` แทนการเขียนทับ configuration ล่าสุด.
 
-Every administrative mutation creates a sanitized audit record containing node names, active state, department, and internal subject mapping. It excludes LINE and contact PII.
+ทุก administrative mutation สร้าง audit record ที่ผ่านการตัดข้อมูลอ่อนไหวแล้ว โดยบันทึกชื่อ node, สถานะ active, department และ internal subject mapping แต่ไม่บันทึก LINE หรือ contact PII.
 
-## Failure Behavior
+## พฤติกรรมเมื่อเกิดข้อผิดพลาด
 
-Commands fail explicitly for missing permission, invalid target department, invalid mapping, incomplete readiness requirements, and stale versions. The public form API hides inactive nodes and reports a disabled channel rather than returning a usable intake form.
+Command ต้อง fail อย่างชัดเจนเมื่อไม่มี permission, target department ไม่ถูกต้อง, mapping ไม่ถูกต้อง, ขาดเงื่อนไขก่อนเปิดใช้ หรือ version เก่า Public form API ซ่อน node ที่ inactive และรายงานว่าช่องทางปิดใช้งาน แทนการคืน form ที่สร้างเรื่องได้.
 
-## Verification
+## การตรวจสอบ
 
-Add focused tests for permission denial, fixed-company enforcement, enablement readiness, taxonomy mapping validation, stale updates, and public-form filtering. Before Task 4 is considered complete, verify that the generated migration contains only the four external configuration tables and associated indexes, foreign keys, and disabled configuration seed.
+เพิ่ม focused test สำหรับการปฏิเสธเมื่อไม่มี permission, การบังคับใช้ fixed company, ความพร้อมก่อน enable, การตรวจ taxonomy mapping, stale update และการกรอง public form ก่อนถือว่า Task 4 เสร็จ ต้องตรวจว่า migration ที่สร้างมีเฉพาะ 4 external configuration tables พร้อม index, foreign key และ disabled configuration seed.
 
-Run the focused external configuration tests and the affected API/infrastructure build. Task 5 begins only after these checks pass.
+รัน focused external configuration tests และ build ส่วน API/infrastructure ที่ได้รับผลกระทบ เริ่ม Task 5 ได้เมื่อการตรวจเหล่านี้ผ่านเท่านั้น.
