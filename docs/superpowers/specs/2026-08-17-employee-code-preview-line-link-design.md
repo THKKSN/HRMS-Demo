@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-17
 
-**Status:** Approved in conversation; pending written-spec review
+**Status:** Approved
 
 **Supersedes:** `2026-08-17-national-id-only-line-link-design.md`
 
@@ -94,7 +94,7 @@ This is an intentional breaking change for the repository's LIFF client and API.
 - Require a non-empty value of at most 50 characters.
 - Compare against `Employee.EmployeeCode` using the database's configured equality semantics.
 - Query only active employees and take at most two rows; proceed only when exactly one row matches.
-- Recheck `IsActive`, employee code uniqueness outcome, and `LineUserId == null` when the OTP is requested.
+- Recheck the protected employee ID, `IsActive`, and `LineUserId == null` when the OTP is requested. The unique database index prevents a new duplicate employee code from being introduced after preview.
 - Treat missing, inactive, and ambiguous matches as the same generic verification failure.
 - Preserve the existing `ALREADY_LINKED` behavior for an employee already linked to LINE.
 
