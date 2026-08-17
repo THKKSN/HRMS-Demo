@@ -1,5 +1,7 @@
 # National-ID-Only LINE Account Linking Implementation Plan
 
+> **Status:** Superseded by `docs/superpowers/specs/2026-08-17-employee-code-preview-line-link-design.md`. Preserve this file as implementation history; do not execute remaining steps.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Change `/auth/link` to identify an active employee with a valid 13-digit Thai national ID only, while retaining verified LINE OAuth and six-digit OTP confirmation before account binding.

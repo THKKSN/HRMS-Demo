@@ -1,7 +1,7 @@
 # National-ID-Only LINE Account Linking Design
 
 **Date:** 2026-08-17
-**Status:** Approved
+**Status:** Superseded by `2026-08-17-employee-code-preview-line-link-design.md`
 
 ## Objective
 
