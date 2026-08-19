@@ -816,7 +816,7 @@ git commit -m "feat: preview employee identity before LINE OTP"
 
 Task 2A fixes existing rows; this task stops new rows from drifting back. Piswin returns unpadded codes such as `7644`, so without this the next import writes a code that login can no longer find.
 
-- [ ] **Step 1: Write failing write-path tests**
+- [x] **Step 1: Write failing write-path tests**
 
 Add to `EmployeeImportHandlerTests.cs`:
 
@@ -845,7 +845,7 @@ public async Task Import_ShouldDetectDuplicateAgainstCanonicalStoredCode()
 
 The second test is the one that matters: it uses a different national ID on purpose, so the duplicate can only be caught by the normalized employee-code comparison and not by the existing `|| NationalId ==` fallback.
 
-- [ ] **Step 2: Run the import tests and confirm RED**
+- [x] **Step 2: Run the import tests and confirm RED**
 
 ```powershell
 dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filter "FullyQualifiedName~EmployeeImportHandlerTests"
@@ -871,7 +871,7 @@ Apply the same normalization in `PreviewEmployeeImportCommand` for the `alreadyI
 
 In `CreateEmployeeCommand`, normalize before the uniqueness check and before the insert. Keep the validator at `NotEmpty().MaximumLength(20)`; normalization is not validation, and a normalized numeric code is never longer than the input.
 
-- [ ] **Step 4: Run the import and employee test suites**
+- [x] **Step 4: Run the import and employee test suites**
 
 ```powershell
 dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filter "FullyQualifiedName~EmployeeImport"

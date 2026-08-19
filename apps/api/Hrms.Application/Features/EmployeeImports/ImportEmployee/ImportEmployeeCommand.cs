@@ -1,5 +1,6 @@
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
+using Hrms.Application.Common.Helpers;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Employees.Common;
 using Hrms.Application.Features.Employees.Dtos;
@@ -41,9 +42,14 @@ public sealed class ImportEmployeeHandler(
             ?? throw new NotFoundException("บริษัท", request.CompanyId);
 
         var sourceEmployee = await piswinClient.FindByNationalIdAsync(request.NationalId, ct);
-        var isDuplicate = await db.Employees.AnyAsync(employee =>
-            employee.EmployeeCode == sourceEmployee.EmployeeCode ||
-            employee.NationalId == sourceEmployee.NationalId, ct);
+
+        // Piswin ส่งรหัสมาแบบไม่ pad — normalize ครั้งเดียวแล้วใช้ทั้งตอนเช็กซ้ำและตอนบันทึก
+        // ไม่งั้นจะเขียนรหัสรูปแบบเก่ากลับเข้า DB ทับ canonical form
+        var employeeCode = EmployeeCodeNormalizer.Normalize(sourceEmployee.EmployeeCode);
+
+        // ตัดสินคนซ้ำจากรหัสพนักงานเท่านั้น ไม่เช็ก national_id
+        var isDuplicate = await db.Employees.AnyAsync(
+            employee => employee.EmployeeCode == employeeCode, ct);
         if (isDuplicate)
             throw new ConflictException("DUPLICATE_EMPLOYEE", "พนักงานนี้มีอยู่ในระบบแล้ว");
 
@@ -55,7 +61,7 @@ public sealed class ImportEmployeeHandler(
         {
             CompanyId = company.Id,
             DepartmentId = null,
-            EmployeeCode = sourceEmployee.EmployeeCode,
+            EmployeeCode = employeeCode,
             FirstName = sourceEmployee.FirstName,
             LastName = sourceEmployee.LastName,
             NationalId = sourceEmployee.NationalId,

@@ -1,5 +1,6 @@
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
+using Hrms.Application.Common.Helpers;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.EmployeeImports.Dtos;
 using Hrms.Domain.Enums;
@@ -27,11 +28,14 @@ public sealed class PreviewEmployeeImportHandler(
             throw new AppForbiddenException("ไม่มีสิทธิ์นำเข้าพนักงาน");
 
         var employee = await piswinClient.FindByNationalIdAsync(request.NationalId, ct);
-        var alreadyImported = await db.Employees.AnyAsync(local =>
-            local.EmployeeCode == employee.EmployeeCode || local.NationalId == employee.NationalId, ct);
+
+        // Piswin ส่งรหัสมาแบบไม่ pad — เทียบกับ canonical form ที่เก็บใน DB เสมอ
+        var employeeCode = EmployeeCodeNormalizer.Normalize(employee.EmployeeCode);
+        var alreadyImported = await db.Employees.AnyAsync(
+            local => local.EmployeeCode == employeeCode, ct);
 
         return new EmployeeImportPreviewDto(
-            employee.EmployeeCode,
+            employeeCode,
             employee.FirstName,
             employee.LastName,
             MaskNationalId(employee.NationalId),

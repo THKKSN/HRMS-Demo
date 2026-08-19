@@ -1,6 +1,7 @@
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Extensions;
+using Hrms.Application.Common.Helpers;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Employees.Common;
 using Hrms.Application.Features.Employees.Dtos;
@@ -63,8 +64,11 @@ public class CreateEmployeeHandler(
             await scope.ThrowIfCannotAccessAsync(companyId, ct);
         }
 
-        if (await db.Employees.AnyAsync(e => e.CompanyId == companyId && e.EmployeeCode == request.EmployeeCode, ct))
-            throw new ConflictException("DUPLICATE_EMPLOYEE_CODE", $"รหัสพนักงาน '{request.EmployeeCode}' มีอยู่แล้วในระบบ");
+        // admin อาจกรอกรหัสแบบมีหรือไม่มี 0 นำหน้า — เก็บเป็น canonical form เดียวเสมอ
+        var employeeCode = EmployeeCodeNormalizer.Normalize(request.EmployeeCode);
+
+        if (await db.Employees.AnyAsync(e => e.CompanyId == companyId && e.EmployeeCode == employeeCode, ct))
+            throw new ConflictException("DUPLICATE_EMPLOYEE_CODE", $"รหัสพนักงาน '{employeeCode}' มีอยู่แล้วในระบบ");
 
         if (!string.IsNullOrEmpty(request.Email) &&
             await db.Employees.AnyAsync(e => e.Email == request.Email, ct))
@@ -82,7 +86,7 @@ public class CreateEmployeeHandler(
         {
             CompanyId    = companyId,
             DepartmentId = request.DepartmentId,
-            EmployeeCode = request.EmployeeCode,
+            EmployeeCode = employeeCode,
             FirstName    = request.FirstName,
             LastName     = request.LastName,
             Email        = request.Email,
