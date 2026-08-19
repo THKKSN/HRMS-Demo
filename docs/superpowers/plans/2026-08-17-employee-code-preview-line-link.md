@@ -1168,7 +1168,7 @@ dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj
 
 Expected: all Auth tests PASS; the complete suite has zero failures, with only an explicitly documented environment-dependent skip permitted.
 
-- [ ] **Step 6: Commit the confirmed OTP contract**
+- [x] **Step 6: Commit the confirmed OTP contract**
 
 ```bash
 git add apps/api/Hrms.Application/Features/Auth/RequestOtp \
@@ -1189,7 +1189,7 @@ git commit -m "feat: require employee preview before LINE OTP"
 **Interfaces:**
 - Produces: `normalizeEmployeeCode(string) -> string`, `buildLinkPreviewPayload(string, string) -> { accessToken, employeeCode }`, and `buildOtpRequestPayload(string, string) -> { accessToken, previewToken }`.
 
-- [ ] **Step 1: Write failing helper contract tests**
+- [x] **Step 1: Write failing helper contract tests**
 
 Replace national-ID tests with:
 
@@ -1227,7 +1227,7 @@ test('builds confirmed OTP payload with preview token only', () => {
 })
 ```
 
-- [ ] **Step 2: Run helper tests and confirm RED**
+- [x] **Step 2: Run helper tests and confirm RED**
 
 Run:
 
@@ -1237,7 +1237,7 @@ node --experimental-strip-types --test apps/liff-web/lib/auth-link.test.mjs
 
 Expected: FAIL because the preview builder and employee-code normalizer are missing and the OTP builder still accepts national ID.
 
-- [ ] **Step 3: Implement the minimal helpers**
+- [x] **Step 3: Implement the minimal helpers**
 
 ```typescript
 export function normalizeEmployeeCode(value: string): string {
@@ -1253,7 +1253,7 @@ export function buildOtpRequestPayload(accessToken: string, previewToken: string
 }
 ```
 
-- [ ] **Step 4: Run helper tests and confirm GREEN**
+- [x] **Step 4: Run helper tests and confirm GREEN**
 
 Run:
 
