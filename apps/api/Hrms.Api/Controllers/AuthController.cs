@@ -4,6 +4,7 @@ using Hrms.Application.Features.Auth.LinkAccount;
 using Hrms.Application.Features.Auth.LoginWithLine;
 using Hrms.Application.Features.Auth.LoginWithPassword;
 using Hrms.Application.Features.Auth.Logout;
+using Hrms.Application.Features.Auth.PreviewEmployeeLink;
 using Hrms.Application.Features.Auth.RefreshToken;
 using Hrms.Application.Features.Auth.RequestOtp;
 using MediatR;
@@ -54,6 +55,35 @@ public class AuthController(IMediator mediator) : ControllerBase
         }
     }
 
+    /// <summary>
+    /// ขั้นแรกของการผูกบัญชี: ตรวจรหัสพนักงาน → คืนชื่อ-นามสกุลให้ยืนยัน + preview token
+    /// ยังไม่ส่ง OTP ในขั้นนี้
+    /// </summary>
+    [HttpPost("link/preview")]
+    [EnableRateLimiting("auth_strict")]
+    public async Task<IActionResult> PreviewEmployeeLink(
+        [FromBody] PreviewEmployeeLinkRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var result = await mediator.Send(
+                new PreviewEmployeeLinkCommand(request.AccessToken, request.EmployeeCode), ct);
+            return Ok(result);
+        }
+        catch (AppUnauthorizedException ex)
+        {
+            var code = ex.Message == "EMPLOYEE_NOT_FOUND"
+                ? "EMPLOYEE_NOT_FOUND"
+                : "INVALID_LINE_TOKEN";
+            return Unauthorized(new { error = code, message = ex.Message });
+        }
+        catch (ConflictException ex)
+        {
+            return Conflict(new { error = ex.Code, message = ex.Message });
+        }
+    }
+
     /// <summary>ขอ OTP เพื่อเริ่มผูก LINE กับบัญชีพนักงาน</summary>
     [HttpPost("otp/request")]
     [EnableRateLimiting("auth_strict")]
@@ -62,7 +92,7 @@ public class AuthController(IMediator mediator) : ControllerBase
         try
         {
             var result = await mediator.Send(
-                new RequestOtpCommand(request.AccessToken, request.NationalId), ct);
+                new RequestOtpCommand(request.AccessToken, request.EmployeeCode), ct);
             return Ok(result);
         }
         catch (AppUnauthorizedException ex)
@@ -124,6 +154,7 @@ public class AuthController(IMediator mediator) : ControllerBase
 
 public record LineLoginRequest(string AccessToken);
 public record RefreshRequest(string RefreshToken);
-public record OtpRequest(string AccessToken, string NationalId);
+public record PreviewEmployeeLinkRequest(string AccessToken, string EmployeeCode);
+public record OtpRequest(string AccessToken, string EmployeeCode);
 public record LinkRequest(string AccessToken, string Otp);
 public record PasswordLoginRequest(string Email, string Password);

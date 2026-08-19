@@ -14,6 +14,12 @@
 - Before editing in the worktree, inspect `git diff --cached` from the original workspace and preserve the existing LINE OAuth callback cleanup, `buildLiffUrl` behavior, E2E LIFF access-token helper, and Playwright bypass behavior when producing the new final files.
 - `/auth/link` accepts only an employee code for first-time employee linking; national ID is absent from the form, preview request, and OTP request.
 - LINE access-token verification and the six-digit OTP remain mandatory. Employee code is a lookup key, not a password.
+- `employees.employee_code` has one canonical stored form. Numeric codes that are 3-4 digits after leading zeros are stripped are stored zero-padded to 5 characters (`7644` becomes `07644`); every other code — non-numeric such as `SYSADMIN`, 1-2 digits, and 5 or more digits — is stored with leading zeros stripped and no padding. Task 2A converts existing data before the feature ships.
+- Employee-code lookup is server-authoritative and leading-zero tolerant. The API normalizes the trimmed input to the canonical form and matches with a single equality predicate, so a typed `123`, a pasted `00123`, and a scanned `000123` all resolve to the same stored `00123`.
+- `EmployeeCodeNormalizer.Normalize` must mirror `LPAD(TRIM(LEADING '0' FROM employee_code), 5, '0')` from the SQL conversion exactly, including the scope where padding does not apply. A divergence between the two silently breaks login for the affected employees.
+- Every write path that accepts an employee code — Piswin import and admin employee creation — normalizes before saving, so the canonical form cannot drift back after the conversion.
+- The unique index `ix_employees_employee_code` is the ambiguity guarantee. A conversion that would collide fails on the index rather than merging two people, and the conversion must be verified before the feature is deployed.
+- The LIFF client only trims input. It must not pad, strip zeros, or otherwise guess the stored code, so client and server can never disagree about identity.
 - The preview endpoint returns only `fullName`, `previewToken`, and `expiresIn`; it never returns employee ID, national ID, phone, email, department, company, or LINE user ID.
 - Missing, inactive, and ambiguous employee-code matches use the same generic verification failure and do not expose a preview or generate an OTP.
 - The preview token lifetime is exactly five minutes, is bound to employee ID and verified LINE user ID, and is protected with a persistent ASP.NET Core Data Protection key ring.
@@ -30,6 +36,12 @@
 - Modify `apps/api/Hrms.Infrastructure/Hrms.Infrastructure.csproj`: add the .NET 8 Data Protection package explicitly.
 - Modify `apps/api/Hrms.Api/Program.cs`: configure a named, persistent Data Protection key ring.
 - Modify API appsettings files: add the non-secret `DataProtection:KeysPath` setting.
+- Create `scripts/pad-employee-code-to-5.sql`: one-off data conversion that gives `employees.employee_code` its canonical zero-padded form.
+- Create `apps/api/Hrms.Application/Common/Helpers/EmployeeCodeNormalizer.cs`: pure canonical-form normalizer shared by lookup and write paths.
+- Create `apps/api/Hrms.Application.Tests/Auth/EmployeeCodeNormalizerTests.cs`: normalizer unit tests for numeric, padded, and non-numeric codes.
+- Modify `apps/api/Hrms.Application/Features/EmployeeImports/ImportEmployee/ImportEmployeeCommand.cs`: normalize the Piswin code before duplicate check and insert.
+- Modify `apps/api/Hrms.Application/Features/EmployeeImports/PreviewEmployeeImport/PreviewEmployeeImportCommand.cs`: normalize before the already-imported check.
+- Modify `apps/api/Hrms.Application/Features/Employees/CreateEmployee/CreateEmployeeCommand.cs`: normalize the admin-entered code before uniqueness check and insert.
 - Create `apps/api/Hrms.Application/Features/Auth/PreviewEmployeeLink/PreviewEmployeeLinkCommand.cs`: preview request/result and validation.
 - Create `apps/api/Hrms.Application/Features/Auth/PreviewEmployeeLink/PreviewEmployeeLinkHandler.cs`: verified LINE + employee-code lookup and preview-token issuance.
 - Modify `apps/api/Hrms.Application/Features/Auth/RequestOtp/RequestOtpCommand.cs`: replace `NationalId` with `PreviewToken`.
@@ -63,7 +75,7 @@
 - Consumes: `IDataProtectionProvider`, `ITimeLimitedDataProtector`, and `DataProtection:KeysPath`.
 - Produces: `LinkPreviewIdentity(Guid EmployeeId, string LineUserId)`, `ILinkPreviewTokenService.Create(Guid, string) -> string`, and `ILinkPreviewTokenService.Validate(string) -> LinkPreviewIdentity?`.
 
-- [ ] **Step 1: Write failing protected-token tests**
+- [x] **Step 1: Write failing protected-token tests**
 
 Create `LinkPreviewTokenServiceTests.cs` with a temporary key directory and these concrete cases:
 
@@ -128,7 +140,7 @@ public sealed class LinkPreviewTokenServiceTests : IDisposable
 }
 ```
 
-- [ ] **Step 2: Run the focused tests and confirm RED**
+- [x] **Step 2: Run the focused tests and confirm RED**
 
 Run:
 
@@ -138,7 +150,7 @@ dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filt
 
 Expected: FAIL because `ILinkPreviewTokenService`, `LinkPreviewIdentity`, and `LinkPreviewTokenService` do not exist.
 
-- [ ] **Step 3: Add the application contract and Data Protection implementation**
+- [x] **Step 3: Add the application contract and Data Protection implementation**
 
 Create the contract:
 
@@ -199,7 +211,7 @@ public sealed class LinkPreviewTokenService : ILinkPreviewTokenService
 
 Add `Microsoft.AspNetCore.DataProtection` version `8.0.*` to `Hrms.Infrastructure.csproj`.
 
-- [ ] **Step 4: Configure persistent keys and register the service**
+- [x] **Step 4: Configure persistent keys and register the service**
 
 In `Program.cs`, before `AddInfrastructureServices`, configure the key ring:
 
@@ -247,7 +259,7 @@ Override it in `appsettings.Production.json` with a path outside the publish dir
 
 Development uses the framework's per-user default key ring. Do not put encryption keys or secrets in appsettings.
 
-- [ ] **Step 5: Run focused tests and build the API**
+- [x] **Step 5: Run focused tests and build the API**
 
 Run:
 
@@ -258,7 +270,7 @@ dotnet build apps/api/Hrms.Api/Hrms.Api.csproj -c Release
 
 Expected: token tests PASS and Release build exits 0.
 
-- [ ] **Step 6: Commit the token boundary**
+- [x] **Step 6: Commit the token boundary**
 
 ```bash
 git add apps/api/Hrms.Application/Common/Interfaces/ILinkPreviewTokenService.cs \
@@ -273,9 +285,56 @@ git commit -m "feat: add protected LINE link preview tokens"
 
 ---
 
+### Task 2A: Convert stored employee codes to the canonical form
+
+**Files:**
+- Create: `scripts/pad-employee-code-to-5.sql`
+- Verify only: `apps/api/Hrms.Infrastructure/Migrations/` (must stay unchanged)
+
+**Interfaces:**
+- Consumes: the `employees` table and its unique index `ix_employees_employee_code`.
+- Produces: `employees.employee_code` in one canonical form, plus `employee_code_backup_<date>` for rollback.
+
+This is a data conversion, not an EF migration. It runs manually against each database (local, staging, Production) and must be finished and verified in a database before the API that normalizes lookups is deployed against it.
+
+**Execution status (2026-08-19):** the script was dry-run against Production through STEP 4 and then rolled back. The `UPDATE` and its verify query behaved as expected, but **Production data is still in the old unpadded form** — the conversion is not applied. Two consequences for whoever executes the rest of this plan:
+
+- The real `COMMIT` must happen during the release window described in Task 6, immediately before the API artifact goes live. Deploying the normalizing API against unconverted data locks every affected employee out of first-time linking, which is exactly what `Preview_ShouldRejectUnconvertedUnpaddedStoredCode` in Task 2 asserts.
+- `CREATE TABLE` in STEP 3 is DDL and causes an implicit commit, so a backup table created during the dry run still exists even though the `UPDATE` was rolled back. Before the real run, check `SHOW TABLES LIKE 'employee_code_backup_%'` and either drop the stale table or give the new one a different date suffix — otherwise STEP 3 fails with "table already exists" and STEP 5 compares against dry-run rows.
+
+- [ ] **Step 1: Run the collision pre-check**
+
+Run STEP 1 of `scripts/pad-employee-code-to-5.sql`. It groups active employees by `LPAD(TRIM(LEADING '0' FROM employee_code), 5, '0')` and returns only groups with more than one row.
+
+Expected: 0 rows. If any row comes back, two employees would collapse onto one code — stop, report the returned `employee_ids`, and get the correct codes from HR before continuing. Do not resolve a collision by editing the script's scope.
+
+- [ ] **Step 2: Review the conversion preview**
+
+Run STEP 2 and read the `before_code` / `after_code` pairs. Confirm that non-numeric codes such as `SYSADMIN` are absent from the list and that the row count matches the number of 3-4 digit numeric codes in that database.
+
+- [ ] **Step 3: Back up the current codes**
+
+Take a full `mysqldump` first, then run STEP 3 to create `employee_code_backup_<date>`. The verification query must show `employees_rows = backup_rows`.
+
+- [ ] **Step 4: Apply the conversion inside a transaction**
+
+Run STEP 4. Before `COMMIT`, the verify query must show `numeric_not_padded = 0`, an unchanged `total_employees`, and a `non_numeric_untouched` count that matches the number of lettered codes.
+
+On error 1062 (`Duplicate entry`) or any unexpected count, run `ROLLBACK` and return to Step 1. Never drop or recreate `ix_employees_employee_code` to force the conversion through — that index is the only thing preventing two employees from sharing a code.
+
+- [ ] **Step 5: Record the result**
+
+Capture the STEP 5 before/after table for the release notes: database name, row count changed, and the backup table name. Keep the backup table for at least one month; the rollback block at the end of the script depends on it.
+
+Do not commit the captured employee codes or names into the repository.
+
+---
+
 ### Task 2: Add the employee-code preview API
 
 **Files:**
+- Create: `apps/api/Hrms.Application/Common/Helpers/EmployeeCodeNormalizer.cs`
+- Create: `apps/api/Hrms.Application.Tests/Auth/EmployeeCodeNormalizerTests.cs`
 - Create: `apps/api/Hrms.Application/Features/Auth/PreviewEmployeeLink/PreviewEmployeeLinkCommand.cs`
 - Create: `apps/api/Hrms.Application/Features/Auth/PreviewEmployeeLink/PreviewEmployeeLinkHandler.cs`
 - Create: `apps/api/Hrms.Application.Tests/Auth/PreviewEmployeeLinkTests.cs`
@@ -283,9 +342,9 @@ git commit -m "feat: add protected LINE link preview tokens"
 
 **Interfaces:**
 - Consumes: `ILineAuthService.VerifyAccessTokenAsync(string, CancellationToken)` and `ILinkPreviewTokenService.Create(Guid, string)` from Task 1.
-- Produces: `PreviewEmployeeLinkCommand(string AccessToken, string EmployeeCode)`, `PreviewEmployeeLinkResult(string FullName, string PreviewToken, int ExpiresIn)`, and `POST /v1/auth/link/preview`.
+- Produces: `EmployeeCodeNormalizer.Normalize(string) -> string`, `PreviewEmployeeLinkCommand(string AccessToken, string EmployeeCode)`, `PreviewEmployeeLinkResult(string FullName, string PreviewToken, int ExpiresIn)`, and `POST /v1/auth/link/preview`.
 
-- [ ] **Step 1: Write failing preview-handler tests**
+- [x] **Step 1: Write failing preview-handler tests**
 
 Create `PreviewEmployeeLinkTests.cs`. Reuse an EF in-memory database helper and mock LINE/token services. Cover these exact tests:
 
@@ -399,17 +458,207 @@ private static Employee Employee(string employeeCode, bool active) => new()
 };
 ```
 
-- [ ] **Step 2: Run preview tests and confirm RED**
+Also create `EmployeeCodeNormalizerTests.cs` for the pure normalizer. These cases pin the canonical form exactly and must stay in lockstep with `scripts/pad-employee-code-to-5.sql`:
+
+```csharp
+using FluentAssertions;
+using Hrms.Application.Common.Helpers;
+
+namespace Hrms.Application.Tests.Auth;
+
+public sealed class EmployeeCodeNormalizerTests
+{
+    [Theory]
+    [InlineData("  123  ", "00123")]
+    [InlineData("123", "00123")]
+    [InlineData("00123", "00123")]
+    [InlineData("000123", "00123")]
+    [InlineData("7644", "07644")]
+    [InlineData("07644", "07644")]
+    [InlineData("9905", "09905")]
+    public void Normalize_ShouldPadThreeAndFourDigitCodesToFive(
+        string typed,
+        string expected)
+    {
+        EmployeeCodeNormalizer.Normalize(typed).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("SYSADMIN", "SYSADMIN")]
+    [InlineData("EMP001", "EMP001")]
+    [InlineData("00A12", "00A12")]
+    [InlineData("  EMP-7 ", "EMP-7")]
+    public void Normalize_ShouldOnlyTrimNonNumericCodes(string typed, string expected)
+    {
+        EmployeeCodeNormalizer.Normalize(typed).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("12", "12")]
+    [InlineData("0012", "12")]
+    [InlineData("123456", "123456")]
+    [InlineData("0123456", "123456")]
+    [InlineData("0", "0")]
+    [InlineData("0000", "0")]
+    public void Normalize_ShouldStripZerosWithoutPaddingOutsideThreeToFourDigits(
+        string typed,
+        string expected)
+    {
+        EmployeeCodeNormalizer.Normalize(typed).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void Normalize_ShouldReturnEmptyForBlankInput(string? typed)
+    {
+        EmployeeCodeNormalizer.Normalize(typed!).Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("123")]
+    [InlineData("07644")]
+    [InlineData("SYSADMIN")]
+    public void Normalize_ShouldBeIdempotent(string typed)
+    {
+        var once = EmployeeCodeNormalizer.Normalize(typed);
+
+        EmployeeCodeNormalizer.Normalize(once).Should().Be(once);
+    }
+}
+```
+
+`Normalize_ShouldBeIdempotent` is the guard that matters most: the SQL conversion runs once, but the normalizer runs on every login and on every import, so normalizing an already-canonical code must never change it.
+
+Add these lookup cases to `PreviewEmployeeLinkTests.cs` so the handler — not just the helper — is proven leading-zero tolerant. Stored codes here are always the canonical form produced by Task 2A:
+
+```csharp
+[Theory]
+[InlineData("123")]
+[InlineData("0123")]
+[InlineData("00123")]
+[InlineData("  00123  ")]
+public async Task Preview_ShouldMatchCanonicalStoredCodeFromAnyTypedForm(string typedCode)
+{
+    await using var db = CreateDb();
+    var employee = Employee("00123", active: true);
+    db.Employees.Add(employee);
+    await db.SaveChangesAsync();
+    var tokens = new Mock<ILinkPreviewTokenService>();
+    tokens.Setup(x => x.Create(employee.Id, "U-LINE-123")).Returns("preview-token");
+    var handler = new PreviewEmployeeLinkHandler(db, VerifiedLine().Object, tokens.Object);
+
+    var result = await handler.Handle(
+        new PreviewEmployeeLinkCommand("line-token", typedCode), default);
+
+    result.FullName.Should().Be("Auth Test");
+    result.PreviewToken.Should().Be("preview-token");
+}
+
+[Fact]
+public async Task Preview_ShouldMatchNonNumericCodeWithoutPadding()
+{
+    await using var db = CreateDb();
+    var employee = Employee("SYSADMIN", active: true);
+    db.Employees.Add(employee);
+    await db.SaveChangesAsync();
+    var tokens = new Mock<ILinkPreviewTokenService>();
+    tokens.Setup(x => x.Create(employee.Id, "U-LINE-123")).Returns("preview-token");
+    var handler = new PreviewEmployeeLinkHandler(db, VerifiedLine().Object, tokens.Object);
+
+    var result = await handler.Handle(
+        new PreviewEmployeeLinkCommand("line-token", " SYSADMIN "), default);
+
+    result.PreviewToken.Should().Be("preview-token");
+}
+
+[Fact]
+public async Task Preview_ShouldRejectUnconvertedUnpaddedStoredCode()
+{
+    // Guards the deploy order: if Task 2A has not run, a 4-digit stored code
+    // must fail generically instead of leaking a partial match.
+    await using var db = CreateDb();
+    db.Employees.Add(Employee("7644", active: true));
+    await db.SaveChangesAsync();
+    var tokens = new Mock<ILinkPreviewTokenService>();
+    var handler = new PreviewEmployeeLinkHandler(db, VerifiedLine().Object, tokens.Object);
+
+    var action = () => handler.Handle(
+        new PreviewEmployeeLinkCommand("line-token", "7644"), default);
+
+    await action.Should().ThrowAsync<AppUnauthorizedException>()
+        .WithMessage("EMPLOYEE_NOT_FOUND");
+    tokens.Verify(x => x.Create(It.IsAny<Guid>(), It.IsAny<string>()), Times.Never);
+}
+
+[Fact]
+public async Task Preview_ShouldIgnoreInactiveEmployeeWithTheSameCanonicalCode()
+{
+    await using var db = CreateDb();
+    db.Employees.Add(Employee("00123", active: false));
+    await db.SaveChangesAsync();
+    var tokens = new Mock<ILinkPreviewTokenService>();
+    var handler = new PreviewEmployeeLinkHandler(db, VerifiedLine().Object, tokens.Object);
+
+    var action = () => handler.Handle(
+        new PreviewEmployeeLinkCommand("line-token", "123"), default);
+
+    await action.Should().ThrowAsync<AppUnauthorizedException>()
+        .WithMessage("EMPLOYEE_NOT_FOUND");
+    tokens.Verify(x => x.Create(It.IsAny<Guid>(), It.IsAny<string>()), Times.Never);
+}
+```
+
+`Preview_ShouldRejectUnconvertedUnpaddedStoredCode` documents the hard dependency on Task 2A. It is deliberately a failing-login assertion, not a fallback: the fix is to run the conversion, never to loosen the query.
+
+- [x] **Step 2: Run preview tests and confirm RED**
 
 Run:
 
 ```powershell
 dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filter "FullyQualifiedName~PreviewEmployeeLinkTests"
+dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filter "FullyQualifiedName~EmployeeCodeNormalizerTests"
 ```
 
-Expected: FAIL because the preview command and handler are missing.
+Expected: both FAIL because `EmployeeCodeNormalizer`, the preview command, and the handler are missing.
 
-- [ ] **Step 3: Implement the preview command, validator, and handler**
+- [x] **Step 3: Implement the normalizer, command, validator, and handler**
+
+Create the pure normalizer first. It must mirror the SQL conversion from Task 2A exactly and stay free of database or configuration dependencies:
+
+```csharp
+namespace Hrms.Application.Common.Helpers;
+
+/// <summary>
+/// Converts a user-entered employee code into the single canonical form stored in
+/// <c>employees.employee_code</c>. This is the C# mirror of the SQL conversion in
+/// <c>scripts/pad-employee-code-to-5.sql</c>:
+/// <c>LPAD(TRIM(LEADING '0' FROM employee_code), 5, '0')</c> for numeric codes whose
+/// unpadded length is 3-4, and the zero-stripped value for every other numeric code.
+/// Any divergence between the two silently breaks login, so change them together.
+/// </summary>
+public static class EmployeeCodeNormalizer
+{
+    private const int PaddedLength = 5;
+    private const int MinPaddableDigits = 3;
+    private const int MaxPaddableDigits = 4;
+
+    public static string Normalize(string employeeCode)
+    {
+        var trimmed = employeeCode?.Trim() ?? string.Empty;
+        if (trimmed.Length == 0) return string.Empty;
+        if (!trimmed.All(char.IsAsciiDigit)) return trimmed;
+
+        var unpadded = trimmed.TrimStart('0');
+        if (unpadded.Length == 0) unpadded = "0";
+
+        return unpadded.Length is >= MinPaddableDigits and <= MaxPaddableDigits
+            ? unpadded.PadLeft(PaddedLength, '0')
+            : unpadded;
+    }
+}
+```
 
 Create the contracts:
 
@@ -446,7 +695,10 @@ public async Task<PreviewEmployeeLinkResult> Handle(
     CancellationToken ct)
 {
     var profile = await line.VerifyAccessTokenAsync(request.AccessToken, ct);
-    var employeeCode = request.EmployeeCode.Trim();
+    var employeeCode = EmployeeCodeNormalizer.Normalize(request.EmployeeCode);
+    if (employeeCode.Length == 0)
+        throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND");
+
     var matches = await db.Employees
         .Where(x => x.EmployeeCode == employeeCode && x.IsActive)
         .Take(2)
@@ -469,7 +721,9 @@ public async Task<PreviewEmployeeLinkResult> Handle(
 }
 ```
 
-- [ ] **Step 4: Add the rate-limited controller endpoint**
+The predicate stays a single equality against the unique `ix_employees_employee_code` index, so no migration or index change is needed. Keep `Take(2)` and the `matches.Count != 1` guard even though the unique index makes two matches impossible - they keep the handler fail-closed if that index is ever dropped. Do not add `ToUpper`/`ToLower`; the column already uses the case-insensitive `utf8mb4_0900_ai_ci` collation and coercion would force a full scan.
+
+- [x] **Step 4: Add the rate-limited controller endpoint**
 
 Add `PreviewEmployeeLinkRequest` and an endpoint before `otp/request`:
 
@@ -501,24 +755,116 @@ public async Task<IActionResult> PreviewEmployeeLink(
 public sealed record PreviewEmployeeLinkRequest(string AccessToken, string EmployeeCode);
 ```
 
-- [ ] **Step 5: Run preview tests and the API build**
+- [x] **Step 5: Run preview tests and the API build**
 
 Run:
 
 ```powershell
+dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filter "FullyQualifiedName~EmployeeCodeNormalizerTests"
 dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filter "FullyQualifiedName~PreviewEmployeeLinkTests"
 dotnet build apps/api/Hrms.Api/Hrms.Api.csproj -c Release
 ```
 
-Expected: preview tests PASS and build exits 0.
+Expected: normalizer tests PASS, preview tests PASS, and build exits 0.
 
 - [ ] **Step 6: Commit the preview API**
 
 ```bash
-git add apps/api/Hrms.Application/Features/Auth/PreviewEmployeeLink \
+git add apps/api/Hrms.Application/Common/Helpers/EmployeeCodeNormalizer.cs \
+  apps/api/Hrms.Application/Features/Auth/PreviewEmployeeLink \
   apps/api/Hrms.Api/Controllers/AuthController.cs \
+  apps/api/Hrms.Application.Tests/Auth/EmployeeCodeNormalizerTests.cs \
   apps/api/Hrms.Application.Tests/Auth/PreviewEmployeeLinkTests.cs
 git commit -m "feat: preview employee identity before LINE OTP"
+```
+
+---
+
+### Task 2B: Normalize employee codes on every write path
+
+**Files:**
+- Modify: `apps/api/Hrms.Application/Features/EmployeeImports/ImportEmployee/ImportEmployeeCommand.cs`
+- Modify: `apps/api/Hrms.Application/Features/EmployeeImports/PreviewEmployeeImport/PreviewEmployeeImportCommand.cs`
+- Modify: `apps/api/Hrms.Application/Features/Employees/CreateEmployee/CreateEmployeeCommand.cs`
+- Modify: `apps/api/Hrms.Application.Tests/EmployeeImports/EmployeeImportHandlerTests.cs`
+
+**Interfaces:**
+- Consumes: `EmployeeCodeNormalizer.Normalize(string)` from Task 2.
+- Produces: import and admin-create paths that can only store canonical codes.
+
+Task 2A fixes existing rows; this task stops new rows from drifting back. Piswin returns unpadded codes such as `7644`, so without this the next import writes a code that login can no longer find.
+
+- [ ] **Step 1: Write failing write-path tests**
+
+Add to `EmployeeImportHandlerTests.cs`:
+
+```csharp
+[Fact]
+public async Task Import_ShouldStoreCanonicalEmployeeCodeFromUnpaddedSource()
+{
+    // Piswin returns "7644"; the row must be stored as "07644".
+    var result = await ImportFromPiswin(employeeCode: "7644");
+
+    result.EmployeeCode.Should().Be("07644");
+}
+
+[Fact]
+public async Task Import_ShouldDetectDuplicateAgainstCanonicalStoredCode()
+{
+    // Existing row already canonical from Task 2A; Piswin still sends "7644".
+    await SeedEmployee(employeeCode: "07644", nationalId: "1100500979585");
+
+    var action = () => ImportFromPiswin(employeeCode: "7644", nationalId: "9999999999999");
+
+    var exception = await action.Should().ThrowAsync<ConflictException>();
+    exception.Which.Code.Should().Be("DUPLICATE_EMPLOYEE");
+}
+```
+
+The second test is the one that matters: it uses a different national ID on purpose, so the duplicate can only be caught by the normalized employee-code comparison and not by the existing `|| NationalId ==` fallback.
+
+- [ ] **Step 2: Run the import tests and confirm RED**
+
+```powershell
+dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filter "FullyQualifiedName~EmployeeImportHandlerTests"
+```
+
+Expected: both new tests FAIL because the source code is stored verbatim.
+
+- [ ] **Step 3: Normalize before comparing and before saving**
+
+In `ImportEmployeeCommand`, normalize once and use that value for both the duplicate check and the insert:
+
+```csharp
+var sourceEmployee = await piswinClient.FindByNationalIdAsync(request.NationalId, ct);
+var employeeCode = EmployeeCodeNormalizer.Normalize(sourceEmployee.EmployeeCode);
+var isDuplicate = await db.Employees.AnyAsync(employee =>
+    employee.EmployeeCode == employeeCode ||
+    employee.NationalId == sourceEmployee.NationalId, ct);
+```
+
+Then set `EmployeeCode = employeeCode` on the new `Employee`.
+
+Apply the same normalization in `PreviewEmployeeImportCommand` for the `alreadyImported` check. Return the normalized code in `EmployeeImportPreviewDto` so the admin preview shows exactly what will be stored.
+
+In `CreateEmployeeCommand`, normalize before the uniqueness check and before the insert. Keep the validator at `NotEmpty().MaximumLength(20)`; normalization is not validation, and a normalized numeric code is never longer than the input.
+
+- [ ] **Step 4: Run the import and employee test suites**
+
+```powershell
+dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filter "FullyQualifiedName~EmployeeImport"
+dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filter "FullyQualifiedName~Employee"
+```
+
+Expected: new tests PASS and no existing employee test regresses. Existing tests that assert an unpadded stored code must be updated to the canonical form, not worked around.
+
+- [ ] **Step 5: Commit the write-path normalization**
+
+```bash
+git add apps/api/Hrms.Application/Features/EmployeeImports \
+  apps/api/Hrms.Application/Features/Employees/CreateEmployee/CreateEmployeeCommand.cs \
+  apps/api/Hrms.Application.Tests/EmployeeImports/EmployeeImportHandlerTests.cs
+git commit -m "fix: store canonical employee codes on import and create"
 ```
 
 ---
@@ -839,6 +1185,12 @@ test('normalizes employee code by trimming only', () => {
   assert.equal(normalizeEmployeeCode('  Emp-001  '), 'Emp-001')
 })
 
+test('never pads or strips leading zeros on the client', () => {
+  assert.equal(normalizeEmployeeCode('  123  '), '123')
+  assert.equal(normalizeEmployeeCode('00123'), '00123')
+  assert.equal(normalizeEmployeeCode(' 07644 '), '07644')
+})
+
 test('builds preview payload without national ID', () => {
   const payload = buildLinkPreviewPayload('line-token', '  EMP001  ')
   assert.deepEqual(payload, { accessToken: 'line-token', employeeCode: 'EMP001' })
@@ -887,7 +1239,7 @@ Run:
 node --experimental-strip-types --test apps/liff-web/lib/auth-link.test.mjs
 ```
 
-Expected: 3 tests PASS.
+Expected: 4 tests PASS. Leading-zero handling stays on the server; `normalizeEmployeeCode` must remain a plain `trim()`.
 
 - [ ] **Step 5: Commit the LIFF contracts**
 
@@ -963,6 +1315,26 @@ test('not-me action clears preview and returns to editable code', async ({ page 
 
   await expect(page.getByLabel('รหัสพนักงาน')).toBeEditable()
   await expect(page.getByText('ไม่ใช่ ผู้ใช้')).toHaveCount(0)
+})
+
+test('sends leading zeros verbatim and lets the server resolve them', async ({ page }) => {
+  let previewBody: unknown
+  await page.route('http://api.test/v1/auth/link/preview', async route => {
+    previewBody = route.request().postDataJSON()
+    await route.fulfill({
+      status: 200,
+      json: { fullName: 'สมหญิง รักงาน', previewToken: 'preview-token', expiresIn: 300 },
+    })
+  })
+  await page.goto('/auth/link')
+  await page.getByLabel('รหัสพนักงาน').fill('  00123  ')
+  await page.getByRole('button', { name: 'ตรวจสอบ' }).click()
+
+  await expect(page.getByText('สมหญิง รักงาน')).toBeVisible()
+  expect(previewBody).toEqual({
+    accessToken: 'e2e-line-access-token',
+    employeeCode: '00123',
+  })
 })
 ```
 
@@ -1058,6 +1430,12 @@ type LinkPreview = {
 
 const [preview, setPreview] = useState<LinkPreview | null>(null)
 const [isConfirming, setIsConfirming] = useState(false)
+```
+
+The employee-code field must be `type="text"` with `inputMode="text"`. Do not use `type="number"`, `valueAsNumber`, `Number()`, or `parseInt`, because any numeric coercion silently destroys leading zeros before the value reaches the API. Keep the Zod schema at `trim()` only — no `.regex(/^\d+$/)` and no padding — so non-numeric codes such as `SYSADMIN` still submit. Add helper text under the field:
+
+```text
+กรอกรหัสพนักงานตามบัตร เช่น 00123 หรือ 123 ก็ได้
 ```
 
 The form submit must call preview only:
@@ -1171,6 +1549,26 @@ Replace the national-ID linking sequence with:
 
 Document the five-minute preview lifetime, persistent Data Protection key ring, generic lookup errors, no storage/logging of identity preview values, and atomic API+LIFF deployment.
 
+Also document the leading-zero rule explicitly:
+
+```text
+รูปแบบรหัสพนักงานที่เก็บใน DB (canonical form)
+  - ตัวเลขล้วน ที่ตัด 0 นำหน้าแล้วเหลือ 3-4 หลัก → เติม 0 ให้ครบ 5 หลัก
+        '123' → '00123'   '7644' → '07644'   '9905' → '09905'
+  - ตัวเลขล้วนอื่น ๆ (1-2 หลัก หรือ 5 หลักขึ้นไป) → ตัด 0 นำหน้าออก ไม่เติม
+  - รหัสที่มีตัวอักษร (เช่น 'SYSADMIN') → ไม่แตะเลย
+  - แปลงข้อมูลเดิมด้วย scripts/pad-employee-code-to-5.sql (ครั้งเดียว ไม่ใช่ EF migration)
+  - ทุกทางที่เขียนรหัสใหม่ (Piswin import, admin สร้างพนักงาน) normalize ก่อนบันทึก
+
+การค้นหาตอนผูกบัญชี (ทำที่ฝั่ง server เท่านั้น)
+  - normalize ค่าที่กรอกเป็น canonical form แล้วเทียบ = ตรง ๆ ครั้งเดียว
+        กรอก '123' / '0123' / '00123' → '00123' → เจอคนเดียวกัน
+  - EmployeeCodeNormalizer.Normalize ต้องให้ผลตรงกับ SQL ทุกกรณี
+    ถ้าไม่ตรง พนักงานจะล็อกอินไม่ได้แบบเงียบ ๆ
+  - unique index ix_employees_employee_code เป็นตัวรับประกันว่าไม่มีรหัสซ้ำ
+  - ฝั่ง LIFF trim เท่านั้น ห้ามเติม/ตัด 0 เอง
+```
+
 - [ ] **Step 2: Run the complete verification suite with fresh output**
 
 Run:
@@ -1225,10 +1623,11 @@ Verify in this order without placing PII or tokens in screenshots/logs:
 1. `/health` and `/health/ready` return Healthy.
 2. Unknown employee code returns the generic failure and no name.
 3. Valid employee code displays the correct full name and sends no OTP yet.
-4. “ไม่ใช่” returns to empty code entry.
-5. “ใช่ นี่คือฉัน” sends one OTP and navigates to `/auth/otp`.
-6. Correct OTP links the account and opens the requested `next` page.
-7. A subsequent LIFF visit signs in automatically without preview.
-8. Admin password login and external reporter authentication still work.
+4. The same employee resolves whether the code is typed unpadded or padded (e.g. `7644` and `07644`), and a non-numeric code such as `SYSADMIN` still works.
+5. “ไม่ใช่” returns to empty code entry.
+6. “ใช่ นี่คือฉัน” sends one OTP and navigates to `/auth/otp`.
+7. Correct OTP links the account and opens the requested `next` page.
+8. A subsequent LIFF visit signs in automatically without preview.
+9. Admin password login and external reporter authentication still work.
 
 Record the tested release commit and timestamp. Do not record the employee code, full name, preview token, LINE access token, or OTP.
