@@ -13,49 +13,24 @@ namespace Hrms.Application.Tests.Auth;
 
 public sealed class RequestOtpTests
 {
-    private const string ValidNationalId = "1103703466623";
-
     [Fact]
-    public void Validator_AcceptsValidThaiNationalIdWithoutEmployeeCode()
-    {
-        var result = new RequestOtpCommandValidator()
-            .Validate(new RequestOtpCommand("line-token", ValidNationalId));
-
-        result.IsValid.Should().BeTrue();
-    }
-
-    [Theory]
-    [InlineData("")]
-    [InlineData("110370346662")]
-    [InlineData("11037034666233")]
-    [InlineData("110370346662X")]
-    [InlineData("1103703466624")]
-    public void Validator_RejectsMalformedOrWrongChecksumNationalId(string nationalId)
-    {
-        var result = new RequestOtpCommandValidator()
-            .Validate(new RequestOtpCommand("line-token", nationalId));
-
-        result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(error => error.PropertyName == "NationalId");
-    }
-
-    [Fact]
-    public async Task Handler_FindsEmployeeByNationalIdAndSendsOtpToVerifiedLineUser()
+    public async Task Handler_ShouldSendOtpForPreviewBoundToVerifiedLineUser()
     {
         await using var db = CreateDb();
-        var employee = Employee("EMP-NOT-SENT", ValidNationalId);
+        var employee = Employee("00123");
         db.Employees.Add(employee);
         await db.SaveChangesAsync();
-        var line = VerifiedLine();
+        var previewTokens = Preview("preview-token", employee.Id, "U-LINE-123");
         var otp = new Mock<IOtpService>();
         otp.Setup(service => service.GenerateAndStoreAsync(
                 employee.Id, "U-LINE-123", It.IsAny<CancellationToken>()))
             .ReturnsAsync("123456");
         var messaging = new Mock<ILineMessagingService>();
-        var handler = new RequestOtpHandler(db, line.Object, otp.Object, messaging.Object);
+        var handler = new RequestOtpHandler(
+            db, VerifiedLine().Object, previewTokens.Object, otp.Object, messaging.Object);
 
         var result = await handler.Handle(
-            new RequestOtpCommand("line-token", ValidNationalId), default);
+            new RequestOtpCommand("line-token", "preview-token"), default);
 
         result.Hint.Should().Be("OTP ส่งแล้ว กรุณาตรวจสอบ LINE ของคุณ");
         otp.VerifyAll();
@@ -65,118 +40,160 @@ public sealed class RequestOtpTests
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    [Fact]
-    public async Task Handler_RejectsDuplicateActiveNationalIdWithoutGeneratingOtp()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task Handler_ShouldRejectInvalidOrExpiredPreviewWithoutOtp(string? lineUserId)
     {
         await using var db = CreateDb();
-        db.Employees.AddRange(
-            Employee("EMP-DUP-1", ValidNationalId),
-            Employee("EMP-DUP-2", ValidNationalId));
-        await db.SaveChangesAsync();
+        var previewTokens = new Mock<ILinkPreviewTokenService>();
+        previewTokens.Setup(service => service.Validate("invalid-preview"))
+            .Returns(lineUserId is null
+                ? null
+                : new LinkPreviewIdentity(Guid.NewGuid(), lineUserId));
         var otp = new Mock<IOtpService>();
-        var messaging = new Mock<ILineMessagingService>();
         var handler = new RequestOtpHandler(
-            db, VerifiedLine().Object, otp.Object, messaging.Object);
+            db, VerifiedLine().Object, previewTokens.Object, otp.Object,
+            Mock.Of<ILineMessagingService>());
 
         var action = () => handler.Handle(
-            new RequestOtpCommand("line-token", ValidNationalId), default);
+            new RequestOtpCommand("line-token", "invalid-preview"), default);
 
         await action.Should().ThrowAsync<AppUnauthorizedException>()
-            .WithMessage("EMPLOYEE_NOT_FOUND");
-        otp.Verify(service => service.GenerateAndStoreAsync(
-            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-        messaging.Verify(service => service.PushMessageAsync(
-            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+            .WithMessage("INVALID_OR_EXPIRED_PREVIEW");
+        VerifyNoOtp(otp);
     }
 
     [Fact]
-    public async Task Handler_RejectsInactiveEmployeeWithoutGeneratingOtp()
+    public async Task Handler_ShouldRejectPreviewBoundToAnotherLineUser()
     {
         await using var db = CreateDb();
-        var employee = Employee("EMP-INACTIVE", ValidNationalId);
-        employee.IsActive = false;
+        var previewTokens = Preview("preview-token", Guid.NewGuid(), "U-OTHER");
+        var otp = new Mock<IOtpService>();
+        var handler = new RequestOtpHandler(
+            db, VerifiedLine().Object, previewTokens.Object, otp.Object,
+            Mock.Of<ILineMessagingService>());
+
+        var action = () => handler.Handle(
+            new RequestOtpCommand("line-token", "preview-token"), default);
+
+        await action.Should().ThrowAsync<AppUnauthorizedException>()
+            .WithMessage("INVALID_OR_EXPIRED_PREVIEW");
+        VerifyNoOtp(otp);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Handler_ShouldRejectMissingOrInactiveEmployeeAfterPreview(
+        bool employeeExists)
+    {
+        await using var db = CreateDb();
+        Guid employeeId;
+        if (employeeExists)
+        {
+            // มีพนักงานอยู่จริง แต่ถูกปิดใช้งานหลังออก preview token ไปแล้ว
+            var employee = Employee("00123");
+            employee.IsActive = false;
+            db.Employees.Add(employee);
+            await db.SaveChangesAsync();
+            employeeId = employee.Id;
+        }
+        else
+        {
+            // preview token ชี้ไปยังพนักงานที่ไม่มีในระบบ
+            employeeId = Guid.NewGuid();
+        }
+        var previewTokens = Preview("preview-token", employeeId, "U-LINE-123");
+        var otp = new Mock<IOtpService>();
+        var handler = new RequestOtpHandler(
+            db, VerifiedLine().Object, previewTokens.Object, otp.Object,
+            Mock.Of<ILineMessagingService>());
+
+        var action = () => handler.Handle(
+            new RequestOtpCommand("line-token", "preview-token"), default);
+
+        await action.Should().ThrowAsync<AppUnauthorizedException>()
+            .WithMessage("INVALID_OR_EXPIRED_PREVIEW");
+        VerifyNoOtp(otp);
+    }
+
+    [Fact]
+    public async Task Handler_ShouldPreserveAlreadyLinkedConflictAfterPreview()
+    {
+        await using var db = CreateDb();
+        var employee = Employee("00123");
+        employee.LineUserId = "U-EXISTING";
         db.Employees.Add(employee);
         await db.SaveChangesAsync();
-        var otp = new Mock<IOtpService>();
+        var previewTokens = Preview("preview-token", employee.Id, "U-LINE-123");
         var handler = new RequestOtpHandler(
-            db, VerifiedLine().Object, otp.Object, new Mock<ILineMessagingService>().Object);
+            db, VerifiedLine().Object, previewTokens.Object,
+            Mock.Of<IOtpService>(), Mock.Of<ILineMessagingService>());
 
         var action = () => handler.Handle(
-            new RequestOtpCommand("line-token", ValidNationalId), default);
-
-        await action.Should().ThrowAsync<AppUnauthorizedException>()
-            .WithMessage("EMPLOYEE_NOT_FOUND");
-        otp.Verify(service => service.GenerateAndStoreAsync(
-            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task Handler_RejectsMissingEmployeeWithoutGeneratingOtp()
-    {
-        await using var db = CreateDb();
-        var otp = new Mock<IOtpService>();
-        var handler = new RequestOtpHandler(
-            db, VerifiedLine().Object, otp.Object, new Mock<ILineMessagingService>().Object);
-
-        var action = () => handler.Handle(
-            new RequestOtpCommand("line-token", ValidNationalId), default);
-
-        await action.Should().ThrowAsync<AppUnauthorizedException>()
-            .WithMessage("EMPLOYEE_NOT_FOUND");
-        otp.Verify(service => service.GenerateAndStoreAsync(
-            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task Handler_PreservesAlreadyLinkedConflict()
-    {
-        await using var db = CreateDb();
-        var employee = Employee("EMP-LINKED", ValidNationalId);
-        employee.LineUserId = "U-OTHER";
-        db.Employees.Add(employee);
-        await db.SaveChangesAsync();
-        var handler = new RequestOtpHandler(
-            db,
-            VerifiedLine().Object,
-            new Mock<IOtpService>().Object,
-            new Mock<ILineMessagingService>().Object);
-
-        var action = () => handler.Handle(
-            new RequestOtpCommand("line-token", ValidNationalId), default);
+            new RequestOtpCommand("line-token", "preview-token"), default);
 
         var exception = await action.Should().ThrowAsync<ConflictException>();
         exception.Which.Code.Should().Be("ALREADY_LINKED");
     }
 
     [Fact]
-    public async Task Handler_VerifiesLineTokenBeforeReadingEmployees()
+    public async Task Handler_ShouldVerifyLineBeforeValidatingPreviewToken()
     {
-        var db = new Mock<IApplicationDbContext>(MockBehavior.Strict);
-        db.SetupGet(context => context.Employees)
-            .Throws(new InvalidOperationException("EMPLOYEES_QUERY_BEFORE_LINE_VERIFICATION"));
         var line = new Mock<ILineAuthService>();
         line.Setup(service => service.VerifyAccessTokenAsync(
                 "bad-token", It.IsAny<CancellationToken>()))
             .ThrowsAsync(new AppUnauthorizedException("INVALID_LINE_TOKEN"));
-        var otp = new Mock<IOtpService>();
+        var previewTokens = new Mock<ILinkPreviewTokenService>(MockBehavior.Strict);
         var handler = new RequestOtpHandler(
-            db.Object, line.Object, otp.Object, new Mock<ILineMessagingService>().Object);
+            Mock.Of<IApplicationDbContext>(), line.Object, previewTokens.Object,
+            Mock.Of<IOtpService>(), Mock.Of<ILineMessagingService>());
 
         var action = () => handler.Handle(
-            new RequestOtpCommand("bad-token", ValidNationalId), default);
+            new RequestOtpCommand("bad-token", "preview-token"), default);
 
         await action.Should().ThrowAsync<AppUnauthorizedException>()
             .WithMessage("INVALID_LINE_TOKEN");
-        db.VerifyGet(context => context.Employees, Times.Never);
-        otp.Verify(service => service.GenerateAndStoreAsync(
-            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        previewTokens.Verify(service => service.Validate(It.IsAny<string>()), Times.Never);
+    }
+
+    [Fact]
+    public void Validator_ShouldAcceptAccessTokenWithPreviewToken()
+    {
+        var result = new RequestOtpCommandValidator()
+            .Validate(new RequestOtpCommand("line-token", "preview-token"));
+
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Validator_ShouldRejectEmptyPreviewToken(string previewToken)
+    {
+        var result = new RequestOtpCommandValidator().Validate(
+            new RequestOtpCommand("line-token", previewToken));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(error => error.PropertyName == "PreviewToken");
+    }
+
+    [Fact]
+    public void Validator_ShouldRejectEmptyAccessToken()
+    {
+        var result = new RequestOtpCommandValidator().Validate(
+            new RequestOtpCommand("", "preview-token"));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(error => error.PropertyName == "AccessToken");
     }
 
     [Fact]
     public async Task LinkAccount_StillBindsVerifiedLineUserAfterOtpConfirmation()
     {
         await using var db = CreateDb();
-        var employee = Employee("EMP-OTP-LINK", ValidNationalId);
+        var employee = Employee("00123");
         db.Employees.Add(employee);
         await db.SaveChangesAsync();
         var otp = new Mock<IOtpService>();
@@ -200,6 +217,21 @@ public sealed class RequestOtpTests
         (await db.RefreshTokens.CountAsync()).Should().Be(1);
     }
 
+    private static Mock<ILinkPreviewTokenService> Preview(
+        string token,
+        Guid employeeId,
+        string lineUserId)
+    {
+        var previewTokens = new Mock<ILinkPreviewTokenService>();
+        previewTokens.Setup(service => service.Validate(token))
+            .Returns(new LinkPreviewIdentity(employeeId, lineUserId));
+        return previewTokens;
+    }
+
+    private static void VerifyNoOtp(Mock<IOtpService> otp)
+        => otp.Verify(service => service.GenerateAndStoreAsync(
+            It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+
     private static HrmsDbContext CreateDb()
     {
         var options = new DbContextOptionsBuilder<HrmsDbContext>()
@@ -208,13 +240,12 @@ public sealed class RequestOtpTests
         return new HrmsDbContext(options);
     }
 
-    private static Employee Employee(string employeeCode, string nationalId) => new()
+    private static Employee Employee(string employeeCode) => new()
     {
         CompanyId = Guid.NewGuid(),
         EmployeeCode = employeeCode,
         FirstName = "Auth",
         LastName = "Test",
-        NationalId = nationalId,
         IsActive = true
     };
 

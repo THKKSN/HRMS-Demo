@@ -84,7 +84,10 @@ public class AuthController(IMediator mediator) : ControllerBase
         }
     }
 
-    /// <summary>ขอ OTP เพื่อเริ่มผูก LINE กับบัญชีพนักงาน</summary>
+    /// <summary>
+    /// ขั้นที่สอง: ยืนยันตัวตนจาก preview แล้วส่ง OTP ทาง LINE
+    /// ต้องเรียก /auth/link/preview ก่อนเพื่อเอา previewToken
+    /// </summary>
     [HttpPost("otp/request")]
     [EnableRateLimiting("auth_strict")]
     public async Task<IActionResult> RequestOtp([FromBody] OtpRequest request, CancellationToken ct)
@@ -92,12 +95,19 @@ public class AuthController(IMediator mediator) : ControllerBase
         try
         {
             var result = await mediator.Send(
-                new RequestOtpCommand(request.AccessToken, request.EmployeeCode), ct);
+                new RequestOtpCommand(request.AccessToken, request.PreviewToken), ct);
             return Ok(result);
         }
         catch (AppUnauthorizedException ex)
         {
-            return Unauthorized(new { error = "EMPLOYEE_NOT_FOUND", message = ex.Message });
+            // ไม่ echo token หรือข้อมูลพนักงานกลับไปใน error
+            var code = ex.Message switch
+            {
+                "INVALID_OR_EXPIRED_PREVIEW" => "INVALID_OR_EXPIRED_PREVIEW",
+                "EMPLOYEE_NOT_FOUND" => "EMPLOYEE_NOT_FOUND",
+                _ => "INVALID_LINE_TOKEN"
+            };
+            return Unauthorized(new { error = code, message = ex.Message });
         }
         catch (ConflictException ex)
         {
@@ -155,6 +165,6 @@ public class AuthController(IMediator mediator) : ControllerBase
 public record LineLoginRequest(string AccessToken);
 public record RefreshRequest(string RefreshToken);
 public record PreviewEmployeeLinkRequest(string AccessToken, string EmployeeCode);
-public record OtpRequest(string AccessToken, string EmployeeCode);
+public record OtpRequest(string AccessToken, string PreviewToken);
 public record LinkRequest(string AccessToken, string Otp);
 public record PasswordLoginRequest(string Email, string Password);

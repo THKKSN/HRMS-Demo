@@ -880,7 +880,7 @@ dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filt
 
 Expected: new tests PASS and no existing employee test regresses. Existing tests that assert an unpadded stored code must be updated to the canonical form, not worked around.
 
-- [ ] **Step 5: Commit the write-path normalization**
+- [x] **Step 5: Commit the write-path normalization**
 
 ```bash
 git add apps/api/Hrms.Application/Features/EmployeeImports \
@@ -904,7 +904,7 @@ git commit -m "fix: store canonical employee codes on import and create"
 - Consumes: `ILinkPreviewTokenService.Validate(string) -> LinkPreviewIdentity?`, `ILineAuthService`, `IOtpService`, and `ILineMessagingService`.
 - Produces: `RequestOtpCommand(string AccessToken, string PreviewToken)` and HTTP `OtpRequest(string AccessToken, string PreviewToken)`.
 
-- [ ] **Step 1: Replace national-ID tests with failing preview-token OTP tests**
+- [x] **Step 1: Replace national-ID tests with failing preview-token OTP tests**
 
 Keep the existing `LinkAccount_StillBindsVerifiedLineUserAfterOtpConfirmation` regression. Replace validator/handler tests with these cases:
 
@@ -1070,7 +1070,7 @@ public void Validator_ShouldRejectEmptyPreviewToken()
 }
 ```
 
-- [ ] **Step 2: Run RequestOtp tests and confirm RED**
+- [x] **Step 2: Run RequestOtp tests and confirm RED**
 
 Run:
 
@@ -1080,7 +1080,7 @@ dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj --filt
 
 Expected: FAIL because the current command still accepts `NationalId` and the handler does not consume preview tokens.
 
-- [ ] **Step 3: Replace the command and handler data flow**
+- [x] **Step 3: Replace the command and handler data flow**
 
 Change the command and validator:
 
@@ -1124,7 +1124,7 @@ await messaging.PushMessageAsync(
 return new RequestOtpResult("OTP ส่งแล้ว กรุณาตรวจสอบ LINE ของคุณ");
 ```
 
-- [ ] **Step 4: Update the HTTP contract and remove unused national-ID code**
+- [x] **Step 4: Update the HTTP contract and remove unused national-ID code**
 
 Change the controller record and construction:
 
@@ -1157,7 +1157,7 @@ rg -n "ThaiNationalId|NationalId" apps/api/Hrms.Application apps/api/Hrms.Api ap
 
 If `ThaiNationalId.cs` is the only remaining match for `ThaiNationalId`, delete that file with the editing tool. Do not remove `Employee.NationalId` or employee import mappings because they are outside this authentication change.
 
-- [ ] **Step 5: Run all Auth tests and the complete API suite**
+- [x] **Step 5: Run all Auth tests and the complete API suite**
 
 Run:
 

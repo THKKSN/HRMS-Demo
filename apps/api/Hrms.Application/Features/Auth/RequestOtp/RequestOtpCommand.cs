@@ -1,10 +1,13 @@
 using FluentValidation;
-using Hrms.Application.Common.Validation;
 using MediatR;
 
 namespace Hrms.Application.Features.Auth.RequestOtp;
 
-public record RequestOtpCommand(string AccessToken, string NationalId)
+/// <summary>
+/// ขั้นที่สองของการผูกบัญชี: ยืนยันว่าเป็นตัวเองแล้ว จึงขอ OTP
+/// รับ preview token จาก /auth/link/preview ไม่รับรหัสพนักงานหรือเลขบัตรประชาชน
+/// </summary>
+public record RequestOtpCommand(string AccessToken, string PreviewToken)
     : IRequest<RequestOtpResult>;
 
 public record RequestOtpResult(string Hint);
@@ -14,10 +17,6 @@ public class RequestOtpCommandValidator : AbstractValidator<RequestOtpCommand>
     public RequestOtpCommandValidator()
     {
         RuleFor(x => x.AccessToken).NotEmpty();
-        RuleFor(x => x.NationalId)
-            .Cascade(CascadeMode.Stop)
-            .NotEmpty()
-            .Must(ThaiNationalId.IsValid)
-            .WithMessage("NationalId must be a valid Thai national ID.");
+        RuleFor(x => x.PreviewToken).NotEmpty();
     }
 }
