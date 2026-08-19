@@ -297,32 +297,54 @@ git commit -m "feat: add protected LINE link preview tokens"
 
 This is a data conversion, not an EF migration. It runs manually against each database (local, staging, Production) and must be finished and verified in a database before the API that normalizes lookups is deployed against it.
 
-**Execution status (2026-08-19):** the script was dry-run against Production through STEP 4 and then rolled back. The `UPDATE` and its verify query behaved as expected, but **Production data is still in the old unpadded form** — the conversion is not applied. Two consequences for whoever executes the rest of this plan:
+**Execution status (2026-08-19): applied and committed in both databases.**
 
-- The real `COMMIT` must happen during the release window described in Task 6, immediately before the API artifact goes live. Deploying the normalizing API against unconverted data locks every affected employee out of first-time linking, which is exactly what `Preview_ShouldRejectUnconvertedUnpaddedStoredCode` in Task 2 asserts.
-- `CREATE TABLE` in STEP 3 is DDL and causes an implicit commit, so a backup table created during the dry run still exists even though the `UPDATE` was rolled back. Before the real run, check `SHOW TABLES LIKE 'employee_code_backup_%'` and either drop the stale table or give the new one a different date suffix — otherwise STEP 3 fails with "table already exists" and STEP 5 compares against dry-run rows.
+| Database | Connection | Result |
+| --- | --- | --- |
+| Production | `192.168.0.64:3306/tbg_assistant` | conversion applied and committed |
+| Development | `localhost:3307/db_hrms_phase1_rehearsal` | conversion applied and committed; both 4-digit numeric codes gained a leading zero, and the single lettered code was untouched (its `updated_at` stayed at 2026-08-17) |
 
-- [ ] **Step 1: Run the collision pre-check**
+Development evidence: STEP 1 returned 0 collision rows, STEP 2 previewed exactly 2 rows, and STEP 4 verified `total_employees = 3`, `numeric_not_padded = 0`, `non_numeric_untouched = 1` before `COMMIT`. Backup table `employee_code_backup_20260819` holds the pre-conversion codes for both databases; keep it until at least 2026-09-19.
+
+Notes for anyone re-running this or converting a further database:
+
+- Add a fail-safe guard between the `UPDATE` and the `COMMIT` so a bad verify count aborts the statement batch and the transaction never commits:
+
+  ```sql
+  SELECT IF(
+      (SELECT COUNT(*) FROM employees
+        WHERE employee_code REGEXP '^[0-9]+$'
+          AND CHAR_LENGTH(TRIM(LEADING '0' FROM employee_code)) BETWEEN 3 AND 4
+          AND employee_code <> LPAD(TRIM(LEADING '0' FROM employee_code), 5, '0')) = 0,
+      'VERIFY_OK',
+      (SELECT employee_code FROM employees)   -- >1 row → error 1242 → batch stops before COMMIT
+  ) AS guard;
+  ```
+
+- `CREATE TABLE` in STEP 3 is DDL and causes an implicit commit, so a backup table survives even a rolled-back `UPDATE`. Check `SHOW TABLES LIKE 'employee_code_backup_%'` first and either drop the stale table or use a different date suffix — otherwise STEP 3 fails with "table already exists" and STEP 5 compares against stale rows.
+- Pass `--default-character-set=utf8mb4` to the `mysql` client, or Thai names render as `?` in the verification output and make a correct conversion look wrong.
+
+- [x] **Step 1: Run the collision pre-check**
 
 Run STEP 1 of `scripts/pad-employee-code-to-5.sql`. It groups active employees by `LPAD(TRIM(LEADING '0' FROM employee_code), 5, '0')` and returns only groups with more than one row.
 
 Expected: 0 rows. If any row comes back, two employees would collapse onto one code — stop, report the returned `employee_ids`, and get the correct codes from HR before continuing. Do not resolve a collision by editing the script's scope.
 
-- [ ] **Step 2: Review the conversion preview**
+- [x] **Step 2: Review the conversion preview**
 
 Run STEP 2 and read the `before_code` / `after_code` pairs. Confirm that non-numeric codes such as `SYSADMIN` are absent from the list and that the row count matches the number of 3-4 digit numeric codes in that database.
 
-- [ ] **Step 3: Back up the current codes**
+- [x] **Step 3: Back up the current codes**
 
 Take a full `mysqldump` first, then run STEP 3 to create `employee_code_backup_<date>`. The verification query must show `employees_rows = backup_rows`.
 
-- [ ] **Step 4: Apply the conversion inside a transaction**
+- [x] **Step 4: Apply the conversion inside a transaction**
 
 Run STEP 4. Before `COMMIT`, the verify query must show `numeric_not_padded = 0`, an unchanged `total_employees`, and a `non_numeric_untouched` count that matches the number of lettered codes.
 
 On error 1062 (`Duplicate entry`) or any unexpected count, run `ROLLBACK` and return to Step 1. Never drop or recreate `ix_employees_employee_code` to force the conversion through — that index is the only thing preventing two employees from sharing a code.
 
-- [ ] **Step 5: Record the result**
+- [x] **Step 5: Record the result**
 
 Capture the STEP 5 before/after table for the release notes: database name, row count changed, and the backup table name. Keep the backup table for at least one month; the rollback block at the end of the script depends on it.
 
@@ -767,7 +789,7 @@ dotnet build apps/api/Hrms.Api/Hrms.Api.csproj -c Release
 
 Expected: normalizer tests PASS, preview tests PASS, and build exits 0.
 
-- [ ] **Step 6: Commit the preview API**
+- [x] **Step 6: Commit the preview API**
 
 ```bash
 git add apps/api/Hrms.Application/Common/Helpers/EmployeeCodeNormalizer.cs \
