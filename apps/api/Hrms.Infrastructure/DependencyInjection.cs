@@ -7,6 +7,7 @@ using Hrms.Application.Common.Options;
 using Hrms.Infrastructure.Persistence;
 using Hrms.Infrastructure.Services;
 using MediatR;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -54,6 +55,11 @@ public static class DependencyInjection
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IExternalTokenService, ExternalTokenService>();
         services.AddScoped<IOtpService, OtpService>();
+        // preview token อายุ 5 นาที — ตรงกับ TTL ของ OTP
+        services.AddSingleton<ILinkPreviewTokenService>(provider =>
+            new LinkPreviewTokenService(
+                provider.GetRequiredService<IDataProtectionProvider>(),
+                TimeSpan.FromMinutes(5)));
         services.AddScoped<IPasswordService, PasswordService>();
         services.AddScoped<IWorkingDayCalculator, WorkingDayCalculator>();
         services.AddHttpClient<ILineAuthService, LineAuthService>();
@@ -82,6 +88,7 @@ public static class DependencyInjection
         {
             AllowUserVariables = true
         }.ConnectionString;
+        var hangfireTablesPrefix = configuration.GetValue<string>("Hangfire:TablesPrefix") ?? "hangfire";
 
         services.AddHangfire(cfg => cfg
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
@@ -98,7 +105,7 @@ public static class DependencyInjection
                     PrepareSchemaIfNecessary = true,
                     DashboardJobListLimit = 50_000,
                     TransactionTimeout = TimeSpan.FromMinutes(1),
-                    TablesPrefix = "hangfire"
+                    TablesPrefix = hangfireTablesPrefix
                 })));
 
         if (configuration.GetValue("Hangfire:ServerEnabled", true))

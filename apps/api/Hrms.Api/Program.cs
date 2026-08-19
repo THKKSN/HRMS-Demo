@@ -12,6 +12,7 @@ using Hrms.Infrastructure;
 using Hrms.Infrastructure.Jobs;
 using Hrms.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
@@ -74,6 +75,25 @@ try
             }
         });
     });
+
+    // ── Data Protection ──────────────────────────────────────────────────────
+    // ใช้เข้ารหัส preview token ตอนผูกบัญชี LINE — key ring ต้องอยู่นอกโฟลเดอร์ publish
+    // ไม่งั้น deploy ทับแล้ว key หาย → token ที่ออกไปแล้วใช้ไม่ได้ทั้งหมด
+    var dataProtection = builder.Services
+        .AddDataProtection()
+        .SetApplicationName("Hrms.LineLink");
+    var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+    if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+    {
+        dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+        if (OperatingSystem.IsWindows())
+            dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
+    }
+    else if (!builder.Environment.IsDevelopment())
+    {
+        throw new InvalidOperationException(
+            "DataProtection:KeysPath must be configured outside Development.");
+    }
 
     builder.Services.AddApplicationServices();
     builder.Services.AddInfrastructureServices(builder.Configuration);
