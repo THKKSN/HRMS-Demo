@@ -21,12 +21,25 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
+/**
+ * endpoint กลุ่ม /auth/* เป็นขั้นก่อนล็อกอิน — 401 ของกลุ่มนี้หมายถึง
+ * "ข้อมูลที่กรอกไม่ถูกต้อง" ไม่ใช่ "access token หมดอายุ" การ refresh
+ * จึงไม่มีความหมาย และการ redirect ทิ้งจะทำให้ผู้ใช้ไม่เห็น error เลย
+ */
+function isPreLoginAuthRequest(url: string | undefined) {
+  return (url ?? '').startsWith('/auth/')
+}
+
 // Response: 401 → auto refresh → retry ครั้งเดียว
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config as InternalAxiosRequestConfig & { _retry?: boolean }
-    if (err.response?.status === 401 && !original._retry) {
+    if (
+      err.response?.status === 401 &&
+      !original._retry &&
+      !isPreLoginAuthRequest(original.url)
+    ) {
       original._retry = true
       try {
         await getAuthStore().getState().refreshTokens()

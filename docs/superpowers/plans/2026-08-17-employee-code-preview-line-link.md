@@ -1263,7 +1263,7 @@ node --experimental-strip-types --test apps/liff-web/lib/auth-link.test.mjs
 
 Expected: 4 tests PASS. Leading-zero handling stays on the server; `normalizeEmployeeCode` must remain a plain `trim()`.
 
-- [ ] **Step 5: Commit the LIFF contracts**
+- [x] **Step 5: Commit the LIFF contracts**
 
 ```bash
 git add apps/liff-web/lib/auth-link.ts apps/liff-web/lib/auth-link.test.mjs
@@ -1284,7 +1284,7 @@ git commit -m "test: define employee preview LIFF contracts"
 - Consumes: `POST /auth/link/preview`, `POST /auth/otp/request`, and the helper functions from Task 4.
 - Produces: employee-code entry → full-name preview → confirmed OTP navigation UI.
 
-- [ ] **Step 1: Write failing Playwright tests for preview, reject, and confirm**
+- [x] **Step 1: Write failing Playwright tests for preview, reject, and confirm**
 
 Replace the national-ID browser cases with these flows:
 
@@ -1422,7 +1422,7 @@ expect(sessionValues).not.toContain('สมชาย ใจดี')
 expect(sessionValues).not.toContain('preview-token')
 ```
 
-- [ ] **Step 2: Run the browser spec and confirm RED**
+- [x] **Step 2: Run the browser spec and confirm RED**
 
 Run:
 
@@ -1432,7 +1432,7 @@ pnpm exec playwright test e2e/auth-link.spec.ts
 
 Expected: FAIL because the page still renders national ID and sends OTP immediately.
 
-- [ ] **Step 3: Implement the employee-code entry and preview state**
+- [x] **Step 3: Implement the employee-code entry and preview state**
 
 Use this schema and state:
 
@@ -1478,7 +1478,7 @@ setErrorMsg(null)
 reset({ employeeCode: '' })
 ```
 
-- [ ] **Step 4: Implement confirmed OTP submission and recovery paths**
+- [x] **Step 4: Implement confirmed OTP submission and recovery paths**
 
 The confirm handler must guard double clicks and keep sensitive values in component state only:
 
@@ -1521,7 +1521,7 @@ Do not log `values`, `preview`, request bodies, or errors containing response pa
 
 Preserve the staged LINE OAuth callback cleanup, `buildLiffUrl`, `getLiffAccessToken`, LIFF provider error UI, E2E access-token bypass, and `next` handling from the original workspace.
 
-- [ ] **Step 5: Run helper tests, browser tests, and LIFF build**
+- [x] **Step 5: Run helper tests, browser tests, and LIFF build**
 
 Run:
 

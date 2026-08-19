@@ -25,6 +25,7 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_API_URL: 'http://api.test/v1',
       NEXT_PUBLIC_LIFF_ID: '',
+      NEXT_PUBLIC_E2E_AUTH_BYPASS: 'true',
     },
   },
 })
