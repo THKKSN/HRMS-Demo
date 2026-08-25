@@ -52,6 +52,11 @@ public interface IApplicationDbContext
     DbSet<TicketSubjectGuidanceConfig> TicketSubjectGuidanceConfigs { get; }
     DbSet<EmployeeResponsibility> EmployeeResponsibilities { get; }
     DbSet<NotificationOutbox> NotificationOutboxes { get; }
+    DbSet<ExternalRepairSyncOutbox> ExternalRepairSyncOutboxes { get; }
+    DbSet<ExternalTicketConfiguration> ExternalTicketConfigurations { get; } // table: external_ticket_configurations
+    DbSet<ExternalTicketCategory> ExternalTicketCategories { get; } // table: external_ticket_categories
+    DbSet<ExternalTicketTopic> ExternalTicketTopics { get; } // table: external_ticket_topics
+    DbSet<ExternalTicketSubject> ExternalTicketSubjects { get; } // table: external_ticket_subjects
 
     // Address reference data — read-only, imported directly to DB
     DbSet<Province>    Provinces    { get; }

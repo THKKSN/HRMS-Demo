@@ -73,6 +73,7 @@ public class PermissionSeeder(HrmsDbContext db)
         ("ticket:manage-categories",  "ticket",    "manage",        "จัดการหมวดแจ้งเรื่อง"),
         ("ticket:manage-topics",      "ticket",    "manage",        "จัดการหัวข้อย่อยแจ้งเรื่อง"),
         ("ticket:manage-responsibilities", "ticket", "manage",      "จัดการผู้รับผิดชอบแจ้งเรื่อง"),
+        ("ticket:manage-external-config", "ticket", "manage",       "จัดการช่องทางและหมวดแจ้งเรื่องสำหรับบุคคลภายนอก"),
         ("ticket:comment",            "ticket",    "create",        "เพิ่มความคิดเห็นในใบแจ้งเรื่อง"),
         ("ticket:add-internal-note",  "ticket",    "create",        "เพิ่มบันทึกภายในใบแจ้งเรื่อง"),
         ("ticket:add-attachment",     "ticket",    "create",        "เพิ่มหลักฐานในใบแจ้งเรื่อง"),
@@ -95,6 +96,7 @@ public class PermissionSeeder(HrmsDbContext db)
         ("system:view-audit-logs",  "system",     "view",          "ดู Audit Log"),
         ("system:manage-notifications", "system", "manage",        "ตรวจสอบและส่งการแจ้งเตือนใหม่"),
         ("system:manage-companies", "system",     "manage",        "สร้าง/แก้ไข Company"),
+        ("system:manage-ticket",    "system",     "manage",        "ตั้งค่าหมวด หมวดย่อย หัวข้อ และ Template/Suggest ของระบบแจ้งเรื่อง"),
     ];
 
     // Default permissions per role
@@ -118,9 +120,11 @@ public class PermissionSeeder(HrmsDbContext db)
             "ticket:create", "ticket:view-own", "ticket:view-team", "ticket:view-assigned",
             "ticket:assign", "ticket:triage", "ticket:update-status", "ticket:resolve", "ticket:close", "ticket:verify",
             "ticket:manage-categories", "ticket:manage-topics", "ticket:manage-responsibilities",
+            "ticket:manage-external-config",
             "ticket:comment", "ticket:add-internal-note", "ticket:add-attachment",
             "ticket:return", "ticket:view-report",
             "expense:create", "expense:view-own", "expense:update-draft", "expense:upload-attachment", "expense:ocr",
+            "system:manage-ticket",
         ],
         ["Hr"] =
         [
@@ -163,12 +167,13 @@ public class PermissionSeeder(HrmsDbContext db)
             "ticket:create", "ticket:view-own", "ticket:view-team", "ticket:view-assigned", "ticket:view-all",
             "ticket:assign", "ticket:triage", "ticket:update-status", "ticket:resolve", "ticket:close", "ticket:verify",
             "ticket:manage-categories", "ticket:manage-topics", "ticket:manage-responsibilities",
+            "ticket:manage-external-config",
             "ticket:comment", "ticket:add-internal-note", "ticket:add-attachment",
             "ticket:return", "ticket:view-report", "ticket:export-report",
             "expense:create", "expense:view-own", "expense:update-draft", "expense:upload-attachment", "expense:ocr",
             "expense:view-all", "expense:review", "expense:export", "expense:create-batch", "expense:mark-paid",
             "system:manage-roles", "system:view-audit-logs", "system:manage-notifications",
-            "system:manage-companies",
+            "system:manage-companies", "system:manage-ticket",
         ],
     };
 

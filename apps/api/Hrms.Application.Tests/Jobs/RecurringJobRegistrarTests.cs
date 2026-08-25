@@ -23,6 +23,7 @@ public class RecurringJobRegistrarTests
         [
             "ticket-upload-cleanup",
             "notification-outbox-delivery",
+            "external-repair-sync-delivery",
             "expense-ocr-stale-recovery",
             "ticket-auto-requester-confirmation"
         ]);

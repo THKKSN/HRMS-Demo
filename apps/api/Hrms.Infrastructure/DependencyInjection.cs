@@ -44,6 +44,7 @@ public static class DependencyInjection
         services.Configure<LineOptions>(configuration.GetSection(LineOptions.SectionName));
         services.Configure<ExpenseOcrOptions>(configuration.GetSection(ExpenseOcrOptions.SectionName));
         services.Configure<PiswinOptions>(configuration.GetSection(PiswinOptions.SectionName));
+        services.Configure<ExternalRepairSyncOptions>(configuration.GetSection(ExternalRepairSyncOptions.SectionName));
 
         // Seeder
         services.AddScoped<DataSeeder>();
@@ -66,6 +67,7 @@ public static class DependencyInjection
         services.AddHttpClient<ILineMessagingService, LineMessagingService>();
         services.AddScoped<ILineWebhookService, LineWebhookService>();
         services.AddScoped<ILeaveNotificationService, HangfireLeaveNotificationService>();
+        services.AddScoped<INotificationDispatchSignal, HangfireNotificationDispatchSignal>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddScoped<IExpenseOcrQueue, HangfireExpenseOcrQueue>();
         services.AddHttpClient<IExpenseOcrEngine, HttpExpenseOcrEngine>();
@@ -74,11 +76,17 @@ public static class DependencyInjection
             var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<PiswinOptions>>().Value;
             client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
         });
+        services.AddHttpClient<IExternalRepairSyncClient, ExternalRepairSyncClient>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ExternalRepairSyncOptions>>().Value;
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
+        });
         services.AddScoped<ITicketNumberGenerator, TicketNumberGenerator>();
         services.AddScoped<IShiftResolver, ShiftResolverService>();
         services.AddScoped<DailyAttendanceReportJob>();
         services.AddScoped<TicketUploadCleanupJob>();
         services.AddScoped<NotificationDeliveryJob>();
+        services.AddScoped<ExternalRepairSyncDeliveryJob>();
         services.AddScoped<ExpenseOcrJob>();
         services.AddScoped<TicketAutoConfirmationJob>();
         services.AddSingleton<RecurringJobRegistrar>();
@@ -90,6 +98,11 @@ public static class DependencyInjection
         }.ConnectionString;
         var hangfireTablesPrefix = configuration.GetValue<string>("Hangfire:TablesPrefix") ?? "hangfire";
 
+        // MySqlStorage เป็น polling-based ไม่มี long-polling ค่านี้จึงเป็นดีเลย์ตรง ๆ
+        // ระหว่าง "job ถูก enqueue" กับ "worker หยิบไปทำ" (วัดได้เฉลี่ย 9.6s ที่ค่า 15s)
+        var queuePollIntervalSeconds = Math.Clamp(
+            configuration.GetValue<int?>("Hangfire:QueuePollIntervalSeconds") ?? 2, 1, 60);
+
         services.AddHangfire(cfg => cfg
             .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
             .UseSimpleAssemblyNameTypeSerializer()
@@ -99,7 +112,7 @@ public static class DependencyInjection
                 new MySqlStorageOptions
                 {
                     TransactionIsolationLevel = IsolationLevel.ReadCommitted,
-                    QueuePollInterval = TimeSpan.FromSeconds(15),
+                    QueuePollInterval = TimeSpan.FromSeconds(queuePollIntervalSeconds),
                     JobExpirationCheckInterval = TimeSpan.FromHours(1),
                     CountersAggregateInterval = TimeSpan.FromMinutes(5),
                     PrepareSchemaIfNecessary = true,

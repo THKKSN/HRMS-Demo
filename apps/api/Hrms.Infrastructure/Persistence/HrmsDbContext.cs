@@ -4,8 +4,15 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Infrastructure.Persistence;
 
-public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(options), IApplicationDbContext
+public class HrmsDbContext(
+    DbContextOptions<HrmsDbContext> options,
+    INotificationDispatchSignal? notificationDispatch = null) : DbContext(options), IApplicationDbContext
 {
+    // ตั้งเป็น true เมื่อมีแถว NotificationOutbox ใหม่ถูกบันทึกภายใน transaction
+    // ที่ยังไม่ commit — จะส่งสัญญาณจริงหลัง CommitAsync ใน ExecuteInTransactionAsync
+    private bool _pendingNotificationDispatch;
+
+
     public DbSet<Company> Companies => Set<Company>();
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Employee> Employees => Set<Employee>();
@@ -53,6 +60,11 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
     public DbSet<TicketSubjectGuidanceConfig> TicketSubjectGuidanceConfigs => Set<TicketSubjectGuidanceConfig>();
     public DbSet<EmployeeResponsibility> EmployeeResponsibilities => Set<EmployeeResponsibility>();
     public DbSet<NotificationOutbox> NotificationOutboxes => Set<NotificationOutbox>();
+    public DbSet<ExternalRepairSyncOutbox> ExternalRepairSyncOutboxes => Set<ExternalRepairSyncOutbox>();
+    public DbSet<ExternalTicketConfiguration> ExternalTicketConfigurations => Set<ExternalTicketConfiguration>();
+    public DbSet<ExternalTicketCategory> ExternalTicketCategories => Set<ExternalTicketCategory>();
+    public DbSet<ExternalTicketTopic> ExternalTicketTopics => Set<ExternalTicketTopic>();
+    public DbSet<ExternalTicketSubject> ExternalTicketSubjects => Set<ExternalTicketSubject>();
 
     // Address reference data — read-only, imported directly to DB (no migrations)
     public DbSet<Province>    Provinces    => Set<Province>();
@@ -82,7 +94,20 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
                 entry.Entity.Version = entry.Property(x => x.Version).OriginalValue + 1;
         }
 
-        return await base.SaveChangesAsync(cancellationToken);
+        var hasNewNotifications = ChangeTracker.Entries<NotificationOutbox>()
+            .Any(entry => entry.State == EntityState.Added);
+
+        var affected = await base.SaveChangesAsync(cancellationToken);
+
+        if (hasNewNotifications)
+        {
+            if (Database.CurrentTransaction is null)
+                notificationDispatch?.RequestDispatch();
+            else
+                _pendingNotificationDispatch = true;
+        }
+
+        return affected;
     }
 
     private async Task ValidateTicketActorInvariantsAsync(CancellationToken cancellationToken)
@@ -193,9 +218,18 @@ public class HrmsDbContext(DbContextOptions<HrmsDbContext> options) : DbContext(
         var strategy = Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
+            // reset ทุกครั้งที่เริ่มรอบใหม่ เพราะ execution strategy อาจ retry action ซ้ำได้
+            _pendingNotificationDispatch = false;
             await using var transaction = await Database.BeginTransactionAsync(cancellationToken);
             await action(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         });
+
+        // ส่งสัญญาณหลัง commit สำเร็จเท่านั้น ถ้าส่งก่อน worker จะมองไม่เห็นแถวที่ยังไม่ commit
+        if (_pendingNotificationDispatch)
+        {
+            _pendingNotificationDispatch = false;
+            notificationDispatch?.RequestDispatch();
+        }
     }
 }

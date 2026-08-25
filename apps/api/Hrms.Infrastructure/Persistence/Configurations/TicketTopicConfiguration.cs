@@ -17,6 +17,7 @@ public class TicketTopicConfiguration : IEntityTypeConfiguration<TicketTopic>
         builder.Property(x => x.Name).HasMaxLength(100).IsRequired();
         builder.Property(x => x.Description).HasMaxLength(500);
         builder.Property(x => x.RoutingMode).HasConversion<string>().HasMaxLength(30);
+        builder.Property(x => x.SyncToExternalRepairSystem).HasDefaultValue(false);
         builder.Property(x => x.CreatedByEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.CreatedAt).HasColumnType("datetime");
         builder.Property(x => x.UpdatedAt).HasColumnType("datetime");

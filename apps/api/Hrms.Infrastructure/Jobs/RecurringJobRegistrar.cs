@@ -24,6 +24,10 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager recurringJobs)
             "notification-outbox-delivery",
             job => job.ProcessAsync(CancellationToken.None),
             Cron.Minutely);
+        recurringJobs.AddOrUpdate<ExternalRepairSyncDeliveryJob>(
+            "external-repair-sync-delivery",
+            job => job.ProcessAsync(CancellationToken.None),
+            Cron.Minutely);
         recurringJobs.AddOrUpdate<ExpenseOcrJob>(
             "expense-ocr-stale-recovery",
             job => job.RecoverStaleProcessingAsync(CancellationToken.None),
