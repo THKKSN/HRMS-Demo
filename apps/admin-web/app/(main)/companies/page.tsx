@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ChevronRight, ChevronDown, Plus, Pencil } from 'lucide-react'
+import Link from 'next/link'
+import { ChevronRight, ChevronDown, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -287,11 +288,9 @@ function EditCompanyModal({
 function CompanyTreeNode({
   node,
   depth,
-  onEdit,
 }: {
   node: CompanyTreeDto
   depth: number
-  onEdit: (c: CompanyDto) => void
 }) {
   const [expanded, setExpanded] = useState(depth === 0)
   const hasChildren = node.children.length > 0
@@ -332,21 +331,18 @@ function CompanyTreeNode({
           <Badge variant="secondary" className="text-xs">ปิดใช้งาน</Badge>
         )}
 
-        {/* edit button */}
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={() => onEdit({ id: node.id, name: node.name, nameEn: node.nameEn, orgType: node.orgType, isActive: node.isActive, isHeadquarters: node.isHeadquarters, parentId: undefined, parentName: undefined })}
+        <Link
+          href={`/companies/${node.id}`}
+          className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
         >
-          <Pencil className="h-3.5 w-3.5" />
-        </Button>
+          ดูรายละเอียด
+        </Link>
       </div>
 
       {expanded && hasChildren && (
         <div>
           {node.children.map((child) => (
-            <CompanyTreeNode key={child.id} node={child} depth={depth + 1} onEdit={onEdit} />
+            <CompanyTreeNode key={child.id} node={child} depth={depth + 1} />
           ))}
         </div>
       )}
@@ -364,7 +360,6 @@ export default function CompaniesPage() {
 
   const [showInactive, setShowInactive] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
-  const [editTarget, setEditTarget] = useState<CompanyDto | null>(null)
 
   const { data: tree = [], isLoading } = useCompanies(showInactive)
   const allFlat = flattenTree(tree).filter((c) => c.isActive)
@@ -412,7 +407,6 @@ export default function CompaniesPage() {
                 key={node.id}
                 node={node}
                 depth={0}
-                onEdit={(c) => setEditTarget(c)}
               />
             ))}
           </div>
@@ -424,14 +418,6 @@ export default function CompaniesPage() {
         onClose={() => setCreateOpen(false)}
         allCompanies={allFlat}
       />
-
-      {editTarget && (
-        <EditCompanyModal
-          company={editTarget}
-          onClose={() => setEditTarget(null)}
-          allCompanies={allFlat}
-        />
-      )}
     </div>
   )
 }
