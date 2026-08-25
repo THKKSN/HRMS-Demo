@@ -1,6 +1,6 @@
-# HRMS on LINE (LIFF / Mini App)
+# TBG Assistant
 
-ระบบบริหารทรัพยากรบุคคล (HRMS) ที่ทำงานบน LINE ผ่าน LIFF / LINE Mini App
+ระบบบริหารทรัพยากรบุคคล TBG Assistant ที่ทำงานบน LINE ผ่าน LIFF / LINE Mini App
 ให้พนักงานสามารถ **ลางาน / ดูสลิป / ดูวันลาคงเหลือ / ลงเวลา** ได้ด้วยตนเองผ่าน LINE
 โดยมี Workflow Approval ผ่าน **หัวหน้าแผนก → HR (Head Quarter) → แจ้งผู้บริหาร**
 

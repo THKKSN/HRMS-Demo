@@ -11,8 +11,13 @@ const notoSansThai = Noto_Sans_Thai({
 })
 
 export const metadata: Metadata = {
-  title: 'HRMS Admin',
+  title: 'TBG Assistant',
   description: 'ระบบบริหารทรัพยากรบุคคล — สำหรับ HR และผู้บริหาร',
+  icons: {
+    icon: '/tbg-assistant.jpg',
+    shortcut: '/tbg-assistant.jpg',
+    apple: '/tbg-assistant.jpg',
+  },
 }
 
 export default function RootLayout({

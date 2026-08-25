@@ -67,14 +67,14 @@ export default function LoginPage() {
         <div className="relative z-10 text-white max-w-xs w-full">
           {/* Logo */}
           <div className="mb-10 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 border border-white/30 shadow-xl backdrop-blur-sm overflow-hidden">
-            <img src="/logo.png" alt="HRMS" className="h-12 w-12 object-contain rounded-full" />
+            <img src="/tbg-assistant.jpg" alt="TBG Assistant" className="h-12 w-12 object-cover rounded-full" />
           </div>
 
           <h1 className="text-4xl font-bold tracking-tight leading-tight">
-            HRMS Admin
+            TBG Assistant
           </h1>
           <p className="mt-3 text-lg text-sky-100 font-medium">
-            ระบบบริหารทรัพยากรบุคคล
+            ระบบบริหารจัดการข้อมูลภายใน
           </p>
 
           <div className="mt-10 space-y-4">
@@ -108,10 +108,10 @@ export default function LoginPage() {
         {/* Mobile brand header */}
         <div className="mb-8 text-center lg:hidden">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-muted overflow-hidden">
-            <img src="/logo.png" alt="HRMS" className="h-10 w-10 object-contain" />
+            <img src="/tbg-assistant.jpg" alt="TBG Assistant" className="h-10 w-10 object-cover rounded-lg" />
           </div>
-          <h1 className="text-xl font-bold text-foreground">HRMS Admin</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">ระบบบริหารทรัพยากรบุคคล</p>
+          <h1 className="text-xl font-bold text-foreground">TBG Assistant</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">ระบบบริหารจัดการข้อมูลภายใน</p>
         </div>
 
         {/* Desktop heading */}
@@ -205,7 +205,7 @@ export default function LoginPage() {
         </form>
 
         <p className="mt-10 text-center text-xs text-muted-foreground">
-          HRMS © {new Date().getFullYear()} · Thipparath Bussiness Group Co., Ltd.
+          Powered by <span className='text-primary'>Thipparath Business Group Co.,Ltd.</span>
         </p>
       </div>
     </div>
