@@ -14,9 +14,7 @@ public sealed record ExternalReporterProfileDto(
     string? FullName,
     string? Phone,
     string? Email,
-    string? Organization,
-    string? PrivacyNoticeVersion,
-    DateTime? ConsentedAt)
+    string? Organization)
 {
     public static ExternalReporterProfileDto From(ExternalReporter reporter) => new(
         reporter.Id,
@@ -25,9 +23,7 @@ public sealed record ExternalReporterProfileDto(
         reporter.FullName,
         reporter.Phone,
         reporter.Email,
-        reporter.Organization,
-        reporter.PrivacyNoticeVersion,
-        reporter.ConsentedAt);
+        reporter.Organization);
 }
 
 public sealed record GetExternalReporterProfileQuery : IRequest<ExternalReporterProfileDto>;
@@ -54,8 +50,7 @@ public sealed record UpdateExternalReporterProfileCommand(
     string FullName,
     string Phone,
     string Email,
-    string Organization,
-    string PrivacyNoticeVersion) : IRequest<ExternalReporterProfileDto>;
+    string Organization) : IRequest<ExternalReporterProfileDto>;
 
 public sealed class UpdateExternalReporterProfileCommandValidator
     : AbstractValidator<UpdateExternalReporterProfileCommand>
@@ -74,7 +69,6 @@ public sealed class UpdateExternalReporterProfileCommandValidator
             .WithMessage("Phone must contain 8-20 valid characters.");
         RuleFor(x => x.Email).NotEmpty().MaximumLength(320).EmailAddress();
         RuleFor(x => x.Organization).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.PrivacyNoticeVersion).NotEmpty().MaximumLength(100);
     }
 }
 
@@ -93,17 +87,10 @@ public sealed class UpdateExternalReporterProfileHandler(
             .SingleOrDefaultAsync(x => x.Id == reporterId && x.IsActive, ct)
             ?? throw new AppUnauthorizedException("EXTERNAL_REPORTER_INACTIVE");
 
-        var privacyVersion = request.PrivacyNoticeVersion.Trim();
         reporter.FullName = request.FullName.Trim();
         reporter.Phone = request.Phone.Trim();
         reporter.Email = request.Email.Trim().ToLowerInvariant();
         reporter.Organization = request.Organization.Trim();
-        if (!string.Equals(reporter.PrivacyNoticeVersion, privacyVersion, StringComparison.Ordinal) ||
-            reporter.ConsentedAt is null)
-        {
-            reporter.PrivacyNoticeVersion = privacyVersion;
-            reporter.ConsentedAt = DateTime.UtcNow.AddHours(7);
-        }
 
         await db.SaveChangesAsync(ct);
         return ExternalReporterProfileDto.From(reporter);

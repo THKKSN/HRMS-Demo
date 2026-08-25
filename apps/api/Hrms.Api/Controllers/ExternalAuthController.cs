@@ -35,8 +35,7 @@ public sealed class ExternalAuthController(IMediator mediator) : ControllerBase
             request.FullName,
             request.Phone,
             request.Email,
-            request.Organization,
-            request.PrivacyNoticeVersion), ct));
+            request.Organization), ct));
 }
 
 public sealed record ExternalLineLoginRequest(string AccessToken);
@@ -45,5 +44,4 @@ public sealed record UpdateExternalReporterProfileRequest(
     string FullName,
     string Phone,
     string Email,
-    string Organization,
-    string PrivacyNoticeVersion);
+    string Organization);

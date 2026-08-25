@@ -19,9 +19,11 @@ namespace Hrms.Application.Tests.ExternalTickets;
 public sealed class ExternalAuthenticationTests
 {
     [Fact]
-    public async Task Login_ShouldRejectUserWhoIsNotOaFriend()
+    public async Task Login_ShouldRejectUserWhoIsNotOaFriend_WhenConfigRequiresFriendship()
     {
         await using var db = CreateDb();
+        db.ExternalTicketConfigurations.Add(Configuration(requireOaFriendship: true));
+        await db.SaveChangesAsync();
         var line = new FakeLineAuthService
         {
             Profile = new LineProfile("U123", "LINE Name", null),
@@ -34,6 +36,25 @@ public sealed class ExternalAuthenticationTests
         await act.Should().ThrowAsync<AppForbiddenException>()
             .WithMessage("LINE_OA_FRIEND_REQUIRED");
         (await db.ExternalReporters.CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Login_ShouldAllowUserWhoIsNotOaFriend_WhenConfigDoesNotRequireFriendship()
+    {
+        await using var db = CreateDb();
+        db.ExternalTicketConfigurations.Add(Configuration(requireOaFriendship: false));
+        await db.SaveChangesAsync();
+        var line = new FakeLineAuthService
+        {
+            Profile = new LineProfile("U123", "LINE Name", null),
+            IsFriend = false
+        };
+        var handler = new ExternalLineLoginHandler(db, line, new FakeExternalTokenService());
+
+        var result = await handler.Handle(new ExternalLineLoginCommand("line-access-token"), default);
+
+        result.AccessToken.Should().Be("external-token");
+        (await db.ExternalReporters.CountAsync()).Should().Be(1);
     }
 
     [Fact]
@@ -88,7 +109,7 @@ public sealed class ExternalAuthenticationTests
     }
 
     [Fact]
-    public async Task UpdateProfile_ShouldNormalizeContactAndStoreConsentVersion()
+    public async Task UpdateProfile_ShouldNormalizeContact()
     {
         await using var db = CreateDb();
         var reporter = new ExternalReporter
@@ -107,15 +128,12 @@ public sealed class ExternalAuthenticationTests
             "  สมชาย ผู้แจ้ง  ",
             " 0812345678 ",
             " SOMCHAI@EXAMPLE.COM ",
-            " Supplier A ",
-            " privacy-2026-08 "), default);
+            " Supplier A "), default);
 
         result.FullName.Should().Be("สมชาย ผู้แจ้ง");
         result.Phone.Should().Be("0812345678");
         result.Email.Should().Be("somchai@example.com");
         result.Organization.Should().Be("Supplier A");
-        result.PrivacyNoticeVersion.Should().Be("privacy-2026-08");
-        result.ConsentedAt.Should().NotBeNull();
     }
 
     [Fact]
@@ -180,11 +198,11 @@ public sealed class ExternalAuthenticationTests
     public void ProfileValidation_ShouldRejectInvalidContactFields()
     {
         var result = new UpdateExternalReporterProfileCommandValidator().Validate(
-            new UpdateExternalReporterProfileCommand("", "123", "not-email", "", ""));
+            new UpdateExternalReporterProfileCommand("", "123", "not-email", ""));
 
         result.IsValid.Should().BeFalse();
         result.Errors.Select(x => x.PropertyName).Should().Contain([
-            "FullName", "Phone", "Email", "Organization", "PrivacyNoticeVersion"]);
+            "FullName", "Phone", "Email", "Organization"]);
     }
 
     [Fact]
@@ -229,6 +247,13 @@ public sealed class ExternalAuthenticationTests
             .Options;
         return new HrmsDbContext(options);
     }
+
+    private static ExternalTicketConfiguration Configuration(bool requireOaFriendship) => new()
+    {
+        TargetCompanyId = Hrms.Domain.Constants.ExternalTicketConstants.TargetCompanyId,
+        RequireOaFriendship = requireOaFriendship,
+        IsEnabled = true
+    };
 
     private static Employee Employee(string lineUserId) => new()
     {

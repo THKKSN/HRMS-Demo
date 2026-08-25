@@ -33,7 +33,13 @@ public sealed class ExternalLineLoginHandler(
     public async Task<ExternalLineLoginResult> Handle(ExternalLineLoginCommand request, CancellationToken ct)
     {
         var profile = await line.VerifyAccessTokenAsync(request.AccessToken, ct);
-        if (!await line.GetFriendshipStatusAsync(request.AccessToken, ct))
+
+        // เช็คเพื่อน LINE OA เฉพาะเมื่อ Admin เปิด RequireOaFriendship ในการตั้งค่าช่องทางเท่านั้น
+        var requireOaFriendship = await db.ExternalTicketConfigurations.AsNoTracking()
+            .Where(c => c.TargetCompanyId == Hrms.Domain.Constants.ExternalTicketConstants.TargetCompanyId)
+            .Select(c => c.RequireOaFriendship)
+            .FirstOrDefaultAsync(ct);
+        if (requireOaFriendship && !await line.GetFriendshipStatusAsync(request.AccessToken, ct))
             throw new AppForbiddenException("LINE_OA_FRIEND_REQUIRED");
 
         var reporter = await db.ExternalReporters
