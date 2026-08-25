@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Paperclip, X, Loader2, FileText, ImageIcon } from 'lucide-react'
 import { useUpload } from '@/hooks/use-upload'
 import type { UploadModule, UploadResult } from '@/lib/upload.api'
@@ -25,6 +25,10 @@ function formatBytes(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
+function isPendingTicketUpload(url: string) {
+  return url.startsWith('ticket-upload:')
+}
+
 export function FileUploadInput({
   module = 'general',
   value,
@@ -33,33 +37,77 @@ export function FileUploadInput({
   label = 'แนบไฟล์',
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const { isUploading, error, upload } = useUpload(module)
+
+  useEffect(() => {
+    if (value || !previewUrl) return
+    URL.revokeObjectURL(previewUrl)
+    setPreviewUrl(null)
+  }, [previewUrl, value])
+
+  useEffect(() => () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+  }, [previewUrl])
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
+
+    const nextPreviewUrl = file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+    setPreviewUrl(current => {
+      if (current) URL.revokeObjectURL(current)
+      return nextPreviewUrl
+    })
+
     const result = await upload(file)
-    if (result) onChange?.(result)
+    if (result) {
+      onChange?.(result)
+    } else if (nextPreviewUrl) {
+      URL.revokeObjectURL(nextPreviewUrl)
+      setPreviewUrl(null)
+    }
   }
 
   function handleRemove() {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+      setPreviewUrl(null)
+    }
     onChange?.(null)
   }
 
   if (value) {
+    const pendingTicketUpload = isPendingTicketUpload(value.url)
+    const fileHref = pendingTicketUpload ? null : publicFileUrl(value.url)
+    const imageSrc = previewUrl ?? (value.contentType.startsWith('image/') && fileHref ? fileHref : null)
+
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
-        {fileIcon(value.contentType)}
-        <a
-          href={publicFileUrl(value.url)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="min-w-0 flex-1 truncate text-primary hover:underline"
-        >
-          {value.fileName}
-        </a>
-        <span className="shrink-0 text-xs text-muted-foreground">{formatBytes(value.sizeBytes)}</span>
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+        {imageSrc ? (
+          <img src={imageSrc} alt={value.fileName} className="h-12 w-12 shrink-0 rounded-md object-cover" />
+        ) : (
+          fileIcon(value.contentType)
+        )}
+        <div className="min-w-0 flex-1">
+          {fileHref ? (
+            <a
+              href={fileHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block truncate text-primary hover:underline"
+            >
+              {value.fileName}
+            </a>
+          ) : (
+            <p className="truncate font-medium text-foreground">{value.fileName}</p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {formatBytes(value.sizeBytes)}
+            {pendingTicketUpload ? ' · พร้อมแนบเมื่อบันทึกใบแจ้งเรื่อง' : ''}
+          </p>
+        </div>
         <button
           type="button"
           onClick={handleRemove}

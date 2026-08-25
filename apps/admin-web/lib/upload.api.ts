@@ -2,7 +2,7 @@ import { api } from './api'
 
 export type UploadResult = {
   uploadId?: string
-  key: string
+  key?: string
   url: string
   fileName: string
   contentType: string
