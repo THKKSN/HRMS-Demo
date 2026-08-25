@@ -9,7 +9,8 @@ import {
   Shield, ShieldOff, Settings2, Copy,
   Clock, CalendarDays, User, Building2, Layers,
   MapPin, FileText, Gift, Tag, Lock, ClipboardList,
-  Calendar, Filter,
+  Calendar, Filter, FolderTree, PlayCircle, Paperclip,
+  MessageSquare, HelpCircle, RotateCw, Undo2, Route,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,6 +45,7 @@ const MODULE_CONFIG: Record<string, BadgeConfig> = {
   'weekly-holiday':     { label: 'วันหยุดสัปดาห์',       icon: CalendarDays,   bg: 'bg-pink-100',    text: 'text-pink-700',    border: 'border-l-pink-400' },
   permission:           { label: 'สิทธิ์การใช้งาน',      icon: Lock,           bg: 'bg-yellow-100',  text: 'text-yellow-700',  border: 'border-l-yellow-400' },
   expense:              { label: 'การวางบิล',            icon: ClipboardList,  bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-l-emerald-400' },
+  ticket:               { label: 'แจ้งเรื่อง',            icon: FolderTree,     bg: 'bg-fuchsia-100', text: 'text-fuchsia-700', border: 'border-l-fuchsia-400' },
   system:               { label: 'ระบบ',                 icon: Settings2,      bg: 'bg-gray-100',    text: 'text-gray-700',    border: 'border-l-gray-400' },
 }
 
@@ -77,6 +79,21 @@ const ACTION_CONFIG: Record<string, ActionConfig> = {
   'export-expense-billing-batch': { label: 'นำออกการวางรอบบิล', icon: ClipboardList, bg: 'bg-teal-100', text: 'text-teal-700', ring: 'ring-teal-300' },
   'mark-expense-billing-batch-paid': { label: 'บันทึกจ่ายเงิน', icon: CheckCircle2, bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300' },
   'cancel-expense-billing-batch': { label: 'ยกเลิกการวางรอบบิล', icon: Ban, bg: 'bg-orange-100', text: 'text-orange-700', ring: 'ring-orange-300' },
+  'start-work':           { label: 'เริ่มดำเนินการ',     icon: PlayCircle,    bg: 'bg-blue-100',    text: 'text-blue-700',    ring: 'ring-blue-300' },
+  resolve:                { label: 'ส่งตรวจ',            icon: CheckCircle2,  bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300' },
+  close:                  { label: 'ปิดงาน',             icon: CheckCircle2,  bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300' },
+  'return-for-revision':  { label: 'ส่งกลับแก้ไข',       icon: Undo2,         bg: 'bg-orange-100',  text: 'text-orange-700',  ring: 'ring-orange-300' },
+  'requester-confirm-completion': { label: 'ผู้แจ้งยืนยันงานเสร็จ', icon: CheckCircle2, bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300' },
+  'add-comment':          { label: 'แสดงความคิดเห็น',    icon: MessageSquare, bg: 'bg-slate-100',   text: 'text-slate-700',   ring: 'ring-slate-300' },
+  'request-info':         { label: 'ขอข้อมูลเพิ่ม',      icon: HelpCircle,    bg: 'bg-amber-100',   text: 'text-amber-700',   ring: 'ring-amber-300' },
+  'resume-work':          { label: 'กลับมาดำเนินการ',    icon: RotateCw,      bg: 'bg-blue-100',    text: 'text-blue-700',    ring: 'ring-blue-300' },
+  'update-work-detail':   { label: 'อัปเดตข้อมูลงาน',    icon: Pencil,        bg: 'bg-blue-100',    text: 'text-blue-700',    ring: 'ring-blue-300' },
+  'add-attachment':       { label: 'เพิ่มหลักฐาน',       icon: Paperclip,     bg: 'bg-cyan-100',    text: 'text-cyan-700',    ring: 'ring-cyan-300' },
+  'remove-attachment':    { label: 'ลบหลักฐาน',          icon: Trash2,        bg: 'bg-red-100',     text: 'text-red-700',     ring: 'ring-red-300' },
+  'auto-route-topic':     { label: 'จ่ายงานอัตโนมัติ (หัวข้อ)', icon: Route,   bg: 'bg-indigo-100',  text: 'text-indigo-700',  ring: 'ring-indigo-300' },
+  'auto-route-category':  { label: 'จ่ายงานอัตโนมัติ (หมวด)', icon: Route,    bg: 'bg-indigo-100',  text: 'text-indigo-700',  ring: 'ring-indigo-300' },
+  'routing-multiple-candidates': { label: 'รอ Supervisor เลือกผู้รับผิดชอบ', icon: Route, bg: 'bg-orange-100', text: 'text-orange-700', ring: 'ring-orange-300' },
+  'routing-no-match':     { label: 'ไม่พบผู้รับผิดชอบ',  icon: Route,         bg: 'bg-gray-100',    text: 'text-gray-700',    ring: 'ring-gray-300' },
   'add-role':             { label: 'เพิ่มสิทธิ์',        icon: UserPlus,      bg: 'bg-violet-100',  text: 'text-violet-700',  ring: 'ring-violet-300' },
   'remove-role':          { label: 'ถอดสิทธิ์',          icon: UserMinus,     bg: 'bg-rose-100',    text: 'text-rose-700',    ring: 'ring-rose-300' },
   grant:                  { label: 'ให้สิทธิ์',          icon: Shield,        bg: 'bg-violet-100',  text: 'text-violet-700',  ring: 'ring-violet-300' },
@@ -388,6 +405,7 @@ export default function AuditLogsPage() {
               <option value="weekly-holiday">วันหยุดสัปดาห์</option>
               <option value="permission">สิทธิ์การใช้งาน</option>
               <option value="expense">การวางบิล</option>
+              <option value="ticket">แจ้งเรื่อง</option>
             </Select>
           </div>
 
@@ -435,6 +453,23 @@ export default function AuditLogsPage() {
                 <option value="grant">ให้สิทธิ์</option>
                 <option value="revoke">ถอนสิทธิ์</option>
                 <option value="set-role-permissions">ตั้งค่าสิทธิ์</option>
+              </optgroup>
+              <optgroup label="แจ้งเรื่อง">
+                <option value="start-work">เริ่มดำเนินการ</option>
+                <option value="resolve">ส่งตรวจ</option>
+                <option value="close">ปิดงาน</option>
+                <option value="return-for-revision">ส่งกลับแก้ไข</option>
+                <option value="requester-confirm-completion">ผู้แจ้งยืนยันงานเสร็จ</option>
+                <option value="add-comment">แสดงความคิดเห็น</option>
+                <option value="request-info">ขอข้อมูลเพิ่ม</option>
+                <option value="resume-work">กลับมาดำเนินการ</option>
+                <option value="update-work-detail">อัปเดตข้อมูลงาน</option>
+                <option value="add-attachment">เพิ่มหลักฐาน</option>
+                <option value="remove-attachment">ลบหลักฐาน</option>
+                <option value="auto-route-topic">จ่ายงานอัตโนมัติ (หัวข้อ)</option>
+                <option value="auto-route-category">จ่ายงานอัตโนมัติ (หมวด)</option>
+                <option value="routing-multiple-candidates">รอ Supervisor เลือกผู้รับผิดชอบ</option>
+                <option value="routing-no-match">ไม่พบผู้รับผิดชอบ</option>
               </optgroup>
             </Select>
           </div>
