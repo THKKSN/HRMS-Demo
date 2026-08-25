@@ -1533,7 +1533,7 @@ pnpm --filter liff-web build
 
 Expected: helper tests PASS, all auth-link Playwright cases PASS, and Next.js build exits 0.
 
-- [ ] **Step 6: Commit the preview UI**
+- [x] **Step 6: Commit the preview UI**
 
 ```bash
 git add apps/liff-web/app/auth/link/page.tsx apps/liff-web/lib/liff.ts \
