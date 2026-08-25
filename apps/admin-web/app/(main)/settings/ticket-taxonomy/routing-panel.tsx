@@ -38,7 +38,7 @@ export function RoutingPanel({ companyId, departmentId, categories, topics, cate
   }
 
   async function preview() {
-    if (!categoryId || !topicId) return toast.error('เลือกหัวข้อย่อยก่อนทดสอบ')
+    if (!categoryId || !topicId) return toast.error('เลือกหมวดย่อยก่อนทดสอบ')
     const result = await mutations.preview.mutateAsync({ companyId, departmentId, categoryId, topicId })
     const resultText = result.outcome === 'AutoAssigned' ? `มอบหมายอัตโนมัติให้ ${result.candidates[0]?.employeeName}`
       : result.outcome === 'SupervisorQueue' ? `ส่งเข้า Supervisor (${result.candidates.length} ผู้รับผิดชอบ)` : 'ไม่พบผู้รับผิดชอบ ส่งเข้า Supervisor'
@@ -49,7 +49,7 @@ export function RoutingPanel({ companyId, departmentId, categories, topics, cate
     <div className="space-y-5">
       {coverage && <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {[
-          ['หัวข้อทั้งหมด', coverage.totalTopics], ['ครอบคลุมแล้ว', coverage.coveredTopics], ['ยังไม่มีผู้ดูแล', coverage.uncoveredTopics],
+          ['หมวดย่อยทั้งหมด', coverage.totalTopics], ['ครอบคลุมแล้ว', coverage.coveredTopics], ['ยังไม่มีผู้ดูแล', coverage.uncoveredTopics],
           ['ตั้ง Auto', coverage.autoAssignTopics], ['Auto แต่หลายคน', coverage.autoAssignWithMultipleCandidates], ['ผู้ดูแลระดับหมวด', coverage.categoryFallbacks],
         ].map(([label, value]) => <div key={label} className="border-y border-border px-3 py-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>)}
       </div>}
@@ -57,9 +57,9 @@ export function RoutingPanel({ companyId, departmentId, categories, topics, cate
       <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <section className="space-y-4 border-r border-border pr-4">
           <div><Label>หมวด</Label><Select value={categoryId} onChange={event => { onCategory(event.target.value); onTopic('') }}><option value="">เลือกหมวด</option>{categories.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></div>
-          <div><Label>หัวข้อย่อย (เว้นว่าง = ดูแลทั้งหมวด)</Label><Select value={topicId} disabled={!categoryId} onChange={event => onTopic(event.target.value)}><option value="">ระดับหมวด / ทุกหัวข้อย่อย</option>{topics.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></div>
+          <div><Label>หมวดย่อย (เว้นว่าง = ดูแลทั้งหมวด)</Label><Select value={topicId} disabled={!categoryId} onChange={event => onTopic(event.target.value)}><option value="">ระดับหมวด / ทุกหมวดย่อย</option>{topics.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></div>
           {topic ? <div><Label>วิธีมอบหมายของหัวข้อ</Label><Select value={topic.routingMode} onChange={event => mutations.topicMode.mutate({ id: topic.id, mode: event.target.value as TicketRoutingMode })}>{Object.entries(modeLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></div>
-            : category && <><p className="text-xs text-muted-foreground">ผู้รับผิดชอบระดับหมวดรับงานได้จากทุกหัวข้อย่อยในหมวดนี้</p><div><Label>วิธีมอบหมายระดับหมวด</Label><Select value={category.routingMode} onChange={event => mutations.categoryMode.mutate({ id: category.id, enableFallback: true, mode: event.target.value as TicketRoutingMode })}>{Object.entries(modeLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></div></>}
+            : category && <><p className="text-xs text-muted-foreground">ผู้รับผิดชอบระดับหมวดรับงานได้จากทุกหมวดย่อยในหมวดนี้</p><div><Label>วิธีมอบหมายระดับหมวด</Label><Select value={category.routingMode} onChange={event => mutations.categoryMode.mutate({ id: category.id, enableFallback: true, mode: event.target.value as TicketRoutingMode })}>{Object.entries(modeLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></div></>}
           <Button variant="outline" className="w-full" disabled={!topicId || mutations.preview.isPending} onClick={preview}><Route className="h-4 w-4" /> ทดสอบ Routing</Button>
         </section>
 
@@ -71,7 +71,7 @@ export function RoutingPanel({ companyId, departmentId, categories, topics, cate
           <div className="divide-y divide-border">
             {responsibilities.length === 0 && <p className="py-12 text-center text-sm text-muted-foreground">ยังไม่มีผู้รับผิดชอบในขอบเขตนี้</p>}
             {responsibilities.map(item => <div key={item.id} className="flex min-h-16 items-center gap-3 py-3">
-              <UserRound className="h-4 w-4 text-primary" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.employeeName} · {item.employeeCode}</p><p className="text-xs text-muted-foreground">{item.topicName ?? `${item.categoryName} (ทุกหัวข้อย่อย)`}</p></div>
+              <UserRound className="h-4 w-4 text-primary" /><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.employeeName} · {item.employeeCode}</p><p className="text-xs text-muted-foreground">{item.topicName ?? `${item.categoryName} (ทุกหมวดย่อย)`}</p></div>
               {!item.employeeIsEligible && <Badge variant="destructive">ไม่อยู่ในขอบเขต</Badge>}
               <Button size="icon" variant="ghost" title={item.isActive ? 'ปิดการรับผิดชอบ' : 'เปิดการรับผิดชอบ'} onClick={() => mutations.update.mutate({ id: item.id, isActive: !item.isActive, effectiveFrom: item.effectiveFrom, effectiveTo: item.effectiveTo, note: item.note, expectedUpdatedAt: item.updatedAt })}>{item.isActive ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-muted-foreground" />}</Button>
             </div>)}
