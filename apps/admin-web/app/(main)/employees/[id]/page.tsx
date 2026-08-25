@@ -8,8 +8,10 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
   ArrowLeft, Check, KeyRound, Pencil, Plus, RefreshCw, Trash2, X,
-  User, Building2, Layers, CalendarDays, Clock,
+  User, Building2, Layers, CalendarDays, Clock, Mail, Phone,
+  IdCard, ShieldCheck, CalendarClock,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -22,7 +24,6 @@ import {
   useEmployee, useUpdateEmployee, useToggleEmployeeStatus,
   useAddEmployeeRole, useRemoveEmployeeRole, useSetPassword,
 } from '@/hooks/use-employees'
-import { useCompanies } from '@/hooks/use-companies'
 import { useDepartments } from '@/hooks/use-departments'
 import { useRoleLabels } from '@/hooks/use-role-labels'
 import { useLeaveTypes } from '@/hooks/use-leave-types'
@@ -31,21 +32,17 @@ import { useAuthStore } from '@/stores/auth.store'
 import { useShiftOverrides, useCurrentShift, useSetShiftOverride, useRemoveShiftOverride } from '@/hooks/use-shift-overrides'
 import { useShifts } from '@/hooks/use-shifts'
 import { useAllRolePermissions } from '@/hooks/use-permissions'
+import { companyOptionLabel, useCompanyOptions } from '@/hooks/use-company-options'
+import { getInitials, ROLE_LABEL_TH, roleChipClass } from '@/lib/employee-roles'
 import type { LeaveBalanceAdminDto } from '@/types/admin'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1]
-const ROLE_CHIP: Record<string, string> = {
-  Admin:      'bg-red-100 text-red-700 border-red-200',
-  Hr:         'bg-purple-100 text-purple-700 border-purple-200',
-  Supervisor: 'bg-blue-100 text-blue-700 border-blue-200',
-  Executive:  'bg-amber-100 text-amber-700 border-amber-200',
-  Employee:   'bg-slate-100 text-slate-600 border-slate-200',
-}
 
 const editSchema = z.object({
   firstName:    z.string().min(1, 'กรุณากรอกชื่อ'),
   lastName:     z.string().min(1, 'กรุณากรอกนามสกุล'),
+  nickname:     z.string().max(50, { message: 'ไม่เกิน 50 ตัวอักษร' }).optional(),
   email:        z.string().email({ message: 'อีเมลไม่ถูกต้อง' }).optional().or(z.literal('')),
   phone:        z.string().optional(),
   hireDate:     z.string().optional(),
@@ -57,12 +54,6 @@ const editSchema = z.object({
 type EditValues = z.infer<typeof editSchema>
 
 type TabKey = 'info' | 'roles' | 'leave' | 'shift' | 'password'
-
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/)
-  if (parts.length >= 2) return (parts[0]![0]! + parts[1]![0]!).toUpperCase()
-  return (parts[0]?.slice(0, 2) ?? '??').toUpperCase()
-}
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
@@ -465,15 +456,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       setSelectedRoleId(roleOptions[0].roleId)
   }, [roleOptions, selectedRoleId])
 
-  const { data: tree = [] } = useCompanies()
-  const activeCompanies = useMemo(() => {
-    const result: { id: string; name: string }[] = []
-    function walk(nodes: typeof tree) {
-      for (const n of nodes) { if (n.isActive) result.push({ id: n.id, name: n.name }); walk(n.children) }
-    }
-    walk(tree)
-    return result
-  }, [tree])
+  const { options: activeCompanies } = useCompanyOptions()
 
   const { register, handleSubmit, setError, reset, watch, setValue,
     formState: { errors, isSubmitting, isDirty } } =
@@ -482,6 +465,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       values: emp ? {
         firstName:    emp.fullName.split(' ')[0] ?? '',
         lastName:     emp.fullName.split(' ').slice(1).join(' ') ?? '',
+        nickname:     emp.nickname     ?? '',
         email:        emp.email        ?? '',
         phone:        emp.phone        ?? '',
         hireDate:     emp.hireDate     ?? '',
@@ -512,6 +496,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       await updateEmployee.mutateAsync({
         firstName:    values.firstName,
         lastName:     values.lastName,
+        nickname:     values.nickname     || undefined,
         email:        values.email        || undefined,
         phone:        values.phone        || undefined,
         hireDate:     values.hireDate     || undefined,
@@ -598,12 +583,12 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
   const activeRoles = emp.roles.filter((r) => r.isActive)
 
-  const TABS: { key: TabKey; label: string }[] = [
-    { key: 'info',     label: 'ข้อมูลทั่วไป' },
-    { key: 'roles',    label: 'สิทธิ์การใช้งาน' },
-    { key: 'leave',    label: 'โควตาวันลา' },
-    { key: 'shift',    label: 'เวลาปฎิบัติงาน' },
-    ...(canEdit ? [{ key: 'password' as TabKey, label: 'รหัสผ่าน' }] : []),
+  const TABS: { key: TabKey; label: string; icon: LucideIcon; count?: number }[] = [
+    { key: 'info',  label: 'ข้อมูลทั่วไป',   icon: User },
+    { key: 'roles', label: 'สิทธิ์การใช้งาน', icon: ShieldCheck, count: activeRoles.length },
+    { key: 'leave', label: 'โควตาวันลา',     icon: CalendarDays },
+    { key: 'shift', label: 'เวลาปฎิบัติงาน',  icon: CalendarClock },
+    ...(canEdit ? [{ key: 'password' as TabKey, label: 'รหัสผ่าน', icon: KeyRound }] : []),
   ]
 
   return (
@@ -628,7 +613,12 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
             <div className="space-y-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-2xl font-bold leading-tight">{emp.fullName}</h1>
+                <h1 className="text-2xl font-bold leading-tight">
+                  {emp.fullName}
+                  {emp.nickname && (
+                    <span className="ml-2 text-lg font-normal text-muted-foreground">({emp.nickname})</span>
+                  )}
+                </h1>
                 <Badge variant={emp.isActive ? 'success' : 'secondary'} className="shrink-0">
                   {emp.isActive ? 'ปฎิบัติงาน' : 'พ้นสภาพ'}
                 </Badge>
@@ -636,6 +626,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
               <p className="text-sm font-mono text-muted-foreground">{emp.employeeCode}</p>
 
+              {/* สังกัด */}
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
                 {emp.companyName && (
                   <span className="flex items-center gap-1.5">
@@ -655,17 +646,39 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 {emp.hireDate && (
                   <span className="flex items-center gap-1.5">
                     <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                    {new Date(emp.hireDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    เริ่มงาน {new Date(emp.hireDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
                 )}
               </div>
 
+              {/* ช่องทางติดต่อ */}
+              {(emp.email || emp.phone || emp.nationalIdMasked) && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-sm text-muted-foreground">
+                  {emp.email && (
+                    <a href={`mailto:${emp.email}`} className="flex items-center gap-1.5 hover:text-primary hover:underline">
+                      <Mail className="h-3.5 w-3.5 shrink-0" />{emp.email}
+                    </a>
+                  )}
+                  {emp.phone && (
+                    <a href={`tel:${emp.phone}`} className="flex items-center gap-1.5 hover:text-primary hover:underline">
+                      <Phone className="h-3.5 w-3.5 shrink-0" />{emp.phone}
+                    </a>
+                  )}
+                  {emp.nationalIdMasked && (
+                    <span className="flex items-center gap-1.5 font-mono text-xs">
+                      <IdCard className="h-3.5 w-3.5 shrink-0" />{emp.nationalIdMasked}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {activeRoles.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5">
+                <div className="mt-3 flex flex-wrap gap-1.5">
                   {activeRoles.map((r) => (
                     <span
                       key={r.id}
-                      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${ROLE_CHIP[r.role] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}
+                      title={ROLE_LABEL_TH[r.role] ?? r.role}
+                      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${roleChipClass(r.role)}`}
                     >
                       {r.role}
                     </span>
@@ -695,24 +708,34 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       {/* ── Tab nav ───────────────────────────────────────────────────────── */}
-      <div className="border-b border-border mb-6">
-        <nav className="flex">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
-                activeTab === tab.key
-                  ? 'text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {tab.label}
-              {activeTab === tab.key && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-primary" />
-              )}
-            </button>
-          ))}
+      <div className="sticky top-0 z-10 -mx-4 mb-6 border-b border-border bg-background/95 px-4 backdrop-blur sm:mx-0 sm:px-0">
+        <nav className="flex overflow-x-auto" role="tablist" aria-label="ส่วนข้อมูลพนักงาน">
+          {TABS.map((tab) => {
+            const Icon = tab.icon
+            const isActive = activeTab === tab.key
+            return (
+              <button
+                key={tab.key}
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setActiveTab(tab.key)}
+                className={`relative flex shrink-0 items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                  isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {tab.label}
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                    isActive ? 'bg-primary/10 text-primary' : 'bg-whited text-muted-foreground'
+                  }`}>
+                    {tab.count}
+                  </span>
+                )}
+                {isActive && <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-primary" />}
+              </button>
+            )
+          })}
         </nav>
       </div>
 
@@ -730,6 +753,11 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 <Label htmlFor="e-ln">นามสกุล *</Label>
                 <Input id="e-ln" {...register('lastName')} disabled={!canEdit} />
                 <FieldError message={errors.lastName?.message} />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="e-nick">ชื่อเล่น</Label>
+                <Input id="e-nick" maxLength={50} {...register('nickname')} disabled={!canEdit} />
+                <FieldError message={errors.nickname?.message} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="e-email">อีเมล</Label>
@@ -763,7 +791,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                   <Label htmlFor="e-company">บริษัท</Label>
                   <Select id="e-company" {...register('companyId')} disabled={!canEdit}>
                     <option value="">— เลือกบริษัท —</option>
-                    {activeCompanies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    {activeCompanies.map((c) => <option key={c.id} value={c.id}>{companyOptionLabel(c)}</option>)}
                   </Select>
                 </div>
                 <div className="space-y-1.5">
@@ -787,7 +815,12 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
             {errors.root && <p className="text-sm text-destructive">{errors.root.message}</p>}
             {canEdit && (
-              <div className="flex justify-end gap-2 border-t border-border pt-4">
+              <div className={`flex items-center justify-end gap-2 border-t border-border pt-4 ${
+                isDirty ? 'sticky bottom-0 -mx-6 -mb-6 bg-background px-6 pb-6' : ''
+              }`}>
+                {isDirty && (
+                  <span className="mr-auto text-xs text-amber-600">มีการแก้ไขที่ยังไม่ได้บันทึก</span>
+                )}
                 <Button type="button" variant="outline" size="sm" onClick={() => reset()} disabled={!isDirty}>ยกเลิก</Button>
                 <Button type="submit" size="sm" loading={isSubmitting} disabled={!isDirty}>บันทึกการเปลี่ยนแปลง</Button>
               </div>
@@ -820,22 +853,22 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             </div>
           )}
 
-          {emp.roles.length === 0 ? (
+          {activeRoles.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted-foreground">ยังไม่มีสิทธิ์การใช้งาน</p>
           ) : (
             <div className="space-y-2">
-              {emp.roles.map((r) => (
+              {activeRoles.map((r) => (
                 <div
                   key={r.id}
-                  className={`flex items-center justify-between rounded-lg border px-4 py-3 transition-colors ${r.isActive ? 'hover:bg-whited/30' : 'opacity-50'}`}
+                  className="flex items-center justify-between rounded-lg border px-4 py-3 transition-colors hover:bg-whited/30"
                 >
                   <div className="flex items-center gap-3">
-                    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${ROLE_CHIP[r.role] ?? 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${roleChipClass(r.role)}`}>
                       {r.role}
                     </span>
-                    {!r.isActive && <span className="text-xs text-muted-foreground">พ้นสภาพ</span>}
+                    <span className="text-sm text-muted-foreground">{ROLE_LABEL_TH[r.role] ?? '—'}</span>
                   </div>
-                  {canManageRoles && r.isActive && (
+                  {canManageRoles && (
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive"
                       loading={removeRole.isPending} onClick={() => setRemoveTarget(r.id)}>
                       <Trash2 className="h-4 w-4" />

@@ -15,6 +15,7 @@ export type EmployeeListItemDto = {
   id: string
   employeeCode: string
   fullName: string
+  nickname?: string
   companyId: string
   companyName: string
   departmentId?: string
@@ -29,6 +30,7 @@ export type EmployeeDetailDto = {
   id: string
   employeeCode: string
   fullName: string
+  nickname?: string
   email?: string
   phone?: string
   nationalIdMasked?: string

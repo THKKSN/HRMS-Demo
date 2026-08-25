@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { employeesApi } from '@/lib/employees.api'
+import { employeesApi, type EmployeeListParams } from '@/lib/employees.api'
 
 export const employeeKeys = {
   all: ['employees'] as const,
@@ -8,10 +8,11 @@ export const employeeKeys = {
   roles: (id: string) => [...employeeKeys.all, 'roles', id] as const,
 }
 
-export function useEmployees(params?: { page?: number; pageSize?: number; search?: string; isActive?: boolean; companyId?: string }) {
+export function useEmployees(params?: EmployeeListParams) {
   return useQuery({
     queryKey: employeeKeys.list(params),
     queryFn: () => employeesApi.getAll(params),
+    placeholderData: (prev) => prev,
   })
 }
 

@@ -7,11 +7,22 @@ import type {
 } from '@/types/admin'
 import type { EmployeeProfileDto } from '@hrms/shared-types'
 
+export type EmployeeListParams = {
+  page?: number
+  pageSize?: number
+  search?: string
+  isActive?: boolean
+  companyId?: string
+  departmentId?: string
+  roleLabelId?: string
+  role?: string
+}
+
 export const employeesApi = {
   getMe: () =>
     api.get<EmployeeProfileDto>('/employees/me').then((r) => r.data),
 
-  getAll: (params?: { page?: number; pageSize?: number; search?: string; isActive?: boolean; companyId?: string }) =>
+  getAll: (params?: EmployeeListParams) =>
     api.get<PagedResult<EmployeeListItemDto>>('/employees', { params }).then((r) => r.data),
 
   getById: (id: string) =>
@@ -21,6 +32,7 @@ export const employeesApi = {
     employeeCode: string
     firstName: string
     lastName: string
+    nickname?: string
     email?: string
     phone?: string
     nationalId?: string
@@ -36,6 +48,7 @@ export const employeesApi = {
     body: {
       firstName: string
       lastName: string
+      nickname?: string
       email?: string
       phone?: string
       hireDate?: string
