@@ -20,4 +20,5 @@ internal sealed class TestCurrentUser(
         .ToList();
     public IReadOnlyList<Guid> ManagedCompanyIds { get; } = [companyId];
     public bool IsAuthenticated => true;
+    public string? ClientApp { get; set; }
 }

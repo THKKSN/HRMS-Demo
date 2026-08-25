@@ -10,6 +10,7 @@ public static class EmployeeMappingExtensions
             e.Id,
             e.EmployeeCode,
             $"{e.FirstName} {e.LastName}".Trim(),
+            e.Nickname,
             e.Email,
             e.Phone,
             MaskNationalId(e.NationalId),

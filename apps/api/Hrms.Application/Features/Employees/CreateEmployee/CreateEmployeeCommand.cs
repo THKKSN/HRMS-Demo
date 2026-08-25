@@ -23,7 +23,8 @@ public record CreateEmployeeCommand(
     DateOnly? HireDate,
     Guid? DepartmentId,
     Guid? CompanyId = null,
-    Guid? RoleLabelId = null) : IRequest<EmployeeDetailDto>;
+    Guid? RoleLabelId = null,
+    string? Nickname = null) : IRequest<EmployeeDetailDto>;
 
 public class CreateEmployeeValidator : AbstractValidator<CreateEmployeeCommand>
 {
@@ -32,6 +33,7 @@ public class CreateEmployeeValidator : AbstractValidator<CreateEmployeeCommand>
         RuleFor(x => x.EmployeeCode).NotEmpty().MaximumLength(20);
         RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Nickname).MaximumLength(50);
         RuleFor(x => x.Password).NotEmpty().MinimumLength(6);
         RuleFor(x => x.Email).EmailAddress().When(x => !string.IsNullOrEmpty(x.Email));
         RuleFor(x => x.NationalId).Length(13).When(x => !string.IsNullOrEmpty(x.NationalId));
@@ -89,6 +91,7 @@ public class CreateEmployeeHandler(
             EmployeeCode = employeeCode,
             FirstName    = request.FirstName,
             LastName     = request.LastName,
+            Nickname     = TrimOrNull(request.Nickname),
             Email        = request.Email,
             Phone        = request.Phone,
             NationalId   = request.NationalId,
@@ -110,9 +113,12 @@ public class CreateEmployeeHandler(
             action:      "create",
             description: $"สร้างพนักงานใหม่ {employee.FirstName} {employee.LastName} รหัส {employee.EmployeeCode}",
             oldValues:   null,
-            newValues:   new { employee.EmployeeCode, employee.FirstName, employee.LastName, employee.Email, employee.DepartmentId, employee.CompanyId },
+            newValues:   new { employee.EmployeeCode, employee.FirstName, employee.LastName, employee.Nickname, employee.Email, employee.DepartmentId, employee.CompanyId },
             ct:          ct);
 
         return employee.ToDetailDto(department?.Name);
     }
+
+    private static string? TrimOrNull(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

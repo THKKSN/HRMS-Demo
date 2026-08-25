@@ -3,6 +3,7 @@ using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Common.Models;
 using Hrms.Application.Features.Employees.Dtos;
+using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,7 +14,10 @@ public record GetEmployeesQuery(
     int PageSize,
     string? Search,
     Guid? CompanyId,
-    bool? IsActive = true) : IRequest<PagedResult<EmployeeListItemDto>>;
+    bool? IsActive = true,
+    Guid? DepartmentId = null,
+    Guid? RoleLabelId = null,
+    RoleType? Role = null) : IRequest<PagedResult<EmployeeListItemDto>>;
 
 public class GetEmployeesHandler(IApplicationDbContext db, IScopeGuard scope, ICurrentUser currentUser, IPermissionService permService)
     : IRequestHandler<GetEmployeesQuery, PagedResult<EmployeeListItemDto>>
@@ -44,13 +48,37 @@ public class GetEmployeesHandler(IApplicationDbContext db, IScopeGuard scope, IC
         else if (accessibleIds != null)
             query = query.Where(e => accessibleIds.Contains(e.CompanyId));
 
+        if (request.DepartmentId.HasValue)
+            query = query.Where(e => e.DepartmentId == request.DepartmentId.Value);
+
+        if (request.RoleLabelId.HasValue)
+            query = query.Where(e => e.RoleLabelId == request.RoleLabelId.Value);
+
+        if (request.Role.HasValue)
+        {
+            var role = request.Role.Value;
+            query = query.Where(e => e.Roles.Any(r => r.IsActive && r.Role.Code == role));
+        }
+
+        // ค้นหาแบบหลายคำ: ทุกคำต้อง match อย่างน้อย 1 ฟิลด์ (เช่น "สมชาย IT")
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
-            var s = request.Search.Trim().ToLower();
-            query = query.Where(e =>
-                e.EmployeeCode.ToLower().Contains(s) ||
-                e.FirstName.ToLower().Contains(s) ||
-                e.LastName.ToLower().Contains(s));
+            var terms = request.Search
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(t => t.ToLower())
+                .Take(5);
+
+            foreach (var term in terms)
+            {
+                var t = term;
+                query = query.Where(e =>
+                    e.EmployeeCode.ToLower().Contains(t) ||
+                    e.FirstName.ToLower().Contains(t) ||
+                    e.LastName.ToLower().Contains(t) ||
+                    (e.FirstName + " " + e.LastName).ToLower().Contains(t) ||
+                    (e.Email != null && e.Email.ToLower().Contains(t)) ||
+                    (e.Phone != null && e.Phone.Contains(t)));
+            }
         }
 
         var totalCount = await query.CountAsync(ct);
@@ -67,6 +95,7 @@ public class GetEmployeesHandler(IApplicationDbContext db, IScopeGuard scope, IC
             e.Id,
             e.EmployeeCode,
             $"{e.FirstName} {e.LastName}".Trim(),
+            e.Nickname,
             e.CompanyId,
             e.Company.Name,
             e.DepartmentId,

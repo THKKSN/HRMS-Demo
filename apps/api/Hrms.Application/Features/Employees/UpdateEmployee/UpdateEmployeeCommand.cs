@@ -19,7 +19,8 @@ public record UpdateEmployeeCommand(
     Guid? DepartmentId,
     Guid? CompanyId = null,
     Guid? RoleLabelId = null,
-    string? NationalId = null) : IRequest<EmployeeDetailDto>;
+    string? NationalId = null,
+    string? Nickname = null) : IRequest<EmployeeDetailDto>;
 
 public class UpdateEmployeeValidator : AbstractValidator<UpdateEmployeeCommand>
 {
@@ -27,6 +28,7 @@ public class UpdateEmployeeValidator : AbstractValidator<UpdateEmployeeCommand>
     {
         RuleFor(x => x.FirstName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.LastName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Nickname).MaximumLength(50);
         RuleFor(x => x.Email).EmailAddress().When(x => !string.IsNullOrEmpty(x.Email));
     }
 }
@@ -66,6 +68,7 @@ public class UpdateEmployeeHandler(
 
         employee.FirstName    = request.FirstName;
         employee.LastName     = request.LastName;
+        employee.Nickname     = string.IsNullOrWhiteSpace(request.Nickname) ? null : request.Nickname.Trim();
         employee.Email        = request.Email;
         employee.Phone        = request.Phone;
         employee.HireDate     = request.HireDate;
@@ -88,7 +91,7 @@ public class UpdateEmployeeHandler(
             action:      "update",
             description: $"แก้ไขข้อมูลพนักงาน {employee.FirstName} {employee.LastName} รหัส {employee.EmployeeCode}",
             oldValues:   null,
-            newValues:   new { employee.FirstName, employee.LastName, employee.Email, employee.Phone, employee.DepartmentId, employee.RoleLabelId },
+            newValues:   new { employee.FirstName, employee.LastName, employee.Nickname, employee.Email, employee.Phone, employee.DepartmentId, employee.RoleLabelId },
             ct:          ct);
 
         return employee.ToDetailDto(department?.Name ?? employee.Department?.Name, canEdit);

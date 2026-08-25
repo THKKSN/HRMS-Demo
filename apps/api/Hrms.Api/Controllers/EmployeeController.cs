@@ -47,9 +47,13 @@ public class EmployeeController(IMediator mediator) : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] Guid? companyId = null,
         [FromQuery] bool? isActive = true,
+        [FromQuery] Guid? departmentId = null,
+        [FromQuery] Guid? roleLabelId = null,
+        [FromQuery] RoleType? role = null,
         CancellationToken ct = default)
     {
-        var result = await mediator.Send(new GetEmployeesQuery(page, pageSize, search, companyId, isActive), ct);
+        var result = await mediator.Send(
+            new GetEmployeesQuery(page, pageSize, search, companyId, isActive, departmentId, roleLabelId, role), ct);
         return Ok(result);
     }
 
@@ -79,7 +83,8 @@ public class EmployeeController(IMediator mediator) : ControllerBase
             request.HireDate,
             request.DepartmentId,
             request.CompanyId,
-            request.RoleLabelId), ct);
+            request.RoleLabelId,
+            request.Nickname), ct);
         return CreatedAtAction(nameof(GetEmployeeById), new { id = result.Id }, result);
     }
 
@@ -100,7 +105,8 @@ public class EmployeeController(IMediator mediator) : ControllerBase
             request.HireDate,
             request.DepartmentId,
             request.CompanyId,
-            request.RoleLabelId), ct);
+            request.RoleLabelId,
+            Nickname: request.Nickname), ct);
         return Ok(result);
     }
 
@@ -166,7 +172,8 @@ public record CreateEmployeeRequest(
     DateOnly? HireDate,
     Guid? DepartmentId,
     Guid? CompanyId,
-    Guid? RoleLabelId);
+    Guid? RoleLabelId,
+    string? Nickname);
 
 public record UpdateEmployeeRequest(
     string FirstName,
@@ -176,7 +183,8 @@ public record UpdateEmployeeRequest(
     DateOnly? HireDate,
     Guid? DepartmentId,
     Guid? CompanyId,
-    Guid? RoleLabelId);
+    Guid? RoleLabelId,
+    string? Nickname);
 
 public record ToggleStatusRequest(bool IsActive);
 public record SetPasswordRequest(string NewPassword);

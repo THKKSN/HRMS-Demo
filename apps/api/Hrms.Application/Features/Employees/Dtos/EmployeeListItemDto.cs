@@ -4,6 +4,7 @@ public record EmployeeListItemDto(
     Guid Id,
     string EmployeeCode,
     string FullName,
+    string? Nickname,
     Guid CompanyId,
     string CompanyName,
     Guid? DepartmentId,

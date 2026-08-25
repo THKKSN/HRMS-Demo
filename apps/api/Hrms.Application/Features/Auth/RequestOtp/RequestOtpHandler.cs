@@ -1,4 +1,5 @@
 using Hrms.Application.Common.Exceptions;
+using Hrms.Application.Common.Helpers;
 using Hrms.Application.Common.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -37,8 +38,9 @@ public class RequestOtpHandler(
 
         var otpPlain = await otp.GenerateAndStoreAsync(employee.Id, profile.UserId, ct);
 
-        var message = $"รหัส OTP สำหรับเชื่อมบัญชี TBG Assistant: {otpPlain}\n(ใช้ได้ภายใน 5 นาที ห้ามแชร์รหัสนี้กับผู้อื่น)";
-        await messaging.PushMessageAsync(profile.UserId, message, ct);
+        var otpUrl = messaging.BuildLiffUri("/auth/otp");
+        var card = LineFlexBuilder.BuildOtpCard(otpPlain, otpUrl);
+        await messaging.PushFlexMessageAsync(profile.UserId, $"รหัส OTP: {otpPlain}", card, ct);
 
         return new RequestOtpResult("OTP ส่งแล้ว กรุณาตรวจสอบ LINE ของคุณ");
     }

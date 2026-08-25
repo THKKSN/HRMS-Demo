@@ -33,6 +33,15 @@ public class CurrentUser(IHttpContextAccessor accessor) : ICurrentUser
         }
     }
 
+    public string? ClientApp
+    {
+        get
+        {
+            var header = accessor.HttpContext?.Request.Headers["X-Client-App"].ToString();
+            return string.IsNullOrWhiteSpace(header) ? null : header.Trim();
+        }
+    }
+
     public IReadOnlyList<Guid> ManagedCompanyIds =>
         Roles.Where(r => r.CompanyId.HasValue)
              .Select(r => r.CompanyId!.Value)

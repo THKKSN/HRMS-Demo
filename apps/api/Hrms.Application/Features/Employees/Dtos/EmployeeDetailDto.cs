@@ -4,6 +4,7 @@ public record EmployeeDetailDto(
     Guid Id,
     string EmployeeCode,
     string FullName,
+    string? Nickname,
     string? Email,
     string? Phone,
     string? NationalIdMasked,

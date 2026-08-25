@@ -12,10 +12,13 @@ public class Ticket : BaseEntity
     public Guid? SourceCompanyId { get; set; }
     public Guid? SourceDepartmentId { get; set; }
     public Guid TargetCompanyId { get; set; }
-    public Guid TargetDepartmentId { get; set; }
-    public Guid CategoryId { get; set; }
-    public Guid TopicId { get; set; }
+    public Guid? TargetDepartmentId { get; set; }
+    public Guid? CategoryId { get; set; }
+    public Guid? TopicId { get; set; }
     public Guid? SubjectId { get; set; }
+    public Guid? ExternalTicketCategoryId { get; set; }
+    public Guid? ExternalTicketTopicId { get; set; }
+    public Guid? ExternalTicketSubjectId { get; set; }
     public Guid? WorkflowDefinitionId { get; set; }
     public Guid? SubjectGuidanceConfigId { get; set; }
     public string? OtherTopicText { get; set; }
@@ -35,6 +38,8 @@ public class Ticket : BaseEntity
     public string? SubjectGuidanceConfigName { get; set; }
     public TicketPriority Priority { get; set; } = TicketPriority.Medium;
     public TicketStatus Status { get; set; } = TicketStatus.Open;
+    public TicketSourceChannel SourceChannel { get; set; } = TicketSourceChannel.Unknown;
+    public string? SourceClientApp { get; set; }
     public TicketRoutingMode RoutingMode { get; set; } = TicketRoutingMode.SupervisorAssign;
     public TicketRoutingLevel RoutingLevel { get; set; } = TicketRoutingLevel.None;
     public TicketRoutingOutcome RoutingOutcome { get; set; } = TicketRoutingOutcome.NotEvaluated;
@@ -44,6 +49,7 @@ public class Ticket : BaseEntity
     public string? ContactPhone { get; set; }
     public string? ContactNote { get; set; }
     public string? RequesterNameSnapshot { get; set; }
+    public string? RequesterNicknameSnapshot { get; set; }
     public string? RequesterPhoneSnapshot { get; set; }
     public string? RequesterEmailSnapshot { get; set; }
     public string? RequesterOrganizationSnapshot { get; set; }
@@ -77,10 +83,13 @@ public class Ticket : BaseEntity
     public Company? SourceCompany { get; set; }
     public Department? SourceDepartment { get; set; }
     public Company TargetCompany { get; set; } = null!;
-    public Department TargetDepartment { get; set; } = null!;
-    public TicketCategory Category { get; set; } = null!;
-    public TicketTopic Topic { get; set; } = null!;
+    public Department? TargetDepartment { get; set; }
+    public TicketCategory? Category { get; set; }
+    public TicketTopic? Topic { get; set; }
     public TicketSubject? Subject { get; set; }
+    public ExternalTicketCategory? ExternalTicketCategory { get; set; }
+    public ExternalTicketTopic? ExternalTicketTopic { get; set; }
+    public ExternalTicketSubject? ExternalTicketSubject { get; set; }
     public TicketWorkflowDefinition? WorkflowDefinition { get; set; }
     public TicketSubjectGuidanceConfig? SubjectGuidanceConfig { get; set; }
     public Employee? ReceiverEmployee { get; set; }

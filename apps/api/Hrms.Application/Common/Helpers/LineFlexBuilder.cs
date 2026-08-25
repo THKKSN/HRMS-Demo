@@ -256,6 +256,82 @@ public static class LineFlexBuilder
         string BadgeColor,
         string Label);
 
+    public static object BuildOtpCard(string otpCode, string otpUrl)
+    {
+        return new
+        {
+            type = "bubble",
+            size = "kompact",
+            styles = new
+            {
+                header = new { backgroundColor = "#0F8F72" },
+                footer = new { backgroundColor = "#F7F8FA", separator = true }
+            },
+            header = new
+            {
+                type = "box",
+                layout = "vertical",
+                paddingAll = "16px",
+                contents = new object[]
+                {
+                    new { type = "text", text = "รหัส OTP เชื่อมบัญชี", color = "#ffffff", size = "md", weight = "bold" }
+                }
+            },
+            body = new
+            {
+                type = "box",
+                layout = "vertical",
+                spacing = "sm",
+                paddingAll = "20px",
+                contents = new object[]
+                {
+                    new
+                    {
+                        type = "text",
+                        text = otpCode,
+                        size = "3xl",
+                        weight = "bold",
+                        align = "center",
+                        color = "#17191C",
+                        margin = "sm"
+                    },
+                    new
+                    {
+                        type = "text",
+                        text = "ใช้ได้ภายใน 5 นาที ห้ามแชร์รหัสนี้กับผู้อื่น",
+                        size = "xs",
+                        color = "#7A7F87",
+                        align = "center",
+                        wrap = true,
+                        margin = "md"
+                    }
+                }
+            },
+            footer = new
+            {
+                type = "box",
+                layout = "vertical",
+                paddingAll = "12px",
+                contents = new object[]
+                {
+                    new
+                    {
+                        type = "button",
+                        height = "sm",
+                        style = "primary",
+                        color = "#0F8F72",
+                        action = new
+                        {
+                            type = "uri",
+                            label = "กลับไปกรอกรหัส",
+                            uri = otpUrl
+                        }
+                    }
+                }
+            }
+        };
+    }
+
     public static object BuildAttendancePromptCard(
         string name, bool isCheckIn, string? checkInTime = null)
     {

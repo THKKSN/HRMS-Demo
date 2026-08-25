@@ -14,6 +14,7 @@ public class TicketTopic : BaseEntity
     public int SortOrder { get; set; }
     public Guid? CreatedByEmployeeId { get; set; }
     public TicketRoutingMode RoutingMode { get; set; } = TicketRoutingMode.SupervisorAssign;
+    public bool SyncToExternalRepairSystem { get; set; }
 
     public Company Company { get; set; } = null!;
     public Department Department { get; set; } = null!;
