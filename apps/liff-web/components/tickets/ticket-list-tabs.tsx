@@ -2,21 +2,32 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { MessageSquareText, Wrench } from 'lucide-react'
+import { Inbox, MessageSquareText, Wrench } from 'lucide-react'
+import { isSupervisorOrAbove } from '@/lib/auth-utils'
+import { useAuthStore } from '@/stores/auth.store'
 
 const tabs = [
   { href: '/tickets/my', label: 'เรื่องที่แจ้ง', icon: MessageSquareText },
-  { href: '/tickets/assigned', label: 'งานที่รับผิดชอบ', icon: Wrench },
+  { href: '/tickets/inbox', label: 'กล่องงาน', icon: Inbox, supervisorOnly: true },
+  { href: '/tickets/assigned', label: 'งานที่รับผิดขอบ', icon: Wrench },
 ]
 
 export function TicketListTabs() {
   const pathname = usePathname()
+  const employee = useAuthStore(state => state.employee)
+  const canViewInbox = employee ? isSupervisorOrAbove(employee.roles) : false
+  const visibleTabs = tabs.filter(tab => !tab.supervisorOnly || canViewInbox)
 
   return (
     <nav className="border-b border-border bg-background px-4 py-3" aria-label="รายการ Ticket">
-      <div className="grid h-10 grid-cols-2 rounded-md bg-muted p-1">
-        {tabs.map(({ href, label, icon: Icon }) => {
+      <div
+        className={`grid h-10 rounded-md bg-muted p-1 ${
+          visibleTabs.length === 3 ? 'grid-cols-3' : 'grid-cols-2'
+        }`}
+      >
+        {visibleTabs.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href)
+            || (href === '/tickets/inbox' && pathname.startsWith('/ticket/inbox'))
           return (
             <Link
               key={href}

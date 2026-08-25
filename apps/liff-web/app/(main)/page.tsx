@@ -6,6 +6,9 @@ import {
   Calendar, Clock, User, ClipboardList,
   MapPin, ChevronRight, History, TrendingUp, Briefcase,
   MessageSquareWarning,
+  Inbox,
+  Wrench,
+  ReceiptText,
 } from "lucide-react";
 import { usePendingApprovals, useLeaveBalance } from "@/hooks/use-leaves";
 import { useAttendanceToday } from "@/hooks/use-attendance";
@@ -185,7 +188,7 @@ function UpcomingHolidaysCard() {
   if (!isLoading && upcoming.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border border-border bg-white overflow-hidden">
+    <div className="rounded-2xl border border-border bg-backgrond overflow-hidden">
       <div className="flex items-center gap-2 px-4 pt-4 pb-3">
         <Calendar className="h-4 w-4 text-primary" />
         <span className="text-sm font-semibold">วันหยุดที่กำลังจะมาถึง</span>
@@ -271,6 +274,7 @@ export default function HomePage() {
   const avatar    = profile?.avatarUrl ?? employee?.avatarUrl;
   const canCreateTicket = employee?.roles.some(role =>
     ['Employee', 'Supervisor', 'Hr', 'Admin'].includes(role.role)) ?? false;
+  const canViewTicketInbox = employee ? isSupervisorOrAbove(employee.roles) : false;
 
   const infoLine = [profile?.companyName, profile?.departmentName]
     .filter(Boolean).join(" · ");
@@ -310,34 +314,55 @@ export default function HomePage() {
       <div className="grid grid-cols-2 gap-2">
         {canCreateTicket && <Link href="/tickets/new" className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 active:opacity-80">
           <MessageSquareWarning className="h-5 w-5 shrink-0 text-emerald-700" />
-          <span className="text-sm font-semibold text-emerald-900">แจ้งเรื่องภายใน</span>
+          <span className="text-sm font-semibold text-emerald-900">แจ้งเรื่อง</span>
           <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-emerald-500" />
         </Link>}
         {canCreateTicket && <Link href="/tickets/my" className="flex items-center gap-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 active:opacity-80">
           <ClipboardList className="h-5 w-5 shrink-0 text-cyan-700" />
-          <span className="text-sm font-semibold text-cyan-900">เรื่องของฉัน</span>
+          <span className="text-sm font-semibold text-cyan-900">เรื่องที่แจ้ง</span>
           <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-cyan-500" />
         </Link>}
-        <Link href="/leaves/new" className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 active:opacity-80">
+        {/* ช่องทางแจ้งเรื่องภายนอก — ticket จะติดแท็ก "ภายนอก" (ตัวตนผู้แจ้งภายนอกแยกจากบัญชีพนักงาน) */}
+        {/* <Link href="/external" className="col-span-2 flex items-center gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 active:opacity-80">
+          <Wrench className="h-5 w-5 shrink-0 text-rose-700" />
+          <span className="text-sm font-semibold text-rose-900">แจ้งเรื่องภายนอก</span>
+          <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-rose-500" />
+        </Link> */}
+        {/* {canCreateTicket && <Link href="/tickets/assigned" className="flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 active:opacity-80">
+          <Wrench className="h-5 w-5 shrink-0 text-violet-700" />
+          <span className="text-sm font-semibold text-violet-900">กล่องงาน</span>
+          <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-violet-500" />
+        </Link>}
+        {canViewTicketInbox && <Link href="/tickets/inbox" className="flex items-center gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 active:opacity-80">
+          <Inbox className="h-5 w-5 shrink-0 text-sky-700" />
+          <span className="text-sm font-semibold text-sky-900">กล่องรับเรื่อง</span>
+          <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-sky-500" />
+        </Link>} */}
+        {/* <Link href="/leaves/new" className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 active:opacity-80">
           <Calendar className="h-5 w-5 text-blue-600 shrink-0" />
-          <span className="text-sm font-semibold text-blue-800">ขอลางาน</span>
+          <span className="text-sm font-semibold text-blue-800">ลางาน</span>
           <ChevronRight className="ml-auto h-4 w-4 text-blue-400 shrink-0" />
         </Link>
-        <Link href="/ot/new" className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 active:opacity-80">
+        <Link href="/expenses" className="flex items-center gap-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 active:opacity-80">
+          <ReceiptText className="h-5 w-5 text-amber-600 shrink-0" />
+          <span className="text-sm font-semibold text-amber-900">บิลของฉัน</span>
+          <ChevronRight className="ml-auto h-4 w-4 text-amber-500 shrink-0" />
+        </Link> */}
+        {/* <Link href="/ot/new" className="flex items-center gap-3 rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 active:opacity-80">
           <Briefcase className="h-5 w-5 text-orange-600 shrink-0" />
           <span className="text-sm font-semibold text-orange-800">ขอ OT</span>
           <ChevronRight className="ml-auto h-4 w-4 text-orange-400 shrink-0" />
-        </Link>
+        </Link> */}
       </div>
 
       {/* Attendance */}
-      <AttendanceCard />
+      {/* <AttendanceCard /> */}
 
       {/* Pending (supervisor/hr) */}
-      <PendingApprovalCard />
+      {/* <PendingApprovalCard /> */}
 
       {/* Leave balance */}
-      <LeaveBalanceCard />
+      {/* <LeaveBalanceCard />   */}
 
       {/* Upcoming holidays */}
       <UpcomingHolidaysCard />

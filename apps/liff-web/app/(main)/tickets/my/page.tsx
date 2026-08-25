@@ -19,20 +19,9 @@ import type { MyTicketItemDto, TicketPriority, TicketStatus } from '@hrms/shared
 import { PageHeader } from '@/components/layout/page-header'
 import { TicketListTabs } from '@/components/tickets/ticket-list-tabs'
 import { useMyTickets } from '@/hooks/use-tickets'
-import { TICKET_STATUS_LABEL } from '@/lib/ticket-status'
+import { TICKET_STATUS_CLASS, TICKET_STATUS_LABEL } from '@/lib/ticket-status'
 
 const PAGE_SIZE = 10
-
-const STATUS_TONE: Record<TicketStatus, string> = {
-  Open: 'border-sky-200 bg-sky-50 text-sky-700',
-  Assigned: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-  InProgress: 'border-blue-200 bg-blue-50 text-blue-700',
-  WaitingInfo: 'border-amber-200 bg-amber-50 text-amber-800',
-  Resolved: 'border-cyan-200 bg-cyan-50 text-cyan-800',
-  Closed: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  Rejected: 'border-red-200 bg-red-50 text-red-700',
-  Cancelled: 'border-zinc-200 bg-zinc-100 text-zinc-700',
-}
 
 const PRIORITY_LABEL: Record<TicketPriority, string> = {
   Low: 'ปกติ',
@@ -42,10 +31,10 @@ const PRIORITY_LABEL: Record<TicketPriority, string> = {
 }
 
 const PRIORITY_TONE: Record<TicketPriority, string> = {
-  Low: 'text-slate-500',
-  Medium: 'text-blue-600',
-  High: 'text-orange-600',
-  Critical: 'text-red-600',
+  Low: 'text-muted-foreground',
+  Medium: 'text-blue-600 dark:text-blue-300',
+  High: 'text-orange-600 dark:text-orange-300',
+  Critical: 'text-red-600 dark:text-red-300',
 }
 
 const QUICK_STATUSES: Array<{ value?: TicketStatus; label: string }> = [
@@ -76,7 +65,7 @@ function StatusStation({ status }: { status: TicketStatus }) {
   const active = activeStation(status)
   if (active < 0) {
     return (
-      <div className={`mt-4 rounded-md border px-3 py-2 text-center text-xs font-semibold ${STATUS_TONE[status]}`}>
+      <div className={`mt-4 rounded-md border px-3 py-2 text-center text-xs font-semibold ${TICKET_STATUS_CLASS[status]}`}>
         สิ้นสุดรายการ: {TICKET_STATUS_LABEL[status]}
       </div>
     )
@@ -125,7 +114,7 @@ function TicketCard({ ticket }: { ticket: MyTicketItemDto }) {
           </div>
           <h2 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{ticket.title}</h2>
         </div>
-        <span className={`shrink-0 rounded-md border px-2 py-1 text-[10px] font-semibold ${STATUS_TONE[ticket.status]}`}>
+        <span className={`shrink-0 rounded-md border px-2 py-1 text-[10px] font-semibold ${TICKET_STATUS_CLASS[ticket.status]}`}>
           {TICKET_STATUS_LABEL[ticket.status]}
         </span>
       </div>
@@ -201,7 +190,7 @@ export default function MyTicketsPage() {
   return (
     <div className="min-h-screen bg-muted/30 pb-24">
       <PageHeader
-        title="เรื่องของฉัน"
+        title="เรื่องที่แจ้ง"
         subtitle={`${totalCount} รายการ`}
       />
       <TicketListTabs />

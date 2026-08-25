@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Clock3, MapPin, Search, Wrench } from 'lucide-react'
 import type { TicketPriority, TicketStatus } from '@hrms/shared-types'
 import { PageHeader } from '@/components/layout/page-header'
+import { TicketBoardSummary } from '@/components/tickets/ticket-board-summary'
 import { TicketListTabs } from '@/components/tickets/ticket-list-tabs'
 import { useAssignedTickets, useClaimableTickets } from '@/hooks/use-tickets'
 import { TICKET_STATUS_LABEL } from '@/lib/ticket-status'
@@ -24,6 +25,7 @@ function priorityClass(priority: TicketPriority) {
 
 function statusClass(status: TicketStatus) {
   const styles: Record<TicketStatus, string> = {
+    AwaitingRequesterConfirmation: 'border-violet-200 bg-violet-50 text-violet-700',
     Open: 'border-amber-200 bg-amber-50 text-amber-700',
     Assigned: 'border-blue-200 bg-blue-50 text-blue-700',
     InProgress: 'border-cyan-200 bg-cyan-50 text-cyan-700',
@@ -142,8 +144,16 @@ export default function AssignedTicketsPage() {
               )}
               <span className="flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" />{isClaimable ? 'แจ้งเมื่อ ' : 'มอบหมายเมื่อ '}{thaiDate(ticket.assignedAt)}</span>
             </div>
+            <TicketBoardSummary
+              workflowCurrentStepLabel={ticket.workflowCurrentStepLabel}
+              currentWorkState={ticket.currentWorkState}
+              currentBlockerReason={ticket.currentBlockerReason}
+              currentNextAction={ticket.currentNextAction}
+            />
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-              <span className="text-xs text-muted-foreground">ผู้แจ้ง {ticket.requesterName}</span>
+              <span className="text-xs text-muted-foreground">
+                ผู้แจ้ง {ticket.requesterName}{ticket.requester.nickname && ` (${ticket.requester.nickname})`}
+              </span>
               <span className={`shrink-0 rounded border px-2 py-1 text-[10px] font-semibold ${
                 isClaimable ? 'border-blue-200 bg-blue-50 text-blue-700' : statusClass(ticket.status)
               }`}>

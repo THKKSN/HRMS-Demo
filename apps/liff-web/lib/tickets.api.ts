@@ -6,7 +6,9 @@ import type {
   TicketPriority,
   TicketProblemType,
   TicketRequestType,
+  TicketResolvedSubjectGuidanceDto,
   TicketStatus,
+  TicketSubjectDto,
   TicketTopicDto,
   TicketDetailDto,
   TicketActionResultDto,
@@ -14,6 +16,8 @@ import type {
   TicketCommentType,
   TicketAttachmentDto,
   AssignedTicketItemDto,
+  TicketAssignmentCandidateDto,
+  TicketInboxItemDto,
   MyTicketItemDto,
   PagedResult,
   TicketCancellationRequestDto,
@@ -26,8 +30,8 @@ export type CreateTicketBody = {
   targetDepartmentId: string
   categoryId: string
   topicId: string
+  subjectId: string
   otherTopicText?: string
-  title: string
   detail: string
   priority: TicketPriority
   vehicleText?: string
@@ -35,6 +39,25 @@ export type CreateTicketBody = {
   contactPhone?: string
   contactNote?: string
   attachmentUrls?: string[]
+}
+
+export type TicketInboxParams = {
+  status?: TicketStatus
+  priority?: TicketPriority
+  search?: string
+  requestType?: TicketRequestType
+  page?: number
+  pageSize?: number
+}
+
+export type TriageTicketBody = {
+  categoryId: string
+  topicId: string
+  otherTopicText?: string
+  priority: TicketPriority
+  locationText?: string
+  vehicleText?: string
+  expectedUpdatedAt?: string
 }
 
 export const ticketsApi = {
@@ -50,6 +73,18 @@ export const ticketsApi = {
   getTopics: (params?: { companyId?: string; departmentId?: string; categoryId?: string }) =>
     api.get<TicketTopicDto[]>('/ticket-topics', { params }).then(r => r.data),
 
+  getSubjects: (params?: { companyId?: string; departmentId?: string; categoryId?: string; topicId?: string }) =>
+    api.get<TicketSubjectDto[]>('/ticket-subjects', { params }).then(r => r.data),
+
+  resolveSubjectGuidance: (params: {
+    companyId?: string
+    departmentId?: string
+    categoryId?: string
+    topicId?: string
+    subjectId?: string
+  }) =>
+    api.get<TicketResolvedSubjectGuidanceDto | null>('/ticket-subject-guidance-configs/resolve', { params }).then(r => r.data),
+
   createTicket: (body: CreateTicketBody) =>
     api.post<TicketDto>('/tickets', body).then(r => r.data),
 
@@ -58,6 +93,9 @@ export const ticketsApi = {
 
   getClaimable: (params: { search?: string; page?: number; pageSize?: number }) =>
     api.get<PagedResult<AssignedTicketItemDto>>('/tickets/claimable', { params }).then(r => r.data),
+
+  getInbox: (params: TicketInboxParams) =>
+    api.get<PagedResult<TicketInboxItemDto>>('/tickets/inbox', { params }).then(r => r.data),
 
   getMy: (params: {
     status?: TicketStatus
@@ -83,6 +121,21 @@ export const ticketsApi = {
   getComments: (id: string) =>
     api.get<TicketCommentDto[]>(`/tickets/${id}/comments`).then(r => r.data),
 
+  getAssignmentCandidates: (id: string) =>
+    api.get<TicketAssignmentCandidateDto[]>(`/tickets/${id}/assignment-candidates`).then(r => r.data),
+
+  accept: (id: string, expectedUpdatedAt?: string) =>
+    api.post<TicketActionResultDto>(`/tickets/${id}/accept`, { expectedUpdatedAt }).then(r => r.data),
+
+  triage: (id: string, body: TriageTicketBody) =>
+    api.put<TicketActionResultDto>(`/tickets/${id}/triage`, body).then(r => r.data),
+
+  assign: (id: string, body: { assignedToEmployeeId: string; note?: string; expectedUpdatedAt?: string }) =>
+    api.post<TicketActionResultDto>(`/tickets/${id}/assign`, body).then(r => r.data),
+
+  reject: (id: string, body: { reason: string; expectedUpdatedAt?: string }) =>
+    api.post<TicketActionResultDto>(`/tickets/${id}/reject`, body).then(r => r.data),
+
   start: (id: string, expectedUpdatedAt?: string) =>
     api.post<TicketActionResultDto>(`/tickets/${id}/start`, { expectedUpdatedAt }).then(r => r.data),
 
@@ -92,6 +145,14 @@ export const ticketsApi = {
     resolutionNote?: string
     expectedUpdatedAt?: string
   }) => api.put<TicketActionResultDto>(`/tickets/${id}/work-detail`, body).then(r => r.data),
+
+  updateProgress: (id: string, body: {
+    workState?: string
+    blockerReason?: string
+    nextAction?: string
+    note?: string
+    expectedUpdatedAt?: string
+  }) => api.post<TicketActionResultDto>(`/tickets/${id}/progress`, body).then(r => r.data),
 
   requestInfo: (id: string, message: string, expectedUpdatedAt?: string) =>
     api.post<TicketActionResultDto>(`/tickets/${id}/request-info`, { message, expectedUpdatedAt }).then(r => r.data),
@@ -111,8 +172,25 @@ export const ticketsApi = {
     contentType?: string
     sizeBytes: number
     stage: 'Progress' | 'Resolved' | 'Comment'
+    visibility?: 'Public' | 'Internal'
+    ticketProgressEntryId?: string
   }) => api.post<TicketAttachmentDto>(`/tickets/${id}/attachments`, body).then(r => r.data),
 
   deleteAttachment: (id: string, attachmentId: string) =>
     api.delete(`/tickets/${id}/attachments/${attachmentId}`),
+
+  returnForRevision: (id: string, body: { reviewNote: string; expectedUpdatedAt?: string }) =>
+    api.post<TicketActionResultDto>(`/tickets/${id}/return`, body).then(r => r.data),
+
+  close: (id: string, body: { reviewNote?: string; expectedUpdatedAt?: string }) =>
+    api.post<TicketActionResultDto>(`/tickets/${id}/close`, body).then(r => r.data),
+
+  confirmCompletion: (id: string, expectedUpdatedAt?: string) =>
+    api.post<TicketActionResultDto>(`/tickets/${id}/confirm-completion`, { expectedUpdatedAt }).then(r => r.data),
+
+  approveCancellation: (id: string, body: { reviewNote?: string; expectedUpdatedAt?: string }) =>
+    api.post<TicketActionResultDto>(`/tickets/${id}/cancellation/approve`, body).then(r => r.data),
+
+  rejectCancellation: (id: string, body: { reviewNote: string; expectedUpdatedAt?: string }) =>
+    api.post<TicketActionResultDto>(`/tickets/${id}/cancellation/reject`, body).then(r => r.data),
 }

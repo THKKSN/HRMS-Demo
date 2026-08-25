@@ -27,6 +27,10 @@ export async function uploadLeaveAttachment(file: File): Promise<string> {
   return uploadAttachment(file, 'leaves')
 }
 
+export async function uploadExpenseAttachment(file: File): Promise<string> {
+  return uploadAttachment(file, 'expenses')
+}
+
 export async function uploadTicketAttachment(file: File): Promise<string> {
   return uploadAttachment(file, 'tickets')
 }
