@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -120,6 +121,12 @@ function LinkContent() {
           </svg>
           เข้าสู่ระบบด้วย LINE
         </button>
+        <Link
+          href="/external"
+          className="text-sm font-semibold text-primary underline underline-offset-4"
+        >
+          บุคคลภายนอก แจ้งเรื่องที่นี่
+        </Link>
       </div>
     )
   }
@@ -173,6 +180,7 @@ function LinkContent() {
       )
 
       sessionStorage.setItem('liff_access_token', accessToken)
+      sessionStorage.setItem('liff_preview_token', preview.previewToken)
       router.push(next ? `/auth/otp?next=${encodeURIComponent(next)}` : '/auth/otp')
     } catch (err) {
       // ล้าง preview ทิ้งทุกกรณี ไม่ให้เหลือชื่อค้างบนจอหลังเกิด error
@@ -316,6 +324,17 @@ function LinkContent() {
       <p className="mt-6 text-center text-xs text-muted-foreground">
         ข้อมูลของคุณถูกเข้ารหัสและความปลอดภัย
       </p>
+
+      {/* ทางเข้าสำหรับบุคคลภายนอก (ผู้ที่ไม่ใช่พนักงาน) — ใช้ external auth คนละชุด ไม่ต้องผูกรหัสพนักงาน */}
+      {/* <div className="mt-8 border-t border-border pt-6 text-center">
+        <p className="text-xs text-muted-foreground">ไม่ใช่พนักงาน?</p>
+        <Link
+          href="/external"
+          className="mt-2 inline-block rounded-xl border border-primary px-6 py-2.5 text-sm font-semibold text-primary"
+        >
+          บุคคลภายนอก แจ้งเรื่องที่นี่
+        </Link>
+      </div> */}
     </div>
   )
 }

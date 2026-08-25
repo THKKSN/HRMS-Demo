@@ -4,6 +4,7 @@ import { Suspense, useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { api } from '@/lib/api'
+import { buildOtpRequestPayload } from '@/lib/auth-link'
 import { useAuthStore } from '@/stores/auth.store'
 import type { AuthResultDto, ApiError } from '@hrms/shared-types'
 import { isAxiosError } from 'axios'
@@ -94,6 +95,7 @@ function OtpContent() {
         otp: otpCode,
       })
       sessionStorage.removeItem('liff_access_token')
+      sessionStorage.removeItem('liff_preview_token')
       const { accessToken, refreshToken, employee } = res.data
       setAuth(accessToken, refreshToken, employee)
       router.replace(next)
@@ -118,13 +120,14 @@ function OtpContent() {
   const handleResend = async () => {
     if (cooldown > 0) return
     const lineAccessToken = sessionStorage.getItem('liff_access_token')
-    if (!lineAccessToken) {
+    const previewToken = sessionStorage.getItem('liff_preview_token')
+    if (!lineAccessToken || !previewToken) {
       router.replace('/auth/link')
       return
     }
     setIsResending(true)
     try {
-      await api.post('/auth/otp/resend', { accessToken: lineAccessToken })
+      await api.post('/auth/otp/request', buildOtpRequestPayload(lineAccessToken, previewToken))
       setCooldown(RESEND_COOLDOWN)
       setDigits(Array(OTP_LENGTH).fill(''))
       setErrorMsg(null)
@@ -132,6 +135,12 @@ function OtpContent() {
     } catch (err) {
       if (isAxiosError(err)) {
         const data = err.response?.data as ApiError | undefined
+        if (data?.error === 'INVALID_OR_EXPIRED_PREVIEW') {
+          sessionStorage.removeItem('liff_access_token')
+          sessionStorage.removeItem('liff_preview_token')
+          router.replace('/auth/link')
+          return
+        }
         setErrorMsg(data?.message ?? 'ไม่สามารถส่ง OTP ได้ กรุณาลองใหม่')
       }
     } finally {
@@ -149,9 +158,19 @@ function OtpContent() {
         <div>
           <h2 className="text-xl font-bold text-foreground">ยืนยัน OTP</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            กรุณากรอกรหัส 6 หลักที่ส่งไปยังอีเมลของคุณ
+            กรุณากรอกรหัส 6 หลักที่ระบบส่งเข้าแชท LINE ของคุณ
           </p>
         </div>
+      </div>
+
+      {/* วิธีหารหัส */}
+      <div className="mb-6 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+        <p>
+          ออกจากหน้านี้ไปเปิด<span className="font-semibold text-foreground">แชท LINE</span>เพื่อดูรหัสได้ตามปกติ
+          ระบบจะไม่ปิดแอปนี้ — เมื่อเห็นรหัสแล้วให้แตะปุ่ม
+          <span className="font-semibold text-foreground">&quot;กลับไปกรอกรหัส&quot;</span>ในข้อความ
+          หรือสลับกลับมาที่หน้านี้ได้เลย
+        </p>
       </div>
 
       {/* OTP boxes */}
