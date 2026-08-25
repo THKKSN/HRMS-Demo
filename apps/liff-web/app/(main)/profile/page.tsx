@@ -2,11 +2,24 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { LogOut, User, Building2, Users, Briefcase, CalendarDays, Phone, Mail, CreditCard } from 'lucide-react'
+import { LogOut, User, Building2, Users, Briefcase, CalendarDays, Phone, Mail, CreditCard, Type, MonitorSmartphone } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { useAuthStore } from '@/stores/auth.store'
+import { useSettingsStore, type FontSize, type ThemeMode } from '@/stores/settings.store'
 import { useMe } from '@/hooks/use-employee'
 import { api } from '@/lib/api'
+
+const FONT_SIZE_OPTIONS: { value: FontSize; label: string }[] = [
+  { value: 'small', label: 'เล็ก' },
+  { value: 'medium', label: 'กลาง' },
+  { value: 'large', label: 'ใหญ่' },
+]
+
+const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
+  { value: 'system', label: 'ตามระบบ' },
+  { value: 'light', label: 'สว่าง' },
+  { value: 'dark', label: 'มืด' },
+]
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return '—'
@@ -36,6 +49,7 @@ function InfoRow({ icon: Icon, label, value }: {
 export default function ProfilePage() {
   const router = useRouter()
   const { employee: authEmployee, clearAuth } = useAuthStore()
+  const { fontSize, setFontSize, theme, setTheme } = useSettingsStore()
   const { data: profile, isLoading } = useMe()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -107,6 +121,44 @@ export default function ProfilePage() {
             </div>
           </>
         )}
+
+        {/* ตั้งค่าขนาดตัวอักษร */}
+        <div className="rounded-2xl border border-border p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Type className="h-4 w-4 text-muted-foreground" />
+              ขนาดตัวอักษร
+            </div>
+            <select
+              value={fontSize}
+              onChange={(e) => setFontSize(e.target.value as FontSize)}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium"
+            >
+              {FONT_SIZE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* ตั้งค่าโหมดสี — ไว้สำหรับทดสอบ dark mode */}
+        <div className="rounded-2xl border border-border p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <MonitorSmartphone className="h-4 w-4 text-muted-foreground" />
+              โหมดสี
+            </div>
+            <select
+              value={theme}
+              onChange={(e) => setTheme(e.target.value as ThemeMode)}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium"
+            >
+              {THEME_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         {/* Logout */}
         <button

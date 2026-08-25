@@ -9,9 +9,9 @@ import { useAuthStore } from '@/stores/auth.store'
 
 const tabs = [
   { label: 'หน้าแรก', href: '/', icon: Home },
-  { label: 'ลางาน', href: '/leaves', icon: Calendar },
-  { label: 'ลงเวลา', href: '/attendance', icon: Clock },
-  { label: 'เรื่อง', href: '/tickets/my', icon: MessagesSquare },
+  // { label: 'ลางาน', href: '/leaves', icon: Calendar },
+  // { label: 'ลงเวลา', href: '/attendance', icon: Clock },
+  { label: 'แจ้งเรื่อง', href: '/tickets/my', icon: MessagesSquare },
   { label: 'โปรไฟล์', href: '/profile', icon: User },
 ]
 

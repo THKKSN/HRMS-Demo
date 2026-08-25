@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/*
+ * ผูก dark: variant กับ class .dark บน <html> แทน prefers-color-scheme เพียงอย่างเดียว
+ * เพื่อให้ ThemeProvider บังคับโหมด (สว่าง/มืด/ตามระบบ) ได้จริงสำหรับทดสอบ
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -25,17 +31,26 @@
   --font-sans: var(--font-noto-sans-thai);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --muted: #1a1a1a;
-    --muted-foreground: #a3a3a3;
-    --border: #262626;
-  }
+:root.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --muted: #1a1a1a;
+  --muted-foreground: #a3a3a3;
+  --border: #262626;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+/*
+ * ตั้งค่าขนาดตัวอักษรทั้งแอป — scale ที่ root แทนการไล่แก้ text-* ทุกจุด
+ * เพราะ Tailwind กำหนด text-xs/sm/base/... เป็น rem ซึ่งคำนวณจาก font-size ของ <html>
+ */
+html[data-font-size="small"] {
+  font-size: 87.5%; /* ~14px */
+}
+html[data-font-size="large"] {
+  font-size: 112.5%; /* ~18px */
 }

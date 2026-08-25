@@ -35,6 +35,7 @@ export function LiffProvider({ children }: { children: React.ReactNode }) {
       .catch((err) => {
         console.error('LIFF init failed:', err)
         setError(err?.message ?? 'LIFF init failed')
+        setIsReady(true)
       })
   }, [])
 
