@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ticketsApi, type CreateTicketBody, type TicketInboxParams } from '@/lib/tickets.api'
+import { ticketsApi, type CreateTicketBody, type MyTicketParams, type TicketInboxParams } from '@/lib/tickets.api'
 
 export const ticketKeys = {
   all: ['tickets'] as const,
   inbox: (params: TicketInboxParams) => [...ticketKeys.all, 'inbox', params] as const,
+  my: (params: MyTicketParams) => [...ticketKeys.all, 'my', params] as const,
   assigned: (params?: object) => [...ticketKeys.all, 'assigned', params] as const,
   detail: (id: string) => [...ticketKeys.all, 'detail', id] as const,
   comments: (id: string) => [...ticketKeys.all, 'comments', id] as const,
@@ -31,6 +32,16 @@ export function useTicketCategories(companyId: string, departmentId: string) {
 export function useTicketTopics(companyId: string, departmentId: string, categoryId: string) {
   return useQuery({ queryKey: ticketKeys.lookup('topics', companyId, departmentId, categoryId), queryFn: () => ticketsApi.getTopics(companyId, departmentId, categoryId), enabled: !!companyId && !!departmentId && !!categoryId })
 }
+export function useTicketSubjects(companyId: string, departmentId: string, categoryId: string, topicId: string) {
+  return useQuery({ queryKey: ticketKeys.lookup('subjects', companyId, departmentId, categoryId, topicId), queryFn: () => ticketsApi.getSubjects(companyId, departmentId, categoryId, topicId), enabled: !!companyId && !!departmentId && !!categoryId && !!topicId })
+}
+export function useResolvedTicketSubjectGuidance(companyId: string, departmentId: string, categoryId: string, topicId: string, subjectId: string) {
+  return useQuery({
+    queryKey: ticketKeys.lookup('subject-guidance', companyId, departmentId, categoryId, topicId, subjectId),
+    queryFn: () => ticketsApi.resolveSubjectGuidance(companyId, departmentId, categoryId, topicId, subjectId),
+    enabled: !!companyId && !!departmentId && !!categoryId && !!topicId && !!subjectId,
+  })
+}
 
 export function useTicketInbox(params: TicketInboxParams) {
   return useQuery({
@@ -39,10 +50,18 @@ export function useTicketInbox(params: TicketInboxParams) {
   })
 }
 
+export function useMyTickets(params: MyTicketParams) {
+  return useQuery({
+    queryKey: ticketKeys.my(params),
+    queryFn: () => ticketsApi.getMy(params),
+  })
+}
+
 export function useAssignedTickets(params: {
   status?: import('@hrms/shared-types').TicketStatus
   search?: string
   history?: boolean
+  requestType?: import('@hrms/shared-types').TicketRequestType
   page?: number
   pageSize?: number
 }) {
@@ -57,6 +76,11 @@ export function usePendingTicketCancellations(params: { search?: string; page?: 
     queryKey: ticketKeys.pendingCancellations(params),
     queryFn: () => ticketsApi.getPendingCancellations(params),
   })
+}
+
+export function useRequestTicketCancellation(id: string) {
+  return useTicketAction((body: Parameters<typeof ticketsApi.requestCancellation>[1]) =>
+    ticketsApi.requestCancellation(id, body))
 }
 
 export function useTicket(id: string) {
@@ -148,6 +172,11 @@ export function useUpdateTicketWorkDetail(id: string) {
     ticketsApi.updateWorkDetail(id, body))
 }
 
+export function useUpdateTicketProgress(id: string) {
+  return useTicketAction((body: Parameters<typeof ticketsApi.updateProgress>[1]) =>
+    ticketsApi.updateProgress(id, body))
+}
+
 export function useResolveTicket(id: string) {
   return useTicketAction((expectedUpdatedAt?: string) => ticketsApi.resolve(id, expectedUpdatedAt))
 }
@@ -167,6 +196,10 @@ export function useReturnTicketForRevision(id: string) {
 
 export function useCloseTicket(id: string) {
   return useTicketAction((body: Parameters<typeof ticketsApi.close>[1]) => ticketsApi.close(id, body))
+}
+
+export function useConfirmTicketCompletion(id: string) {
+  return useTicketAction((expectedUpdatedAt?: string) => ticketsApi.confirmCompletion(id, expectedUpdatedAt))
 }
 
 export function useApproveTicketCancellation(id: string) {

@@ -2,12 +2,16 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { ChevronLeft, ChevronRight, ClipboardCheck, Search, Wrench } from 'lucide-react'
+import { useSearchParams } from 'next/navigation'
+import { ChevronLeft, ChevronRight, ClipboardCheck, Search } from 'lucide-react'
 import type { TicketPriority, TicketStatus } from '@hrms/shared-types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { TicketBoardSummary } from '@/components/tickets/ticket-board-summary'
+import { SourceChannelIcon } from '@/components/tickets/source-channel-icon'
+import { TicketWorkTabs } from '@/components/tickets/ticket-work-tabs'
 import { useAssignedTickets } from '@/hooks/use-tickets'
 import { TICKET_STATUS_LABEL } from '@/lib/ticket-status'
 
@@ -42,16 +46,19 @@ function thaiDateTime(value?: string) {
 }
 
 export default function AssignedTicketsPage() {
-  const [history, setHistory] = useState(false)
+  const searchParams = useSearchParams()
+  const [history, setHistory] = useState(() => searchParams.get('history') === '1')
   const [status, setStatus] = useState<TicketStatus | undefined>()
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [requestType, setRequestType] = useState<'Internal' | 'External'>('Internal')
   const [page, setPage] = useState(1)
 
   const query = useAssignedTickets({
     status,
     search: search || undefined,
     history,
+    requestType,
     page,
     pageSize: PAGE_SIZE,
   })
@@ -61,6 +68,12 @@ export default function AssignedTicketsPage() {
     if (!query.data || page <= availablePages) return
     setPage(availablePages)
   }, [page, query.data])
+
+  useEffect(() => {
+    setHistory(searchParams.get('history') === '1')
+    setStatus(undefined)
+    setPage(1)
+  }, [searchParams])
 
   const totalCount = query.data?.totalCount ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
@@ -75,38 +88,25 @@ export default function AssignedTicketsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">งานที่รับผิดชอบ</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            เริ่มดำเนินการ บันทึกหลักฐาน และส่งงานให้ผู้ตรวจรับ
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Wrench className="h-4 w-4" />
-          {totalCount} รายการ
-        </div>
-      </div>
+      <TicketWorkTabs
+        active={history ? 'history' : 'current'}
+        onAssignedModeChange={changeMode}
+      />
 
-      <div className="flex w-full border-b border-border">
-        <button
-          type="button"
-          onClick={() => changeMode(false)}
-          className={`border-b-2 px-4 py-2.5 text-sm font-medium ${
-            !history ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
-          }`}
+      {/* แยกงานตามช่องทางแจ้ง — ภายใน (พนักงาน) / ภายนอก (external portal) */}
+      <div className="flex gap-1 border-b border-border">
+        <Button
+          variant={requestType === 'Internal' ? 'default' : 'ghost'}
+          onClick={() => { setRequestType('Internal'); setPage(1) }}
         >
-          งานปัจจุบัน
-        </button>
-        <button
-          type="button"
-          onClick={() => changeMode(true)}
-          className={`border-b-2 px-4 py-2.5 text-sm font-medium ${
-            history ? 'border-primary text-primary' : 'border-transparent text-muted-foreground'
-          }`}
+          ภายใน
+        </Button>
+        <Button
+          variant={requestType === 'External' ? 'default' : 'ghost'}
+          onClick={() => { setRequestType('External'); setPage(1) }}
         >
-          ประวัติงาน
-        </button>
+          ภายนอก
+        </Button>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_240px]">
@@ -171,15 +171,30 @@ export default function AssignedTicketsPage() {
             {query.data?.items.map(ticket => (
               <tr key={ticket.id} className="border-b border-border last:border-0 hover:bg-muted/20">
                 <td className="px-4 py-3">
-                  <Link href={`/tickets/${ticket.id}`} className="font-medium text-primary hover:underline">
+                  <Link href={`/tickets/${ticket.id}`} className="flex items-center gap-1.5 font-medium text-primary hover:underline">
+                    <SourceChannelIcon channel={ticket.sourceChannel} />
                     {ticket.ticketNo}
                   </Link>
                   <p className="mt-1 max-w-72 truncate font-medium">{ticket.title}</p>
                   <span className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs ${priorityClass(ticket.priority)}`}>
                     {PRIORITY_LABEL[ticket.priority]}
                   </span>
+                  <TicketBoardSummary
+                    compact
+                    workflowCurrentStepLabel={ticket.workflowCurrentStepLabel}
+                    currentWorkState={ticket.currentWorkState}
+                    currentBlockerReason={ticket.currentBlockerReason}
+                    currentNextAction={ticket.currentNextAction}
+                  />
                 </td>
-                <td className="px-4 py-3">{ticket.requesterName}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span>{ticket.requesterName}{ticket.requester.nickname && ` (${ticket.requester.nickname})`}</span>
+                    <Badge variant={ticket.requester.type === 'External' ? 'destructive' : 'secondary'}>
+                      {ticket.requester.type === 'External' ? 'ภายนอก' : 'ภายใน'}
+                    </Badge>
+                  </div>
+                </td>
                 <td className="px-4 py-3">
                   <p>{ticket.categoryName}</p>
                   <p className="text-xs text-muted-foreground">{ticket.topicName}</p>
@@ -201,7 +216,6 @@ export default function AssignedTicketsPage() {
                     }`}
                   >
                     <ClipboardCheck className="h-4 w-4" />
-                    {history ? 'ดูงาน' : 'ดำเนินงาน'}
                   </Link>
                 </td>
               </tr>

@@ -2,13 +2,16 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Inbox, Search } from 'lucide-react'
-import type { TicketPriority, TicketStatus } from '@hrms/shared-types'
+import { ChevronLeft, ChevronRight, EyeIcon, Inbox, Search } from 'lucide-react'
+import { toast } from 'sonner'
+import type { TicketInboxItemDto, TicketPriority, TicketStatus } from '@hrms/shared-types'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { TicketBoardSummary } from '@/components/tickets/ticket-board-summary'
+import { SourceChannelIcon } from '@/components/tickets/source-channel-icon'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { useTicketInbox } from '@/hooks/use-tickets'
+import { useAssignTicket, useTicketAssignmentCandidates, useTicketInbox } from '@/hooks/use-tickets'
 import {
   useManagedTicketCategories,
   useManagedTicketTopics,
@@ -18,6 +21,7 @@ import {
 const PAGE_SIZE = 10
 
 const STATUS_LABEL: Record<TicketStatus, string> = {
+  AwaitingRequesterConfirmation: 'รอผู้แจ้งตรวจรับ',
   Open: 'เรื่องใหม่',
   Assigned: 'มอบหมายแล้ว',
   InProgress: 'กำลังดำเนินการ',
@@ -55,6 +59,67 @@ function thaiDateTime(value: string) {
   }).format(new Date(value))
 }
 
+// สถานะที่ backend ยอมให้มอบหมาย/เปลี่ยนผู้รับผิดชอบได้ (ดู AssignTicketCommand)
+const ASSIGNABLE_STATUSES: TicketStatus[] = ['Open', 'Assigned', 'InProgress', 'WaitingInfo']
+
+function apiMessage(error: unknown) {
+  return (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+    ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่'
+}
+
+function InlineAssignCell({ ticket }: { ticket: TicketInboxItemDto }) {
+  // โหลดรายชื่อ candidate เมื่อผู้ใช้เปิด dropdown เท่านั้น กันยิง API ทุกแถวตอนโหลดหน้า
+  const [candidatesEnabled, setCandidatesEnabled] = useState(false)
+  const candidatesQuery = useTicketAssignmentCandidates(ticket.id, candidatesEnabled)
+  const assign = useAssignTicket(ticket.id)
+  const candidates = candidatesQuery.data ?? []
+
+  async function onSelect(employeeId: string) {
+    if (!employeeId || employeeId === ticket.currentAssigneeEmployeeId) return
+    try {
+      await assign.mutateAsync({ assignedToEmployeeId: employeeId })
+      toast.success(ticket.currentAssigneeName ? 'เปลี่ยนผู้รับผิดชอบแล้ว' : 'มอบหมายงานแล้ว')
+    } catch (error) {
+      toast.error(apiMessage(error))
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <Select
+        className="h-8 min-w-44"
+        value={ticket.currentAssigneeEmployeeId ?? ''}
+        disabled={assign.isPending}
+        onFocus={() => setCandidatesEnabled(true)}
+        onChange={event => onSelect(event.target.value)}
+      >
+        <option value="" disabled>
+          {assign.isPending ? 'กำลังมอบหมาย...' : '— มอบหมายให้ —'}
+        </option>
+        {/* ก่อน candidates โหลดเสร็จ ให้มี option ของผู้รับผิดชอบปัจจุบันไว้แสดงค่า */}
+        {!candidatesQuery.data && ticket.currentAssigneeEmployeeId && (
+          <option value={ticket.currentAssigneeEmployeeId}>{ticket.currentAssigneeName}</option>
+        )}
+        {candidatesQuery.isLoading && <option disabled>กำลังโหลดรายชื่อ...</option>}
+        {candidatesQuery.isError && <option disabled>ไม่มีสิทธิ์มอบหมายงานใบนี้</option>}
+        {candidates.map(candidate => (
+          <option key={candidate.employeeId} value={candidate.employeeId}>
+            {candidate.isRecommended ? 'แนะนำ · ' : ''}{candidate.employeeName} · งานค้าง {candidate.activeTicketCount}
+          </option>
+        ))}
+      </Select>
+      {ticket.currentAssigneeName ? (
+        <p className="text-xs text-muted-foreground">
+          มอบหมายโดย {ticket.assignedByEmployeeName ?? 'ระบบอัตโนมัติ'}
+          {ticket.assignedAt ? ` · ${thaiDateTime(ticket.assignedAt)}` : ''}
+        </p>
+      ) : (
+        ticket.isAccepted && <p className="text-xs text-muted-foreground">รับเรื่องแล้ว</p>
+      )}
+    </div>
+  )
+}
+
 export default function TicketInboxPage() {
   const [status, setStatus] = useState<TicketStatus | undefined>()
   const [companyId, setCompanyId] = useState('')
@@ -64,6 +129,7 @@ export default function TicketInboxPage() {
   const [topicId, setTopicId] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [requestType, setRequestType] = useState<'Internal' | 'External'>('Internal')
   const [page, setPage] = useState(1)
 
   const { data: scope } = useTicketManagementScope()
@@ -82,6 +148,7 @@ export default function TicketInboxPage() {
     categoryId: categoryId || undefined,
     topicId: topicId || undefined,
     search: search || undefined,
+    requestType,
     page,
     pageSize: PAGE_SIZE,
   })
@@ -119,6 +186,22 @@ export default function TicketInboxPage() {
           <Inbox className="h-4 w-4" />
           {query.data?.totalCount ?? 0} รายการ
         </div>
+      </div>
+
+      {/* แยกกล่องงานตามช่องทางแจ้ง — ภายใน (พนักงาน) / ภายนอก (external portal) */}
+      <div className="flex gap-1 border-b border-border">
+        <Button
+          variant={requestType === 'Internal' ? 'default' : 'ghost'}
+          onClick={() => { setRequestType('Internal'); resetPage() }}
+        >
+          ภายใน
+        </Button>
+        <Button
+          variant={requestType === 'External' ? 'default' : 'ghost'}
+          onClick={() => { setRequestType('External'); resetPage() }}
+        >
+          ภายนอก
+        </Button>
       </div>
 
       <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -210,6 +293,7 @@ export default function TicketInboxPage() {
               <th className="px-4 py-3 font-medium">การมอบหมาย</th>
               <th className="px-4 py-3 font-medium">สถานะ</th>
               <th className="px-4 py-3 font-medium">เปิดเมื่อ</th>
+              <th className="px-4 py-3 font-medium">จัดการ</th>
             </tr>
           </thead>
           <tbody>
@@ -224,21 +308,42 @@ export default function TicketInboxPage() {
             {query.data?.items.map(ticket => (
               <tr key={ticket.id} className="border-b border-border last:border-0 hover:bg-muted/20">
                 <td className="px-4 py-3">
-                  <Link href={`/tickets/${ticket.id}`} className="font-medium text-primary hover:underline">{ticket.ticketNo}</Link>
+                  <p className="flex items-center gap-1.5 font-medium text-primary">
+                    {ticket.ticketNo}
+                    <SourceChannelIcon channel={ticket.sourceChannel} />
+                  </p>
                   <p className="mt-1 max-w-72 truncate font-medium">{ticket.title}</p>
                   <span className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs ${priorityClass(ticket.priority)}`}>{PRIORITY_LABEL[ticket.priority]}</span>
+                  <TicketBoardSummary
+                    compact
+                    workflowCurrentStepLabel={ticket.workflowCurrentStepLabel}
+                    currentWorkState={ticket.currentWorkState}
+                    currentBlockerReason={ticket.currentBlockerReason}
+                    currentNextAction={ticket.currentNextAction}
+                  />
                 </td>
                 <td className="px-4 py-3">
-                  <p>{ticket.requesterName}</p>
+                  <div className="flex items-center gap-2">
+                    <p>{ticket.requesterName}{ticket.requester.nickname && ` (${ticket.requester.nickname})`}</p>
+                    <Badge variant={ticket.requester.type === 'External' ? 'destructive' : 'secondary'}>
+                      {ticket.requester.type === 'External' ? 'ภายนอก' : 'ภายใน'}
+                    </Badge>
+                  </div>
                   <p className="text-xs text-muted-foreground">{ticket.sourceDepartmentName ?? '-'}</p>
                 </td>
                 <td className="px-4 py-3">
-                  <p>{ticket.categoryName}</p>
-                  <p className="text-xs text-muted-foreground">{ticket.topicName}{ticket.otherTopicText ? `: ${ticket.otherTopicText}` : ''}</p>
+                  <p>{ticket.categoryName ?? ticket.externalTicketCategoryName ?? '-'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {ticket.topicName ?? ticket.externalTicketTopicName ?? '-'}
+                    {ticket.externalTicketSubjectName ? ` / ${ticket.externalTicketSubjectName}` : ''}
+                    {ticket.otherTopicText ? `: ${ticket.otherTopicText}` : ''}
+                  </p>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">{ticket.locationText ?? ticket.vehicleText ?? '-'}</td>
                 <td className="px-4 py-3">
-                  {ticket.currentAssigneeName ? (
+                  {ASSIGNABLE_STATUSES.includes(ticket.status) ? (
+                    <InlineAssignCell ticket={ticket} />
+                  ) : ticket.currentAssigneeName ? (
                     <>
                       <p className="font-medium">{ticket.currentAssigneeName}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
@@ -257,6 +362,15 @@ export default function TicketInboxPage() {
                 </td>
                 <td className="px-4 py-3"><Badge variant={statusVariant(ticket.status)}>{STATUS_LABEL[ticket.status]}</Badge></td>
                 <td className="px-4 py-3 text-muted-foreground">{thaiDateTime(ticket.createdAt)}</td>
+                <td className="px-4 py-3">
+                  <Link
+                    href={`/tickets/${ticket.id}`}
+                    title="ดูรายละเอียด"
+                    className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-sm text-muted-foreground hover:bg-muted/80"
+                  >
+                    <EyeIcon className="h-4 w-4" />
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, type ReactNode } from 'react'
 import { usePermissions, useAllRolePermissions, useSetRolePermissions } from '@/hooks/use-permissions'
 import type { PermissionDto } from '@hrms/shared-types'
 import { toast } from 'sonner'
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Save, Shield, Users, Calendar, Clock, Building2,
   Settings, LayoutGrid, AlertTriangle, Check, Lock,
+  FolderTree, ReceiptText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -17,13 +18,15 @@ import { cn } from '@/lib/utils'
 const ROLES = ['Employee', 'Supervisor', 'Hr', 'Executive', 'Admin'] as const
 type Role = (typeof ROLES)[number]
 
-const MODULES = ['employee', 'leave', 'attendance', 'company', 'system'] as const
+const MODULES = ['employee', 'leave', 'attendance', 'company', 'ticket', 'expense', 'system'] as const
 
 const MODULE_META = {
   employee:   { label: 'พนักงาน',   Icon: Users,     color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-200',   dot: 'bg-blue-500'   },
   leave:      { label: 'วันลา',     Icon: Calendar,  color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500' },
   attendance: { label: 'การเข้างาน', Icon: Clock,     color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-200',  dot: 'bg-amber-500'  },
   company:    { label: 'บริษัท',    Icon: Building2, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', dot: 'bg-violet-500' },
+  ticket:     { label: 'แจ้งเรื่อง', Icon: FolderTree, color: 'text-cyan-700',  bg: 'bg-cyan-50',   border: 'border-cyan-200',   dot: 'bg-cyan-500'   },
+  expense:    { label: 'วางบิล',     Icon: ReceiptText, color: 'text-rose-700', bg: 'bg-rose-50',   border: 'border-rose-200',   dot: 'bg-rose-500'   },
   system:     { label: 'ระบบ',      Icon: Settings,  color: 'text-slate-600',  bg: 'bg-slate-100', border: 'border-slate-200',  dot: 'bg-slate-500'  },
 } as const
 
@@ -277,7 +280,7 @@ function ModuleTab({
 }: {
   active: boolean
   onClick: () => void
-  icon: React.ReactNode
+  icon: ReactNode
   label: string
   count: number
   activeColor?: string

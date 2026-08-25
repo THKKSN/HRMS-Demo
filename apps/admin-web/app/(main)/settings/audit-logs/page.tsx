@@ -43,6 +43,7 @@ const MODULE_CONFIG: Record<string, BadgeConfig> = {
   'role-label':         { label: 'ตำแหน่งงาน',           icon: Tag,            bg: 'bg-teal-100',    text: 'text-teal-700',    border: 'border-l-teal-400' },
   'weekly-holiday':     { label: 'วันหยุดสัปดาห์',       icon: CalendarDays,   bg: 'bg-pink-100',    text: 'text-pink-700',    border: 'border-l-pink-400' },
   permission:           { label: 'สิทธิ์การใช้งาน',      icon: Lock,           bg: 'bg-yellow-100',  text: 'text-yellow-700',  border: 'border-l-yellow-400' },
+  expense:              { label: 'การวางบิล',            icon: ClipboardList,  bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-l-emerald-400' },
   system:               { label: 'ระบบ',                 icon: Settings2,      bg: 'bg-gray-100',    text: 'text-gray-700',    border: 'border-l-gray-400' },
 }
 
@@ -65,6 +66,17 @@ const ACTION_CONFIG: Record<string, ActionConfig> = {
   approve:                { label: 'อนุมัติ',            icon: CheckCircle2,  bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300' },
   reject:                 { label: 'ปฏิเสธ',             icon: XCircle,       bg: 'bg-red-100',     text: 'text-red-700',     ring: 'ring-red-300' },
   cancel:                 { label: 'ยกเลิก',             icon: Ban,           bg: 'bg-orange-100',  text: 'text-orange-700',  ring: 'ring-orange-300' },
+  'create-draft':         { label: 'บันทึกแบบร่าง',          icon: Plus,          bg: 'bg-slate-100',   text: 'text-slate-700',   ring: 'ring-slate-300' },
+  'update-draft':         { label: 'แก้ไขแบบร่าง',           icon: Pencil,        bg: 'bg-blue-100',    text: 'text-blue-700',    ring: 'ring-blue-300' },
+  submit:                 { label: 'ส่งรายการ',           icon: CheckCircle2,  bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300' },
+  'submit-draft':         { label: 'ส่งแบบร่าง',             icon: CheckCircle2,  bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300' },
+  'ocr-enqueue':          { label: 'เริ่ม OCR',           icon: FileText,      bg: 'bg-cyan-100',    text: 'text-cyan-700',    ring: 'ring-cyan-300' },
+  'ocr-apply':            { label: 'ผลลัพธ์ OCR',           icon: FileText,      bg: 'bg-indigo-100',  text: 'text-indigo-700',  ring: 'ring-indigo-300' },
+  'export-expense-claims': { label: 'Export รายการวางรอบบิล', icon: ClipboardList, bg: 'bg-teal-100',    text: 'text-teal-700',    ring: 'ring-teal-300' },
+  'create-expense-billing-batch': { label: 'สร้างการวางรอบบิล', icon: ClipboardList, bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300' },
+  'export-expense-billing-batch': { label: 'นำออกการวางรอบบิล', icon: ClipboardList, bg: 'bg-teal-100', text: 'text-teal-700', ring: 'ring-teal-300' },
+  'mark-expense-billing-batch-paid': { label: 'บันทึกจ่ายเงิน', icon: CheckCircle2, bg: 'bg-emerald-100', text: 'text-emerald-700', ring: 'ring-emerald-300' },
+  'cancel-expense-billing-batch': { label: 'ยกเลิกการวางรอบบิล', icon: Ban, bg: 'bg-orange-100', text: 'text-orange-700', ring: 'ring-orange-300' },
   'add-role':             { label: 'เพิ่มสิทธิ์',        icon: UserPlus,      bg: 'bg-violet-100',  text: 'text-violet-700',  ring: 'ring-violet-300' },
   'remove-role':          { label: 'ถอดสิทธิ์',          icon: UserMinus,     bg: 'bg-rose-100',    text: 'text-rose-700',    ring: 'ring-rose-300' },
   grant:                  { label: 'ให้สิทธิ์',          icon: Shield,        bg: 'bg-violet-100',  text: 'text-violet-700',  ring: 'ring-violet-300' },
@@ -375,6 +387,7 @@ export default function AuditLogsPage() {
               <option value="role-label">ตำแหน่งงาน</option>
               <option value="weekly-holiday">วันหยุดสัปดาห์</option>
               <option value="permission">สิทธิ์การใช้งาน</option>
+              <option value="expense">การวางบิล</option>
             </Select>
           </div>
 
@@ -400,6 +413,21 @@ export default function AuditLogsPage() {
                 <option value="approve">อนุมัติ</option>
                 <option value="reject">ปฏิเสธ</option>
                 <option value="cancel">ยกเลิก</option>
+              </optgroup>
+              <optgroup label="การวางบิล">
+                <option value="create-draft">บันทึกร่าง</option>
+                <option value="update-draft">แก้ไขร่าง</option>
+                <option value="submit">ส่งรายการ</option>
+                <option value="submit-draft">ส่งร่าง</option>
+                <option value="export-expense-claims">Export รายการวางบิล</option>
+                <option value="create-expense-billing-batch">สร้างรอบวางบิล</option>
+                <option value="export-expense-billing-batch">Export รอบวางบิล</option>
+                <option value="mark-expense-billing-batch-paid">บันทึกจ่ายเงิน</option>
+                <option value="cancel-expense-billing-batch">ยกเลิกรอบวางบิล</option>
+              </optgroup>
+              <optgroup label="การใช้ OCR">
+                <option value="ocr-enqueue">เริ่ม OCR</option>
+                <option value="ocr-apply">ใช้ผล OCR</option>
               </optgroup>
               <optgroup label="สิทธิ์">
                 <option value="add-role">เพิ่มสิทธิ์</option>

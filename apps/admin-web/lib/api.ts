@@ -7,7 +7,10 @@ function getAuthStore() {
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Client-App': 'admin-web', // ให้ API รู้ช่องทางที่มา (เก็บลง ticket source_channel)
+  },
 })
 
 // Request: แนบ JWT

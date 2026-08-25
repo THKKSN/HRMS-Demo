@@ -44,6 +44,6 @@ export const ticketReportsApi = {
     api.get<TicketQualityReportDto>('/ticket-reports/quality', { params }).then(r => r.data),
   routing: (params: TicketReportParams) =>
     api.get<TicketRoutingReportDto>('/ticket-reports/routing', { params }).then(r => r.data),
-  exportCsv: (params: TicketReportParams) =>
+  exportExcel: (params: TicketReportParams) =>
     api.get<Blob>('/ticket-reports/export', { params, responseType: 'blob' }).then(r => r.data),
 }
