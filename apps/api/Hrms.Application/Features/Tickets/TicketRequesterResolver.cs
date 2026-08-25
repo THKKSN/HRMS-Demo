@@ -13,7 +13,8 @@ public sealed class TicketRequesterResolver : ITicketRequesterResolver
         employee.LineUserId,
         employee.Phone,
         employee.Email,
-        employee.Company?.Name);
+        employee.Company?.Name,
+        employee.Nickname);
 
     public TicketRequesterContext FromExternalReporter(ExternalReporter reporter) => new(
         TicketRequestType.External,
@@ -58,7 +59,8 @@ public sealed class TicketRequesterResolver : ITicketRequesterResolver
             employee?.LineUserId,
             ticket.RequesterPhoneSnapshot ?? employee?.Phone,
             ticket.RequesterEmailSnapshot ?? employee?.Email,
-            ticket.RequesterOrganizationSnapshot ?? employee?.Company?.Name);
+            ticket.RequesterOrganizationSnapshot ?? employee?.Company?.Name,
+            ticket.RequesterNicknameSnapshot ?? employee?.Nickname);
     }
 
     private static string FullName(string firstName, string lastName)

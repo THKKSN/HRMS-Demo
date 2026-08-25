@@ -70,13 +70,16 @@ internal static class TicketAccess
     private static async Task<bool> IsRoutingCandidateCoreAsync(
         IApplicationDbContext db, Guid employeeId, Ticket ticket, CancellationToken ct)
     {
+        // External ticket ไม่มี internal Category/Topic ให้ match responsibility — ไม่มี auto-routing candidate เลย
+        if (ticket.RequestType == TicketRequestType.External) return false;
+
         if (await db.TicketAssignments.AsNoTracking().AnyAsync(a =>
             a.TicketId == ticket.Id && a.IsActive && a.IsPrimary, ct)) return false;
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         return await db.EmployeeResponsibilities.AsNoTracking().AnyAsync(r =>
             r.EmployeeId == employeeId && r.CompanyId == ticket.TargetCompanyId &&
-            r.DepartmentId == ticket.TargetDepartmentId && r.CategoryId == ticket.CategoryId &&
+            r.DepartmentId == ticket.TargetDepartmentId && r.CategoryId == ticket.CategoryId!.Value &&
             (r.TopicId == null || r.TopicId == ticket.TopicId) && r.IsActive &&
             (!r.EffectiveFrom.HasValue || r.EffectiveFrom.Value <= today) &&
             (!r.EffectiveTo.HasValue || r.EffectiveTo.Value >= today) &&
@@ -108,13 +111,21 @@ internal static class TicketAccess
         CancellationToken ct)
     {
         if (currentUser.HasRole(RoleType.Admin)) return true;
+
+        if (ticket.RequestType == TicketRequestType.External)
+        {
+            // External ticket ไม่ผูกแผนก — ถือว่า "manager" ได้ถ้าเป็น Supervisor ของบริษัทที่ fix ไว้
+            return currentUser.HasRole(RoleType.Supervisor, ticket.TargetCompanyId) &&
+                currentUser.CompanyId == ticket.TargetCompanyId;
+        }
+
         var department = await db.Departments.AsNoTracking()
             .Where(d => d.Id == ticket.TargetDepartmentId && d.CompanyId == ticket.TargetCompanyId && d.IsActive)
             .Select(d => new { d.ManagerEmployeeId })
             .FirstOrDefaultAsync(ct);
         if (department is null) return false;
         if (currentUser.CanManageDepartment(
-            ticket.TargetCompanyId, ticket.TargetDepartmentId, department.ManagerEmployeeId)) return true;
+            ticket.TargetCompanyId, ticket.TargetDepartmentId!.Value, department.ManagerEmployeeId)) return true;
         return currentUser.HasRole(RoleType.Supervisor, ticket.TargetCompanyId) && currentUser.EmployeeId.HasValue &&
             await db.Employees.AnyAsync(employee =>
                 employee.Id == currentUser.EmployeeId.Value && employee.IsActive &&
@@ -163,6 +174,7 @@ internal static class TicketAccess
             canUpdateStatus && isReceiverManager &&
                 ticket.Status == TicketStatus.Open && !ticket.SupervisorAcceptedAt.HasValue,
             canTriagePermission && isReceiverManager &&
+                ticket.RequestType == TicketRequestType.Internal &&
                 ticket.Status is (TicketStatus.Open or TicketStatus.Assigned),
             canAssignPermission && isReceiverManager &&
                 ticket.Status is (TicketStatus.Open or TicketStatus.Assigned or TicketStatus.InProgress or TicketStatus.WaitingInfo),

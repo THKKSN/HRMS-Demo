@@ -12,7 +12,9 @@ public record TriageTicketCommand(
     Guid TicketId,
     Guid CategoryId,
     Guid TopicId,
+    Guid? SubjectId,
     string? OtherTopicText,
+    string? Detail,
     TicketPriority Priority,
     string? LocationText,
     string? VehicleText,
@@ -26,6 +28,7 @@ public class TriageTicketValidator : AbstractValidator<TriageTicketCommand>
         RuleFor(x => x.CategoryId).NotEmpty();
         RuleFor(x => x.TopicId).NotEmpty();
         RuleFor(x => x.OtherTopicText).MaximumLength(200);
+        RuleFor(x => x.Detail).MaximumLength(2000);
         RuleFor(x => x.LocationText).MaximumLength(200);
         RuleFor(x => x.VehicleText).MaximumLength(100);
     }
@@ -44,6 +47,9 @@ public class TriageTicketHandler(
             ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
         await TicketSupervisorAccess.EnsureTicketAsync(
             db, currentUser, permissionService, "ticket:triage", ticket, ct);
+        // Triage เปลี่ยนหมวด internal taxonomy เท่านั้น — external ticket ใช้ external taxonomy คนละชุด ไม่มี triage
+        if (ticket.RequestType == TicketRequestType.External)
+            throw new ConflictException("EXTERNAL_TICKET_NO_TRIAGE", "ใบแจ้งเรื่องจากบุคคลภายนอกไม่รองรับการแก้การจัดประเภท");
         if (ticket.Status is not (TicketStatus.Open or TicketStatus.Assigned))
             throw new ConflictException("INVALID_TICKET_STATUS", "แก้การจัดประเภทได้เฉพาะสถานะ Open หรือ Assigned");
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
@@ -64,18 +70,32 @@ public class TriageTicketHandler(
         if (topic.Name.Trim() == "อื่น ๆ" && otherTopicText is null)
             throw new FluentValidation.ValidationException("กรุณาระบุหัวข้ออื่น ๆ");
 
+        Guid? subjectId = null;
+        if (request.SubjectId.HasValue)
+        {
+            var subject = await db.TicketSubjects.FirstOrDefaultAsync(s =>
+                s.Id == request.SubjectId.Value &&
+                s.TopicId == topic.Id &&
+                s.IsActive, ct) ?? throw new FluentValidation.ValidationException("ไม่พบหัวข้อที่เปิดใช้งานในหมวดย่อยนี้");
+            subjectId = subject.Id;
+        }
+
         var oldValues = new
         {
             ticket.CategoryId,
             ticket.TopicId,
+            ticket.SubjectId,
             ticket.OtherTopicText,
+            ticket.Detail,
             ticket.Priority,
             ticket.LocationText,
             ticket.VehicleText
         };
         ticket.CategoryId = category.Id;
         ticket.TopicId = topic.Id;
+        ticket.SubjectId = subjectId;
         ticket.OtherTopicText = topic.Name.Trim() == "อื่น ๆ" ? otherTopicText : null;
+        if (request.Detail is not null) ticket.Detail = request.Detail.Trim();
         ticket.Priority = request.Priority;
         ticket.LocationText = TrimOrNull(request.LocationText);
         ticket.VehicleText = TrimOrNull(request.VehicleText);
@@ -86,7 +106,7 @@ public class TriageTicketHandler(
             "ticket", "Ticket", ticket.Id.ToString(), "triage",
             $"ปรับการจัดประเภทใบแจ้งเรื่อง {ticket.TicketNo}",
             oldValues,
-            new { ticket.CategoryId, ticket.TopicId, ticket.OtherTopicText, ticket.Priority, ticket.LocationText, ticket.VehicleText },
+            new { ticket.CategoryId, ticket.TopicId, ticket.SubjectId, ticket.OtherTopicText, ticket.Detail, ticket.Priority, ticket.LocationText, ticket.VehicleText },
             ct);
 
         return new TicketActionResultDto(ticket.Id, ticket.Status, ticket.UpdatedAt);

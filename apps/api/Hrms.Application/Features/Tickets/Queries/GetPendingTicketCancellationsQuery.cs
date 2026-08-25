@@ -76,7 +76,7 @@ public class GetPendingTicketCancellationsHandler(
                 cancellation.Ticket.TargetCompanyId,
                 cancellation.Ticket.TargetCompany.Name,
                 cancellation.Ticket.TargetDepartmentId,
-                cancellation.Ticket.TargetDepartment.Name,
+                cancellation.Ticket.TargetDepartment != null ? cancellation.Ticket.TargetDepartment.Name : null,
                 cancellation.Ticket.Status,
                 cancellation.Ticket.UpdatedAt))
             .ToListAsync(ct);

@@ -19,7 +19,7 @@ public record TicketCancellationRequestDto(
     string? ReviewNote,
     Guid TargetCompanyId,
     string TargetCompanyName,
-    Guid TargetDepartmentId,
-    string TargetDepartmentName,
+    Guid? TargetDepartmentId,
+    string? TargetDepartmentName,
     TicketStatus TicketStatus,
     DateTime TicketUpdatedAt);

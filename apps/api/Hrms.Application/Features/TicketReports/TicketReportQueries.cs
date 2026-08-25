@@ -191,8 +191,10 @@ public class GetTicketBacklogHandler(
             .ThenBy(t => t.CreatedAt).Skip((page - 1) * pageSize).Take(pageSize)
             .Select(t => new
             {
-                t.Id, t.TicketNo, t.Title, t.Status, t.Priority, DepartmentName = t.TargetDepartment.Name,
-                CategoryName = t.Category.Name, TopicName = t.Topic.Name, t.CreatedAt,
+                t.Id, t.TicketNo, t.Title, t.Status, t.Priority,
+                DepartmentName = t.TargetDepartment != null ? t.TargetDepartment.Name : null,
+                CategoryName = t.Category != null ? t.Category.Name : null,
+                TopicName = t.Topic != null ? t.Topic.Name : null, t.CreatedAt,
                 AssigneeName = t.Assignments.Where(a => a.IsActive && a.IsPrimary)
                     .Select(a => (a.AssignedToEmployee.FirstName + " " + a.AssignedToEmployee.LastName).Trim()).FirstOrDefault()
             }).ToListAsync(ct);
@@ -223,8 +225,8 @@ public class GetTicketCategoryReportHandler(
         var filtered = TicketReportAccess.ApplyFilters(scoped, request.Filter);
         var tickets = await filtered.Select(t => new
         {
-            t.Id, t.CategoryId, CategoryName = t.Category.Name,
-            t.TopicId, TopicName = t.Topic.Name, t.Status
+            t.Id, t.CategoryId, CategoryName = t.Category != null ? t.Category.Name : null,
+            t.TopicId, TopicName = t.Topic != null ? t.Topic.Name : null, t.Status
         }).ToListAsync(ct);
         var returnedByTicket = await db.TicketReviews.AsNoTracking()
             .Where(r => r.Decision == TicketReviewDecision.Returned && filtered.Any(t => t.Id == r.TicketId))

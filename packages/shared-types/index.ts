@@ -167,6 +167,7 @@ export type DepartmentListItemDto = DepartmentDto & {
 
 // ─── Tickets ────────────────────────────────────────────────────────────────
 
+export type TicketSourceChannel = 'Unknown' | 'LineLiff' | 'WebPortal' | 'ExternalPortal'
 export type TicketRequestType = 'Internal' | 'External'
 export type TicketRequesterType = TicketRequestType
 export type TicketRequesterDto = {
@@ -174,6 +175,7 @@ export type TicketRequesterDto = {
   employeeId?: string
   externalReporterId?: string
   name: string
+  nickname?: string
   phone?: string
   email?: string
   organization?: string
@@ -232,6 +234,7 @@ export type TicketTopicDto = {
   sortOrder: number
   isActive: boolean
   routingMode: TicketRoutingMode
+  syncToExternalRepairSystem: boolean
 }
 
 export type TicketSubjectDto = {
@@ -249,6 +252,146 @@ export type TicketSubjectDto = {
 export type TicketManagementScopeDto = {
   companies: TicketLookupCompanyDto[]
   departments: TicketLookupDepartmentDto[]
+}
+
+export type ExternalTicketConfigurationDto = {
+  id: string
+  targetCompanyId: string
+  isEnabled: boolean
+  requireOaFriendship: boolean
+  updatedAt: string
+}
+
+export type ExternalTicketCategoryDto = {
+  id: string
+  name: string
+  description?: string
+  sortOrder: number
+  isActive: boolean
+}
+
+export type ExternalTicketTopicDto = {
+  id: string
+  externalTicketCategoryId: string
+  name: string
+  description?: string
+  sortOrder: number
+  isActive: boolean
+}
+
+export type ExternalTicketSubjectDto = {
+  id: string
+  externalTicketTopicId: string
+  name: string
+  description?: string
+  template?: string
+  suggestions: string[]
+  sortOrder: number
+  isActive: boolean
+}
+
+// --- ฝั่งบุคคลภายนอก (LIFF /external) ---
+
+export type ExternalReporterProfileDto = {
+  id: string
+  lineDisplayName: string
+  pictureUrl?: string
+  fullName?: string
+  phone?: string
+  email?: string
+  organization?: string
+}
+
+export type ExternalLineLoginResult = {
+  accessToken: string
+  expiresIn: number
+  linkedEmployee: boolean
+  reporter: ExternalReporterProfileDto
+}
+
+export type ExternalTicketFormSubjectDto = {
+  id: string
+  name: string
+  description?: string
+  template?: string
+  suggestions: string[]
+}
+
+export type ExternalTicketFormTopicDto = {
+  id: string
+  name: string
+  description?: string
+  subjects: ExternalTicketFormSubjectDto[]
+}
+
+export type ExternalTicketFormCategoryDto = {
+  id: string
+  name: string
+  description?: string
+  topics: ExternalTicketFormTopicDto[]
+}
+
+export type ExternalTicketFormDto = {
+  isEnabled: boolean
+  requireOaFriendship: boolean
+  categories: ExternalTicketFormCategoryDto[]
+}
+
+export type ExternalTicketCreatedDto = {
+  id: string
+  ticketNo: string
+  categoryName: string
+  topicName: string
+  subjectName: string
+  title: string
+  status: TicketStatus
+  createdAt: string
+}
+
+export type ExternalTicketListItemDto = {
+  id: string
+  ticketNo: string
+  title: string
+  status: TicketStatus
+  categoryName?: string
+  topicName?: string
+  subjectName?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type ExternalTicketListDto = {
+  items: ExternalTicketListItemDto[]
+  totalCount: number
+  page: number
+  pageSize: number
+}
+
+export type ExternalTicketPortalAttachmentDto = {
+  id: string
+  url: string
+  fileName?: string
+  contentType?: string
+  sizeBytes: number
+}
+
+export type ExternalTicketPortalDetailDto = {
+  id: string
+  ticketNo: string
+  title: string
+  detail: string
+  status: TicketStatus
+  categoryName?: string
+  topicName?: string
+  subjectName?: string
+  locationText?: string
+  contactPhone?: string
+  contactNote?: string
+  resolutionNote?: string
+  workflowCurrentStepKey?: string
+  attachments: ExternalTicketPortalAttachmentDto[]
+  createdAt: string
+  updatedAt: string
 }
 
 export type TicketAttachmentDto = {
@@ -273,14 +416,20 @@ export type TicketDto = {
   sourceDepartmentId?: string
   targetCompanyId: string
   targetCompanyName: string
-  targetDepartmentId: string
-  targetDepartmentName: string
-  categoryId: string
-  categoryName: string
-  topicId: string
-  topicName: string
+  targetDepartmentId?: string
+  targetDepartmentName?: string
+  categoryId?: string
+  categoryName?: string
+  topicId?: string
+  topicName?: string
   subjectId?: string
   subjectName?: string
+  externalTicketCategoryId?: string
+  externalTicketCategoryName?: string
+  externalTicketTopicId?: string
+  externalTicketTopicName?: string
+  externalTicketSubjectId?: string
+  externalTicketSubjectName?: string
   otherTopicText?: string
   title: string
   detail: string
@@ -338,15 +487,22 @@ export type TicketInboxItemDto = {
   requesterEmployeeId?: string
   requesterName: string
   requester: TicketRequesterDto
+  sourceChannel: TicketSourceChannel
   sourceDepartmentName?: string
   targetCompanyId: string
   targetCompanyName: string
-  targetDepartmentId: string
-  targetDepartmentName: string
-  categoryId: string
-  categoryName: string
-  topicId: string
-  topicName: string
+  targetDepartmentId?: string
+  targetDepartmentName?: string
+  categoryId?: string
+  categoryName?: string
+  topicId?: string
+  topicName?: string
+  externalTicketCategoryId?: string
+  externalTicketCategoryName?: string
+  externalTicketTopicId?: string
+  externalTicketTopicName?: string
+  externalTicketSubjectId?: string
+  externalTicketSubjectName?: string
   otherTopicText?: string
   locationText?: string
   vehicleText?: string
@@ -371,10 +527,11 @@ export type MyTicketItemDto = {
   status: TicketStatus
   priority: TicketPriority
   requester: TicketRequesterDto
+  sourceChannel: TicketSourceChannel
   targetCompanyName: string
-  targetDepartmentName: string
-  categoryName: string
-  topicName: string
+  targetDepartmentName?: string
+  categoryName?: string
+  topicName?: string
   otherTopicText?: string
   currentAssigneeName?: string
   hasPendingCancellation: boolean
@@ -399,8 +556,8 @@ export type TicketCancellationRequestDto = {
   reviewNote?: string
   targetCompanyId: string
   targetCompanyName: string
-  targetDepartmentId: string
-  targetDepartmentName: string
+  targetDepartmentId?: string
+  targetDepartmentName?: string
   ticketStatus: TicketStatus
   ticketUpdatedAt: string
 }
@@ -473,6 +630,7 @@ export type TicketDetailDto = {
   id: string
   ticketNo: string
   requestType: TicketRequestType
+  sourceChannel: TicketSourceChannel
   status: TicketStatus
   priority: TicketPriority
   requesterEmployeeId?: string
@@ -484,14 +642,20 @@ export type TicketDetailDto = {
   sourceDepartmentName?: string
   targetCompanyId: string
   targetCompanyName: string
-  targetDepartmentId: string
-  targetDepartmentName: string
-  categoryId: string
-  categoryName: string
-  topicId: string
-  topicName: string
+  targetDepartmentId?: string
+  targetDepartmentName?: string
+  categoryId?: string
+  categoryName?: string
+  topicId?: string
+  topicName?: string
   subjectId?: string
   subjectName?: string
+  externalTicketCategoryId?: string
+  externalTicketCategoryName?: string
+  externalTicketTopicId?: string
+  externalTicketTopicName?: string
+  externalTicketSubjectId?: string
+  externalTicketSubjectName?: string
   otherTopicText?: string
   title: string
   detail: string
@@ -738,6 +902,7 @@ export type AssignedTicketItemDto = {
   priority: TicketPriority
   requesterName: string
   requester: TicketRequesterDto
+  sourceChannel: TicketSourceChannel
   categoryName: string
   topicName: string
   vehicleText?: string

@@ -7,6 +7,7 @@ const ids = {
   requester: '30000000-0000-0000-0000-000000000001',
   category: '40000000-0000-0000-0000-000000000001',
   topic: '50000000-0000-0000-0000-000000000001',
+  subject: '51000000-0000-0000-0000-000000000001',
   ticket: '60000000-0000-0000-0000-000000000001',
 }
 
@@ -63,7 +64,23 @@ async function mockTicketApi(page: Page) {
         }],
       })
     }
+    if (path.endsWith('/ticket-subjects')) {
+      return route.fulfill({
+        json: [{
+          id: ids.subject,
+          companyId: ids.company,
+          departmentId: ids.targetDepartment,
+          categoryId: ids.category,
+          topicId: ids.topic,
+          name: 'กล้องรถกาวหลุด',
+          isActive: true,
+        }],
+      })
+    }
     if (path.endsWith('/tickets') && route.request().method() === 'POST') {
+      const body = route.request().postDataJSON()
+      expect(body.subjectId).toBe(ids.subject)
+      expect(body.title).toBeUndefined()
       return route.fulfill({
         json: {
           id: ids.ticket,
@@ -114,12 +131,13 @@ test('LIFF requester can create an internal ticket without horizontal overflow',
   await page.goto('/tickets/new')
 
   await expect(page.getByRole('heading', { name: 'แจ้งเรื่องภายใน' })).toBeVisible()
+  // บริษัทถูกเลือกอัตโนมัติและแสดงเป็น read-only จึงไม่มี select ของบริษัทในฟอร์ม
+  await expect(page.getByText('บริษัททดสอบ')).toBeVisible()
   const selects = page.locator('form select')
-  await selects.nth(0).selectOption(ids.company)
-  await selects.nth(1).selectOption(ids.targetDepartment)
-  await selects.nth(2).selectOption(ids.category)
-  await selects.nth(3).selectOption(ids.topic)
-  await page.getByLabel('หัวข้อ', { exact: true }).fill('กล้องรถกาวหลุด')
+  await selects.nth(0).selectOption(ids.targetDepartment)
+  await selects.nth(1).selectOption(ids.category)
+  await selects.nth(2).selectOption(ids.topic)
+  await selects.nth(3).selectOption(ids.subject)
   await page.getByLabel('รายละเอียด', { exact: true })
     .fill('กาวยึดกล้องหลุด ต้องการให้ทีม IT ตรวจสอบที่อู่')
   await page.getByLabel('สถานที่ตั้ง').fill('อู่หลัก')

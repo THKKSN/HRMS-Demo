@@ -1,5 +1,6 @@
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Domain.Constants;
 using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
 using FluentValidation;
@@ -26,17 +27,22 @@ public static class TicketReportAccess
                 .Select(role => role.DepartmentId!.Value)
                 .ToList();
 
+            // External ticket ไม่ผูกแผนก — เห็นได้เฉพาะ Supervisor ของบริษัทที่ fix ไว้เท่านั้น
+            var canSeeExternal = currentUser.CompanyId == ExternalTicketConstants.TargetCompanyId;
+
             return query.Where(t =>
-                t.TargetDepartment.ManagerEmployeeId == employeeId.Value ||
-                (ownDepartmentId.HasValue && t.TargetDepartmentId == ownDepartmentId.Value) ||
-                roleDepartmentIds.Contains(t.TargetDepartmentId) ||
-                t.Category.Responsibilities.Any(r =>
-                    r.EmployeeId == employeeId.Value &&
-                    r.IsActive &&
-                    r.CompanyId == t.TargetCompanyId &&
-                    r.DepartmentId == t.TargetDepartmentId &&
-                    r.CategoryId == t.CategoryId &&
-                    (r.TopicId == null || r.TopicId == t.TopicId)));
+                (t.RequestType == TicketRequestType.External && canSeeExternal) ||
+                (t.RequestType == TicketRequestType.Internal && (
+                    t.TargetDepartment!.ManagerEmployeeId == employeeId.Value ||
+                    (ownDepartmentId.HasValue && t.TargetDepartmentId == ownDepartmentId.Value) ||
+                    roleDepartmentIds.Contains(t.TargetDepartmentId!.Value) ||
+                    (t.Category != null && t.Category.Responsibilities.Any(r =>
+                        r.EmployeeId == employeeId.Value &&
+                        r.IsActive &&
+                        r.CompanyId == t.TargetCompanyId &&
+                        r.DepartmentId == t.TargetDepartmentId &&
+                        r.CategoryId == t.CategoryId!.Value &&
+                        (r.TopicId == null || r.TopicId == t.TopicId))))));
         }
 
         var companyIds = currentUser.ManagedCompanyIds;
@@ -62,8 +68,8 @@ public static class TicketReportAccess
 
         if (filter.CompanyId.HasValue) query = query.Where(t => t.TargetCompanyId == filter.CompanyId.Value);
         if (filter.DepartmentId.HasValue) query = query.Where(t => t.TargetDepartmentId == filter.DepartmentId.Value);
-        if (filter.CategoryId.HasValue) query = query.Where(t => t.CategoryId == filter.CategoryId.Value);
-        if (filter.TopicId.HasValue) query = query.Where(t => t.TopicId == filter.TopicId.Value);
+        if (filter.CategoryId.HasValue) query = query.Where(t => t.CategoryId == filter.CategoryId);
+        if (filter.TopicId.HasValue) query = query.Where(t => t.TopicId == filter.TopicId);
         if (filter.Priority.HasValue) query = query.Where(t => t.Priority == filter.Priority.Value);
         if (filter.Status.HasValue) query = query.Where(t => t.Status == filter.Status.Value);
         if (filter.RequestType.HasValue) query = query.Where(t => t.RequestType == filter.RequestType.Value);

@@ -96,22 +96,24 @@ public class TicketController(IMediator mediator, IFileStorageService storage) :
         [FromQuery] string? search,
         [FromQuery] DateOnly? dateFrom,
         [FromQuery] DateOnly? dateTo,
+        [FromQuery] TicketRequestType? requestType = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
         => Ok(await mediator.Send(new GetTicketInboxQuery(
             companyId, departmentId, status, priority, categoryId, topicId,
-            search, dateFrom, dateTo, page, pageSize), ct));
+            search, dateFrom, dateTo, requestType, page, pageSize), ct));
 
     [HttpGet("assigned")]
     public async Task<IActionResult> GetAssigned(
         [FromQuery] TicketStatus? status,
         [FromQuery] string? search,
         [FromQuery] bool history = false,
+        [FromQuery] TicketRequestType? requestType = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
-        => Ok(await mediator.Send(new GetAssignedTicketsQuery(status, search, history, page, pageSize), ct));
+        => Ok(await mediator.Send(new GetAssignedTicketsQuery(status, search, history, requestType, page, pageSize), ct));
 
     [HttpGet("claimable")]
     public async Task<IActionResult> GetClaimable(
@@ -161,7 +163,7 @@ public class TicketController(IMediator mediator, IFileStorageService storage) :
     [HttpPut("{id:guid}/triage")]
     public async Task<IActionResult> Triage(Guid id, [FromBody] TriageTicketRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new TriageTicketCommand(
-            id, request.CategoryId, request.TopicId, request.OtherTopicText,
+            id, request.CategoryId, request.TopicId, request.SubjectId, request.OtherTopicText, request.Detail,
             request.Priority, request.LocationText, request.VehicleText, request.ExpectedUpdatedAt), ct));
 
     [HttpPost("{id:guid}/assign")]
@@ -337,14 +339,14 @@ public class TicketTopicController(IMediator mediator) : ControllerBase
     {
         var result = await mediator.Send(new CreateTicketTopicCommand(
             request.CompanyId, request.DepartmentId, request.CategoryId,
-            request.Name, request.Description, request.SortOrder), ct);
+            request.Name, request.Description, request.SortOrder, request.SyncToExternalRepairSystem), ct);
         return Created($"/v1/ticket-topics/{result.Id}", result);
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTicketTaxonomyItemRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new UpdateTicketTopicCommand(
-            id, request.Name, request.Description, request.SortOrder, request.IsActive), ct));
+            id, request.Name, request.Description, request.SortOrder, request.IsActive, request.SyncToExternalRepairSystem), ct));
 
     [HttpPut("{id:guid}/routing")]
     public async Task<IActionResult> UpdateRouting(
@@ -432,7 +434,8 @@ public record CreateTicketTopicRequest(
     Guid CategoryId,
     string Name,
     string? Description,
-    int SortOrder);
+    int SortOrder,
+    bool SyncToExternalRepairSystem = false);
 
 public record CreateTicketSubjectRequest(
     Guid CompanyId,
@@ -447,14 +450,17 @@ public record UpdateTicketTaxonomyItemRequest(
     string Name,
     string? Description,
     int SortOrder,
-    bool IsActive);
+    bool IsActive,
+    bool SyncToExternalRepairSystem = false);
 
 public record TicketVersionRequest(DateTime? ExpectedUpdatedAt);
 
 public record TriageTicketRequest(
     Guid CategoryId,
     Guid TopicId,
+    Guid? SubjectId,
     string? OtherTopicText,
+    string? Detail,
     TicketPriority Priority,
     string? LocationText,
     string? VehicleText,

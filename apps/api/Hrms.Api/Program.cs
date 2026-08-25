@@ -83,16 +83,35 @@ try
         .AddDataProtection()
         .SetApplicationName("Hrms.LineLink");
     var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+    if (string.IsNullOrWhiteSpace(dataProtectionKeysPath) && !builder.Environment.IsDevelopment())
+    {
+        // ถ้า config ยังไม่ได้ตั้ง (เช่น deploy แล้วลืมอัป appsettings) ให้ใช้ ProgramData เป็น default
+        // แทนการ throw — ยังอยู่นอกโฟลเดอร์ publish ตามเจตนาเดิม แต่ไม่ทำให้ API startup พังทั้งตัว
+        dataProtectionKeysPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "TBG Assistant", "DataProtectionKeys");
+        Log.Warning(
+            "DataProtection:KeysPath ไม่ได้ตั้งค่าใน environment {Environment} — ใช้ default path {KeysPath} " +
+            "แนะนำให้ตั้งค่าใน appsettings.{Environment}.json ให้ชัดเจน",
+            builder.Environment.EnvironmentName, dataProtectionKeysPath, builder.Environment.EnvironmentName);
+    }
+
     if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
     {
+        try
+        {
+            Directory.CreateDirectory(dataProtectionKeysPath);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"ไม่สามารถสร้าง/เข้าถึงโฟลเดอร์ DataProtection:KeysPath '{dataProtectionKeysPath}' ได้ " +
+                "กรุณาสร้างโฟลเดอร์และให้สิทธิ์ write กับ identity ของ IIS App Pool", ex);
+        }
+
         dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
         if (OperatingSystem.IsWindows())
             dataProtection.ProtectKeysWithDpapi(protectToLocalMachine: true);
-    }
-    else if (!builder.Environment.IsDevelopment())
-    {
-        throw new InvalidOperationException(
-            "DataProtection:KeysPath must be configured outside Development.");
     }
 
     builder.Services.AddApplicationServices();

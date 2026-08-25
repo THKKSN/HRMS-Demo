@@ -76,14 +76,18 @@ public class GetMyTicketsHandler(
                     ticket.RequesterEmployee != null
                         ? (ticket.RequesterEmployee.FirstName + " " + ticket.RequesterEmployee.LastName).Trim()
                         : ticket.RequesterNameSnapshot ?? "Employee requester",
+                    ticket.RequesterEmployee != null
+                        ? ticket.RequesterEmployee.Nickname
+                        : ticket.RequesterNicknameSnapshot,
                     null,
                     null,
                     ticket.RequesterOrganizationSnapshot ??
                         (ticket.SourceCompany != null ? ticket.SourceCompany.Name : null)),
+                ticket.SourceChannel,
                 ticket.TargetCompany.Name,
-                ticket.TargetDepartment.Name,
-                ticket.Category.Name,
-                ticket.Topic.Name,
+                ticket.TargetDepartment != null ? ticket.TargetDepartment.Name : null,
+                ticket.Category != null ? ticket.Category.Name : null,
+                ticket.Topic != null ? ticket.Topic.Name : null,
                 ticket.OtherTopicText,
                 ticket.Assignments
                     .Where(assignment => assignment.IsPrimary)

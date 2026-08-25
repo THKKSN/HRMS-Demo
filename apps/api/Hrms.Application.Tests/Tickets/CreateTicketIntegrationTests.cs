@@ -122,9 +122,33 @@ public class CreateTicketIntegrationTests
         ticket.RequesterNameSnapshot.Should().HaveLength(200);
     }
 
+    [Theory]
+    [InlineData("liff-web", TicketSourceChannel.LineLiff)]
+    [InlineData("admin-web", TicketSourceChannel.WebPortal)]
+    [InlineData(null, TicketSourceChannel.Unknown)]
+    [InlineData("some-future-app", TicketSourceChannel.Unknown)]
+    public async Task Create_ShouldRecordSourceChannelFromClientApp(
+        string? clientApp, TicketSourceChannel expected)
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var handler = Handler(fixture, new TicketRoutingResult(
+            TicketRoutingLevel.None,
+            TicketRoutingMode.SupervisorAssign,
+            TicketRoutingOutcome.NoMatch,
+            []), clientApp);
+
+        var result = await handler.Handle(Command(fixture), default);
+
+        var ticket = await fixture.Db.Tickets.SingleAsync(x => x.Id == result.Id);
+        ticket.SourceChannel.Should().Be(expected);
+        ticket.SourceClientApp.Should().Be(clientApp);
+    }
+
     private static CreateTicketHandler Handler(
         TicketTestFixture fixture,
-        TicketRoutingResult routing)
+        TicketRoutingResult routing,
+        string? clientApp = null)
     {
         var routingService = new Mock<ITicketRoutingService>();
         routingService.Setup(service => service.ResolveAsync(
@@ -145,7 +169,7 @@ public class CreateTicketIntegrationTests
                 fixture.RequesterId,
                 fixture.CompanyId,
                 fixture.SourceDepartmentId,
-                RoleType.Employee),
+                RoleType.Employee) { ClientApp = clientApp },
             new TestPermissionService("ticket:create"),
             new TestAuditLogService(),
             routingService.Object,

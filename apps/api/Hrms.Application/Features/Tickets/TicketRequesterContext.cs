@@ -11,13 +11,15 @@ public sealed record TicketRequesterContext(
     string? LineUserId,
     string? Phone,
     string? Email,
-    string? Organization)
+    string? Organization,
+    string? Nickname = null)
 {
     public TicketRequesterDto ToDto(bool includeContact = false) => new(
         RequestType,
         EmployeeId,
         ExternalReporterId,
         DisplayName,
+        Nickname,
         includeContact ? Phone : null,
         includeContact ? Email : null,
         Organization);

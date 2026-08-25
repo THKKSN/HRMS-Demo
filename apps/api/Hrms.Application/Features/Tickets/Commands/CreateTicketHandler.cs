@@ -137,6 +137,8 @@ public class CreateTicketHandler(
             SubjectGuidanceConfigName = resolvedGuidance?.GuidanceConfigName,
             Priority = request.Priority,
             Status = TicketStatus.Open,
+            SourceChannel = TicketSourceChannelResolver.FromClientApp(currentUser.ClientApp),
+            SourceClientApp = TicketSourceChannelResolver.NormalizeClientApp(currentUser.ClientApp),
             RoutingMode = routing.Mode,
             RoutingLevel = routing.Level,
             RoutingOutcome = routing.Outcome,
@@ -145,6 +147,7 @@ public class CreateTicketHandler(
             ContactPhone = TrimOrNull(request.ContactPhone ?? employee.Phone),
             ContactNote = TrimOrNull(request.ContactNote),
             RequesterNameSnapshot = Bound(requester.DisplayName, 200),
+            RequesterNicknameSnapshot = requester.Nickname is null ? null : Bound(requester.Nickname, 50),
             RequesterPhoneSnapshot = requester.Phone,
             RequesterEmailSnapshot = requester.Email,
             RequesterOrganizationSnapshot = requester.Organization,
@@ -203,6 +206,9 @@ public class CreateTicketHandler(
         }
 
         QueueRoutingNotifications(ticket, employee, targetDepartment, category, topic, routing);
+        if (topic.SyncToExternalRepairSystem)
+            TicketCommandSupport.QueueExternalRepairSync(
+                db, ticket, targetDepartment.Company, targetDepartment, category, topic, subject);
         await db.ExecuteInTransactionAsync(async transactionCt =>
         {
             await db.SaveChangesAsync(transactionCt);
@@ -211,6 +217,7 @@ public class CreateTicketHandler(
                 $"{employee.FirstName} {employee.LastName} เปิดใบแจ้งเรื่อง {ticket.TicketNo}: {ticket.Title}",
                 null, new { ticket.TicketNo, ticket.TargetCompanyId, ticket.TargetDepartmentId,
                     ticket.CategoryId, ticket.TopicId, ticket.SubjectId, ticket.Priority, ticket.Status,
+                    ticket.SourceChannel, ticket.SourceClientApp,
                     routing.Level, routing.Mode, routing.Outcome }, transactionCt);
             var routingAction = routing.Outcome switch
             {
@@ -244,6 +251,12 @@ public class CreateTicketHandler(
             topic.Name,
             subject.Id,
             subject.Name,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
             ticket.OtherTopicText,
             ticket.Title,
             ticket.Detail,

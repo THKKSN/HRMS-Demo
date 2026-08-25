@@ -33,9 +33,14 @@ public class ExportTicketReportExcelHandler(
                 SourceCompany = t.SourceCompany != null ? t.SourceCompany.Name : "",
                 SourceDepartment = t.SourceDepartment != null ? t.SourceDepartment.Name : "",
                 TargetCompany = t.TargetCompany.Name,
-                TargetDepartment = t.TargetDepartment.Name,
-                Category = t.Category.Name,
-                Topic = t.Topic.Name,
+                TargetDepartment = t.TargetDepartment != null ? t.TargetDepartment.Name : "",
+                // External ticket ใช้หมวดจาก external taxonomy — coalesce ให้ report เห็นชื่อหมวดเสมอ
+                Category = t.Category != null
+                    ? t.Category.Name
+                    : t.ExternalTicketCategory != null ? t.ExternalTicketCategory.Name : "",
+                Topic = t.Topic != null
+                    ? t.Topic.Name
+                    : t.ExternalTicketTopic != null ? t.ExternalTicketTopic.Name : "",
                 t.ProblemType,
                 Requester = t.RequesterEmployee != null
                     ? t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName

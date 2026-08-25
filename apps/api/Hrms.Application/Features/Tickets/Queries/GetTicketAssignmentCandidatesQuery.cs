@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Tickets.Dtos;
 using Hrms.Domain.Enums;
@@ -16,6 +17,8 @@ public class GetTicketAssignmentCandidatesHandler(
     ITicketRoutingService routing)
     : IRequestHandler<GetTicketAssignmentCandidatesQuery, IReadOnlyList<TicketAssignmentCandidateDto>>
 {
+    private sealed record CandidateEmployee(Guid Id, string EmployeeCode, string EmployeeName, string? RoleLabelName);
+
     public async Task<IReadOnlyList<TicketAssignmentCandidateDto>> Handle(
         GetTicketAssignmentCandidatesQuery request, CancellationToken ct)
     {
@@ -24,26 +27,67 @@ public class GetTicketAssignmentCandidatesHandler(
         await TicketSupervisorAccess.EnsureTicketAsync(
             db, currentUser, permissionService, "ticket:assign", ticket, ct);
 
-        var routingResult = await routing.ResolveAsync(
-            ticket.TargetCompanyId, ticket.TargetDepartmentId, ticket.CategoryId, ticket.TopicId,
-            DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), ct);
-        var recommendedIds = routingResult.Candidates.Select(c => c.EmployeeId).ToList();
-        var level = routingResult.Level;
+        List<CandidateEmployee> employees;
+        List<Guid> recommendedIds;
+        var level = TicketRoutingLevel.None;
 
-        var employees = await db.Employees.AsNoTracking()
-            .Where(e => e.IsActive &&
-                        e.CompanyId == ticket.TargetCompanyId &&
-                        e.DepartmentId == ticket.TargetDepartmentId)
-            .OrderBy(e => e.FirstName)
-            .ThenBy(e => e.LastName)
-            .Select(e => new
+        if (ticket.RequestType == TicketRequestType.External)
+        {
+            // External ticket ไม่ auto-route/ไม่ผูกแผนก — Supervisor เลือกจากพนักงาน active ทุกคนของบริษัทที่ fix ไว้ ไม่มี recommendation
+            recommendedIds = [];
+            employees = await db.Employees.AsNoTracking()
+                .Where(e => e.IsActive && e.CompanyId == ticket.TargetCompanyId)
+                .OrderBy(e => e.FirstName)
+                .ThenBy(e => e.LastName)
+                .Select(e => new CandidateEmployee(
+                    e.Id,
+                    e.EmployeeCode,
+                    (e.FirstName + " " + e.LastName).Trim(),
+                    e.RoleLabel != null ? e.RoleLabel.Name : null))
+                .ToListAsync(ct);
+        }
+        else
+        {
+            var routingResult = await routing.ResolveAsync(
+                ticket.TargetCompanyId, ticket.TargetDepartmentId!.Value, ticket.CategoryId!.Value, ticket.TopicId!.Value,
+                DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7)), ct);
+            recommendedIds = routingResult.Candidates.Select(c => c.EmployeeId).ToList();
+            level = routingResult.Level;
+
+            employees = await db.Employees.AsNoTracking()
+                .Where(e => e.IsActive &&
+                            e.CompanyId == ticket.TargetCompanyId &&
+                            e.DepartmentId == ticket.TargetDepartmentId)
+                .OrderBy(e => e.FirstName)
+                .ThenBy(e => e.LastName)
+                .Select(e => new CandidateEmployee(
+                    e.Id,
+                    e.EmployeeCode,
+                    (e.FirstName + " " + e.LastName).Trim(),
+                    e.RoleLabel != null ? e.RoleLabel.Name : null))
+                .ToListAsync(ct);
+
+            // เฉพาะ role Supervisor (หรือ Admin) ของบริษัทปลายทางเห็นตัวเองเป็นตัวเลือกมอบหมายงาน
+            // แม้ไม่ได้สังกัดแผนกปลายทางของ ticket โดยตรง (เช่น ดูแลหลายแผนก)
+            var canSelfAssign = currentUser.EmployeeId.HasValue &&
+                (currentUser.HasRole(RoleType.Admin) ||
+                 currentUser.HasRole(RoleType.Supervisor, ticket.TargetCompanyId));
+            if (canSelfAssign && employees.All(e => e.Id != currentUser.EmployeeId!.Value))
             {
-                e.Id,
-                e.EmployeeCode,
-                EmployeeName = (e.FirstName + " " + e.LastName).Trim(),
-                RoleLabelName = e.RoleLabel != null ? e.RoleLabel.Name : null
-            })
-            .ToListAsync(ct);
+                var self = await db.Employees.AsNoTracking()
+                    .Where(e => e.Id == currentUser.EmployeeId!.Value &&
+                                e.IsActive &&
+                                e.CompanyId == ticket.TargetCompanyId)
+                    .Select(e => new CandidateEmployee(
+                        e.Id,
+                        e.EmployeeCode,
+                        (e.FirstName + " " + e.LastName).Trim(),
+                        e.RoleLabel != null ? e.RoleLabel.Name : null))
+                    .FirstOrDefaultAsync(ct);
+                if (self is not null)
+                    employees.Add(self);
+            }
+        }
 
         var employeeIds = employees.Select(e => e.Id).ToList();
         var activeCounts = await db.TicketAssignments.AsNoTracking()

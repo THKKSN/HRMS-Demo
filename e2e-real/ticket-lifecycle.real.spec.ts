@@ -81,12 +81,12 @@ test('real Ticket flow: requester creates, supervisor assigns, worker resolves, 
     await requester.page.goto('http://localhost:3000/tickets/new')
     await expect(requester.page.getByRole('heading', { name: 'แจ้งเรื่องภายใน' })).toBeVisible()
 
+    // บริษัทถูกเลือกอัตโนมัติและแสดงเป็น read-only จึงไม่มี select ของบริษัทในฟอร์ม
     const selects = requester.page.locator('form select')
-    await selects.nth(0).selectOption({ label: 'บริษัท เทสระบบ จำกัด' })
-    await selects.nth(1).selectOption({ label: 'ฝ่ายเทคโนโลยีสารสนเทศ' })
-    await selects.nth(2).selectOption({ label: 'รถ / อุปกรณ์ประจำรถ' })
-    await selects.nth(3).selectOption({ label: 'กล้องรถ' })
-    await requester.page.getByLabel('หัวข้อ', { exact: true }).fill('E2E กล้องรถกาวหลุด')
+    await selects.nth(0).selectOption({ label: 'ฝ่ายเทคโนโลยีสารสนเทศ' })
+    await selects.nth(1).selectOption({ label: 'รถ / อุปกรณ์ประจำรถ' })
+    await selects.nth(2).selectOption({ label: 'กล้องรถ' })
+    await selects.nth(3).selectOption({ label: 'กล้องรถกาวหลุด' })
     await requester.page.getByLabel('รายละเอียด', { exact: true })
       .fill('ทดสอบ flow จริง ต้องการให้ทีม IT ตรวจสอบกล้องรถที่อู่')
     await requester.page.getByLabel('สถานที่ตั้ง').fill('อู่ทดสอบ E2E')
@@ -102,7 +102,7 @@ test('real Ticket flow: requester creates, supervisor assigns, worker resolves, 
     const supervisor = await adminPage(browser, 'emp003@test.com')
     contexts.push(supervisor.context)
     await supervisor.page.goto(`http://localhost:3001/tickets/${ticketId}`)
-    await expect(supervisor.page.getByText('E2E กล้องรถกาวหลุด')).toBeVisible()
+    await expect(supervisor.page.getByText('กล้องรถกาวหลุด')).toBeVisible()
 
     await supervisor.page.getByRole('button', { name: 'รับเรื่อง' }).click()
     await expect(supervisor.page.getByText('รับเรื่องแล้ว')).toBeVisible()

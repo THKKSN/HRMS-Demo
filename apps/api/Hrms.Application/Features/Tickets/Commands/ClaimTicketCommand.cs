@@ -40,7 +40,7 @@ public class ClaimTicketHandler(
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         var responsibility = await db.EmployeeResponsibilities
             .Where(r => r.EmployeeId == employeeId && r.CompanyId == ticket.TargetCompanyId &&
-                r.DepartmentId == ticket.TargetDepartmentId && r.CategoryId == ticket.CategoryId &&
+                r.DepartmentId == ticket.TargetDepartmentId && r.CategoryId == ticket.CategoryId!.Value &&
                 (r.TopicId == null || r.TopicId == ticket.TopicId) && r.IsActive &&
                 (!r.EffectiveFrom.HasValue || r.EffectiveFrom.Value <= today) &&
                 (!r.EffectiveTo.HasValue || r.EffectiveTo.Value >= today) &&

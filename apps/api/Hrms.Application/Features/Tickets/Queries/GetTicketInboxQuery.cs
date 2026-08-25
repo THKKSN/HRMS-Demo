@@ -18,6 +18,7 @@ public record GetTicketInboxQuery(
     string? Search,
     DateOnly? DateFrom,
     DateOnly? DateTo,
+    TicketRequestType? RequestType = null,
     int Page = 1,
     int PageSize = 20) : IRequest<PagedResult<TicketInboxItemDto>>;
 
@@ -36,8 +37,9 @@ public class GetTicketInboxHandler(
         if (request.DepartmentId.HasValue) query = query.Where(t => t.TargetDepartmentId == request.DepartmentId.Value);
         if (request.Status.HasValue) query = query.Where(t => t.Status == request.Status.Value);
         if (request.Priority.HasValue) query = query.Where(t => t.Priority == request.Priority.Value);
-        if (request.CategoryId.HasValue) query = query.Where(t => t.CategoryId == request.CategoryId.Value);
-        if (request.TopicId.HasValue) query = query.Where(t => t.TopicId == request.TopicId.Value);
+        if (request.RequestType.HasValue) query = query.Where(t => t.RequestType == request.RequestType.Value);
+        if (request.CategoryId.HasValue) query = query.Where(t => t.CategoryId == request.CategoryId);
+        if (request.TopicId.HasValue) query = query.Where(t => t.TopicId == request.TopicId);
         if (request.DateFrom.HasValue)
         {
             var from = request.DateFrom.Value.ToDateTime(TimeOnly.MinValue);
@@ -79,22 +81,32 @@ public class GetTicketInboxHandler(
                 t.Status,
                 t.Priority,
                 t.RequestType,
+                t.SourceChannel,
                 t.RequesterEmployeeId,
                 t.ExternalReporterId,
                 RequesterName = t.RequesterEmployee != null
                     ? (t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName).Trim()
                     : t.RequesterNameSnapshot ?? t.RequesterLineDisplayNameSnapshot ?? "External requester",
+                RequesterNickname = t.RequesterEmployee != null
+                    ? t.RequesterEmployee.Nickname
+                    : t.RequesterNicknameSnapshot,
                 RequesterOrganization = t.RequesterOrganizationSnapshot ??
                     (t.SourceCompany != null ? t.SourceCompany.Name : null),
                 SourceDepartmentName = t.SourceDepartment != null ? t.SourceDepartment.Name : null,
                 t.TargetCompanyId,
                 TargetCompanyName = t.TargetCompany.Name,
                 t.TargetDepartmentId,
-                TargetDepartmentName = t.TargetDepartment.Name,
+                TargetDepartmentName = t.TargetDepartment != null ? t.TargetDepartment.Name : null,
                 t.CategoryId,
-                CategoryName = t.Category.Name,
+                CategoryName = t.Category != null ? t.Category.Name : null,
                 t.TopicId,
-                TopicName = t.Topic.Name,
+                TopicName = t.Topic != null ? t.Topic.Name : null,
+                t.ExternalTicketCategoryId,
+                ExternalTicketCategoryName = t.ExternalTicketCategory != null ? t.ExternalTicketCategory.Name : null,
+                t.ExternalTicketTopicId,
+                ExternalTicketTopicName = t.ExternalTicketTopic != null ? t.ExternalTicketTopic.Name : null,
+                t.ExternalTicketSubjectId,
+                ExternalTicketSubjectName = t.ExternalTicketSubject != null ? t.ExternalTicketSubject.Name : null,
                 t.OtherTopicText,
                 t.LocationText,
                 t.VehicleText,
@@ -148,9 +160,11 @@ public class GetTicketInboxHandler(
                         t.RequesterEmployeeId,
                         t.ExternalReporterId,
                         t.RequesterName,
+                        t.RequesterNickname,
                         null,
                         null,
                         t.RequesterOrganization),
+                    t.SourceChannel,
                     t.SourceDepartmentName,
                     t.TargetCompanyId,
                     t.TargetCompanyName,
@@ -160,6 +174,12 @@ public class GetTicketInboxHandler(
                     t.CategoryName,
                     t.TopicId,
                     t.TopicName,
+                    t.ExternalTicketCategoryId,
+                    t.ExternalTicketCategoryName,
+                    t.ExternalTicketTopicId,
+                    t.ExternalTicketTopicName,
+                    t.ExternalTicketSubjectId,
+                    t.ExternalTicketSubjectName,
                     t.OtherTopicText,
                     t.LocationText,
                     t.VehicleText,

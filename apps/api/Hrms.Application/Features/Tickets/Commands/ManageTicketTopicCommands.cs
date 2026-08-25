@@ -8,7 +8,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.Tickets.Commands;
 
-public record CreateTicketTopicCommand(Guid CompanyId, Guid DepartmentId, Guid CategoryId, string Name, string? Description, int SortOrder)
+public record CreateTicketTopicCommand(
+    Guid CompanyId, Guid DepartmentId, Guid CategoryId, string Name, string? Description, int SortOrder,
+    bool SyncToExternalRepairSystem = false)
     : IRequest<TicketTopicDto>;
 
 public class CreateTicketTopicValidator : AbstractValidator<CreateTicketTopicCommand>
@@ -50,6 +52,7 @@ public class CreateTicketTopicHandler(
             Description = TrimOrNull(request.Description),
             SortOrder = request.SortOrder,
             IsActive = true,
+            SyncToExternalRepairSystem = request.SyncToExternalRepairSystem,
             CreatedByEmployeeId = currentUser.EmployeeId
         };
         db.TicketTopics.Add(topic);
@@ -57,17 +60,19 @@ public class CreateTicketTopicHandler(
 
         await auditLog.LogAsync("ticket", "TicketTopic", topic.Id.ToString(), "create",
             $"สร้างหัวข้อแจ้งเรื่อง '{topic.Name}'", null,
-            new { topic.CompanyId, topic.DepartmentId, topic.CategoryId, topic.Name, topic.Description, topic.SortOrder }, ct);
+            new { topic.CompanyId, topic.DepartmentId, topic.CategoryId, topic.Name, topic.Description, topic.SortOrder, topic.SyncToExternalRepairSystem }, ct);
 
         return ToDto(topic);
     }
 
     private static string? TrimOrNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static TicketTopicDto ToDto(TicketTopic t) =>
-        new(t.Id, t.CompanyId, t.DepartmentId, t.CategoryId, t.Name, t.Description, t.SortOrder, t.IsActive, t.RoutingMode);
+        new(t.Id, t.CompanyId, t.DepartmentId, t.CategoryId, t.Name, t.Description, t.SortOrder, t.IsActive, t.RoutingMode, t.SyncToExternalRepairSystem);
 }
 
-public record UpdateTicketTopicCommand(Guid Id, string Name, string? Description, int SortOrder, bool IsActive)
+public record UpdateTicketTopicCommand(
+    Guid Id, string Name, string? Description, int SortOrder, bool IsActive,
+    bool SyncToExternalRepairSystem = false)
     : IRequest<TicketTopicDto>;
 
 public class UpdateTicketTopicValidator : AbstractValidator<UpdateTicketTopicCommand>
@@ -96,20 +101,21 @@ public class UpdateTicketTopicHandler(
         if (await db.TicketTopics.AnyAsync(t => t.CategoryId == topic.CategoryId && t.Name == name && t.Id != topic.Id, ct))
             throw new ConflictException("DUPLICATE_TICKET_TOPIC", $"หัวข้อ '{name}' มีอยู่แล้วในหมวดนี้");
 
-        var oldValues = new { topic.Name, topic.Description, topic.SortOrder, topic.IsActive };
+        var oldValues = new { topic.Name, topic.Description, topic.SortOrder, topic.IsActive, topic.SyncToExternalRepairSystem };
         topic.Name = name;
         topic.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         topic.SortOrder = request.SortOrder;
         topic.IsActive = request.IsActive;
+        topic.SyncToExternalRepairSystem = request.SyncToExternalRepairSystem;
         topic.UpdatedAt = DateTime.UtcNow.AddHours(7);
         topic.UpdatedBy = currentUser.EmployeeId;
         await db.SaveChangesAsync(ct);
 
         await auditLog.LogAsync("ticket", "TicketTopic", topic.Id.ToString(), "update",
             $"แก้ไขหัวข้อแจ้งเรื่อง '{topic.Name}'", oldValues,
-            new { topic.Name, topic.Description, topic.SortOrder, topic.IsActive }, ct);
+            new { topic.Name, topic.Description, topic.SortOrder, topic.IsActive, topic.SyncToExternalRepairSystem }, ct);
 
         return new TicketTopicDto(topic.Id, topic.CompanyId, topic.DepartmentId, topic.CategoryId, topic.Name,
-            topic.Description, topic.SortOrder, topic.IsActive, topic.RoutingMode);
+            topic.Description, topic.SortOrder, topic.IsActive, topic.RoutingMode, topic.SyncToExternalRepairSystem);
     }
 }

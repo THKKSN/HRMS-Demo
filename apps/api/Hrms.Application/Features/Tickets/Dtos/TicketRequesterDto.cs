@@ -7,6 +7,7 @@ public sealed record TicketRequesterDto(
     Guid? EmployeeId,
     Guid? ExternalReporterId,
     string Name,
+    string? Nickname,
     string? Phone,
     string? Email,
     string? Organization);

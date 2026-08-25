@@ -13,6 +13,7 @@ public record GetAssignedTicketsQuery(
     TicketStatus? Status,
     string? Search,
     bool History = false,
+    TicketRequestType? RequestType = null,
     int Page = 1,
     int PageSize = 20) : IRequest<PagedResult<AssignedTicketItemDto>>;
 
@@ -32,6 +33,8 @@ public class GetAssignedTicketsHandler(
             .Where(a => a.AssignedToEmployeeId == employeeId && (request.History ? !a.IsActive : a.IsActive && a.IsPrimary));
         if (request.Status.HasValue)
             assignments = assignments.Where(a => a.Ticket.Status == request.Status.Value);
+        if (request.RequestType.HasValue)
+            assignments = assignments.Where(a => a.Ticket.RequestType == request.RequestType.Value);
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var search = request.Search.Trim().ToLower();
@@ -67,15 +70,24 @@ public class GetAssignedTicketsHandler(
                 a.Ticket.Status,
                 a.Ticket.Priority,
                 a.Ticket.RequestType,
+                a.Ticket.SourceChannel,
                 a.Ticket.RequesterEmployeeId,
                 a.Ticket.ExternalReporterId,
                 RequesterName = a.Ticket.RequesterEmployee != null
                     ? (a.Ticket.RequesterEmployee.FirstName + " " + a.Ticket.RequesterEmployee.LastName).Trim()
                     : a.Ticket.RequesterNameSnapshot ?? a.Ticket.RequesterLineDisplayNameSnapshot ?? "External requester",
+                RequesterNickname = a.Ticket.RequesterEmployee != null
+                    ? a.Ticket.RequesterEmployee.Nickname
+                    : a.Ticket.RequesterNicknameSnapshot,
                 RequesterOrganization = a.Ticket.RequesterOrganizationSnapshot ??
                     (a.Ticket.SourceCompany != null ? a.Ticket.SourceCompany.Name : null),
-                CategoryName = a.Ticket.Category.Name,
-                TopicName = a.Ticket.Topic.Name,
+                // External ticket ใช้หมวดจาก external taxonomy — coalesce ให้หน้า assigned เห็นชื่อหมวดเสมอไม่ว่ามาจากฝั่งไหน
+                CategoryName = a.Ticket.Category != null
+                    ? a.Ticket.Category.Name
+                    : a.Ticket.ExternalTicketCategory != null ? a.Ticket.ExternalTicketCategory.Name : null,
+                TopicName = a.Ticket.Topic != null
+                    ? a.Ticket.Topic.Name
+                    : a.Ticket.ExternalTicketTopic != null ? a.Ticket.ExternalTicketTopic.Name : null,
                 a.Ticket.VehicleText,
                 a.Ticket.LocationText,
                 a.AssignedAt,
@@ -107,9 +119,11 @@ public class GetAssignedTicketsHandler(
                         a.RequesterEmployeeId,
                         a.ExternalReporterId,
                         a.RequesterName,
+                        a.RequesterNickname,
                         null,
                         null,
                         a.RequesterOrganization),
+                    a.SourceChannel,
                     a.CategoryName,
                     a.TopicName,
                     a.VehicleText,

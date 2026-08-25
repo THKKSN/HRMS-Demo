@@ -536,6 +536,11 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("varchar(13)")
                         .HasColumnName("national_id");
 
+                    b.Property<string>("Nickname")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("nickname");
+
                     b.Property<string>("PasswordHash")
                         .HasColumnType("longtext")
                         .HasColumnName("password_hash");
@@ -1234,6 +1239,85 @@ namespace Hrms.Infrastructure.Migrations
                     b.ToTable("expense_ocr_results", (string)null);
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.ExternalRepairSyncOutbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("int")
+                        .HasColumnName("attempt_count");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("DeduplicationKey")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)")
+                        .HasColumnName("deduplication_key");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<DateTime?>("NextAttemptAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("payload_json");
+
+                    b.Property<DateTime?>("ProcessingStartedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("processing_started_at");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("sent_at");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("ticket_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_external_repair_sync_outboxes");
+
+                    b.HasIndex("DeduplicationKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_external_repair_sync_outboxes_deduplication_key");
+
+                    b.HasIndex("TicketId")
+                        .HasDatabaseName("ix_external_repair_sync_outboxes_ticket_id");
+
+                    b.HasIndex("Status", "NextAttemptAt", "CreatedAt")
+                        .HasDatabaseName("ix_external_repair_sync_outboxes_status_next_attempt_at_created");
+
+                    b.ToTable("external_repair_sync_outboxes", (string)null);
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.ExternalReporter", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1324,6 +1408,248 @@ namespace Hrms.Infrastructure.Migrations
                         .HasDatabaseName("ix_external_reporters_is_active_last_login_at");
 
                     b.ToTable("external_reporters", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExternalTicketCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int")
+                        .HasColumnName("sort_order");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_external_ticket_categories");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_external_ticket_categories_name");
+
+                    b.HasIndex("IsActive", "SortOrder")
+                        .HasDatabaseName("ix_external_ticket_categories_is_active_sort_order");
+
+                    b.ToTable("external_ticket_categories", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExternalTicketConfiguration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_enabled");
+
+                    b.Property<string>("PrivacyNoticeUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("privacy_notice_url");
+
+                    b.Property<string>("PrivacyNoticeVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("privacy_notice_version");
+
+                    b.Property<bool>("RequireOaFriendship")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("require_oa_friendship");
+
+                    b.Property<Guid>("TargetCompanyId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("target_company_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .IsConcurrencyToken()
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_external_ticket_configurations");
+
+                    b.HasIndex("TargetCompanyId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_external_ticket_configurations_target_company_id");
+
+                    b.ToTable("external_ticket_configurations", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExternalTicketSubject", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid>("ExternalTicketTopicId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("external_ticket_topic_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("SuggestionsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)")
+                        .HasDefaultValue("[]")
+                        .HasColumnName("suggestions_json");
+
+                    b.Property<string>("Template")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)")
+                        .HasColumnName("template");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_external_ticket_subjects");
+
+                    b.HasIndex("ExternalTicketTopicId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_external_ticket_subjects_external_ticket_topic_id_name");
+
+                    b.HasIndex("ExternalTicketTopicId", "IsActive", "SortOrder")
+                        .HasDatabaseName("ix_external_ticket_subjects_external_ticket_topic_id_is_active_");
+
+                    b.ToTable("external_ticket_subjects", (string)null);
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExternalTicketTopic", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("CreatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid>("ExternalTicketCategoryId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("external_ticket_category_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int")
+                        .HasColumnName("sort_order");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("updated_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_external_ticket_topics");
+
+                    b.HasIndex("ExternalTicketCategoryId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_external_ticket_topics_external_ticket_category_id_name");
+
+                    b.HasIndex("ExternalTicketCategoryId", "IsActive", "SortOrder")
+                        .HasDatabaseName("ix_external_ticket_topics_external_ticket_category_id_is_active");
+
+                    b.ToTable("external_ticket_topics", (string)null);
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.Holiday", b =>
@@ -2386,7 +2712,7 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("char(36)")
                         .HasColumnName("cancelled_by_employee_id");
 
-                    b.Property<Guid>("CategoryId")
+                    b.Property<Guid?>("CategoryId")
                         .HasColumnType("char(36)")
                         .HasColumnName("category_id");
 
@@ -2444,6 +2770,18 @@ namespace Hrms.Infrastructure.Migrations
                     b.Property<Guid?>("ExternalReporterId")
                         .HasColumnType("char(36)")
                         .HasColumnName("external_reporter_id");
+
+                    b.Property<Guid?>("ExternalTicketCategoryId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("external_ticket_category_id");
+
+                    b.Property<Guid?>("ExternalTicketSubjectId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("external_ticket_subject_id");
+
+                    b.Property<Guid?>("ExternalTicketTopicId")
+                        .HasColumnType("char(36)")
+                        .HasColumnName("external_ticket_topic_id");
 
                     b.Property<string>("InitialInspectionNote")
                         .HasMaxLength(2000)
@@ -2513,6 +2851,11 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("varchar(200)")
                         .HasColumnName("requester_name_snapshot");
 
+                    b.Property<string>("RequesterNicknameSnapshot")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("requester_nickname_snapshot");
+
                     b.Property<string>("RequesterOrganizationSnapshot")
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)")
@@ -2554,6 +2897,19 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("varchar(30)")
                         .HasColumnName("routing_outcome");
 
+                    b.Property<string>("SourceChannel")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("Unknown")
+                        .HasColumnName("source_channel");
+
+                    b.Property<string>("SourceClientApp")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("source_client_app");
+
                     b.Property<Guid?>("SourceCompanyId")
                         .HasColumnType("char(36)")
                         .HasColumnName("source_company_id");
@@ -2593,7 +2949,7 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("char(36)")
                         .HasColumnName("target_company_id");
 
-                    b.Property<Guid>("TargetDepartmentId")
+                    b.Property<Guid?>("TargetDepartmentId")
                         .HasColumnType("char(36)")
                         .HasColumnName("target_department_id");
 
@@ -2609,7 +2965,7 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("varchar(200)")
                         .HasColumnName("title");
 
-                    b.Property<Guid>("TopicId")
+                    b.Property<Guid?>("TopicId")
                         .HasColumnType("char(36)")
                         .HasColumnName("topic_id");
 
@@ -2707,6 +3063,9 @@ namespace Hrms.Infrastructure.Migrations
                     b.HasIndex("ClosedByExternalReporterId")
                         .HasDatabaseName("ix_tickets_closed_by_external_reporter_id");
 
+                    b.HasIndex("ExternalTicketTopicId")
+                        .HasDatabaseName("ix_tickets_external_ticket_topic_id");
+
                     b.HasIndex("ReceiverEmployeeId")
                         .HasDatabaseName("ix_tickets_receiver_employee_id");
 
@@ -2753,11 +3112,17 @@ namespace Hrms.Infrastructure.Migrations
                     b.HasIndex("ExternalReporterId", "Status")
                         .HasDatabaseName("ix_tickets_external_reporter_id_status");
 
+                    b.HasIndex("ExternalTicketSubjectId", "Status")
+                        .HasDatabaseName("ix_tickets_external_ticket_subject_id_status");
+
                     b.HasIndex("RequesterEmployeeId", "Status")
                         .HasDatabaseName("ix_tickets_requester_employee_id_status");
 
                     b.HasIndex("RoutingOutcome", "CreatedAt")
                         .HasDatabaseName("ix_tickets_routing_outcome_created_at");
+
+                    b.HasIndex("SourceChannel", "CreatedAt")
+                        .HasDatabaseName("ix_tickets_source_channel_created_at");
 
                     b.HasIndex("Status", "UpdatedAt")
                         .HasDatabaseName("ix_tickets_status_updated_at");
@@ -2774,9 +3139,14 @@ namespace Hrms.Infrastructure.Migrations
                     b.HasIndex("CategoryId", "TopicId", "Status")
                         .HasDatabaseName("ix_tickets_category_id_topic_id_status");
 
+                    b.HasIndex("ExternalTicketCategoryId", "ExternalTicketTopicId", "Status")
+                        .HasDatabaseName("ix_tickets_external_ticket_category_id_external_ticket_topic_id");
+
                     b.ToTable("tickets", null, t =>
                         {
                             t.HasCheckConstraint("ck_tickets_requester_actor", "((requester_employee_id IS NOT NULL AND external_reporter_id IS NULL AND request_type = 'Internal') OR (requester_employee_id IS NULL AND external_reporter_id IS NOT NULL AND request_type = 'External'))");
+
+                            t.HasCheckConstraint("ck_tickets_taxonomy_by_request_type", "((request_type = 'Internal' AND category_id IS NOT NULL AND topic_id IS NOT NULL AND target_department_id IS NOT NULL AND external_ticket_category_id IS NULL AND external_ticket_topic_id IS NULL AND external_ticket_subject_id IS NULL) OR (request_type = 'External' AND category_id IS NULL AND topic_id IS NULL AND subject_id IS NULL AND target_department_id IS NULL AND external_ticket_category_id IS NOT NULL AND external_ticket_topic_id IS NOT NULL))");
                         });
                 });
 
@@ -3847,6 +4217,12 @@ namespace Hrms.Infrastructure.Migrations
                         .HasColumnType("int")
                         .HasColumnName("sort_order");
 
+                    b.Property<bool>("SyncToExternalRepairSystem")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("sync_to_external_repair_system");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime")
                         .HasColumnName("updated_at");
@@ -4375,6 +4751,54 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("ExpenseClaim");
                 });
 
+            modelBuilder.Entity("Hrms.Domain.Entities.ExternalRepairSyncOutbox", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.Ticket", "Ticket")
+                        .WithMany()
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_external_repair_sync_outboxes_tickets_ticket_id");
+
+                    b.Navigation("Ticket");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExternalTicketConfiguration", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.Company", "TargetCompany")
+                        .WithMany()
+                        .HasForeignKey("TargetCompanyId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_external_ticket_configurations_companies_target_company_id");
+
+                    b.Navigation("TargetCompany");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExternalTicketSubject", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.ExternalTicketTopic", "Topic")
+                        .WithMany("Subjects")
+                        .HasForeignKey("ExternalTicketTopicId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_external_ticket_subjects_external_ticket_topics_external_tic");
+
+                    b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExternalTicketTopic", b =>
+                {
+                    b.HasOne("Hrms.Domain.Entities.ExternalTicketCategory", "Category")
+                        .WithMany("Topics")
+                        .HasForeignKey("ExternalTicketCategoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_external_ticket_topics_external_ticket_categories_external_t");
+
+                    b.Navigation("Category");
+                });
+
             modelBuilder.Entity("Hrms.Domain.Entities.Holiday", b =>
                 {
                     b.HasOne("Hrms.Domain.Entities.Company", "Company")
@@ -4602,7 +5026,6 @@ namespace Hrms.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_tickets_ticket_categories_category_id");
 
                     b.HasOne("Hrms.Domain.Entities.Employee", "ClosedByEmployee")
@@ -4622,6 +5045,24 @@ namespace Hrms.Infrastructure.Migrations
                         .HasForeignKey("ExternalReporterId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_tickets_external_reporters_external_reporter_id");
+
+                    b.HasOne("Hrms.Domain.Entities.ExternalTicketCategory", "ExternalTicketCategory")
+                        .WithMany()
+                        .HasForeignKey("ExternalTicketCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_tickets_external_ticket_categories_external_ticket_category_");
+
+                    b.HasOne("Hrms.Domain.Entities.ExternalTicketSubject", "ExternalTicketSubject")
+                        .WithMany()
+                        .HasForeignKey("ExternalTicketSubjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_tickets_external_ticket_subjects_external_ticket_subject_id");
+
+                    b.HasOne("Hrms.Domain.Entities.ExternalTicketTopic", "ExternalTicketTopic")
+                        .WithMany()
+                        .HasForeignKey("ExternalTicketTopicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_tickets_external_ticket_topics_external_ticket_topic_id");
 
                     b.HasOne("Hrms.Domain.Entities.Employee", "ReceiverEmployee")
                         .WithMany()
@@ -4688,14 +5129,12 @@ namespace Hrms.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("TargetDepartmentId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_tickets_departments_target_department_id");
 
                     b.HasOne("Hrms.Domain.Entities.TicketTopic", "Topic")
                         .WithMany("Tickets")
                         .HasForeignKey("TopicId")
                         .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
                         .HasConstraintName("fk_tickets_ticket_topics_topic_id");
 
                     b.HasOne("Hrms.Domain.Entities.Employee", "VerifiedByEmployee")
@@ -4731,6 +5170,12 @@ namespace Hrms.Infrastructure.Migrations
                     b.Navigation("ClosedByExternalReporter");
 
                     b.Navigation("ExternalReporter");
+
+                    b.Navigation("ExternalTicketCategory");
+
+                    b.Navigation("ExternalTicketSubject");
+
+                    b.Navigation("ExternalTicketTopic");
 
                     b.Navigation("ReceiverEmployee");
 
@@ -5278,6 +5723,16 @@ namespace Hrms.Infrastructure.Migrations
             modelBuilder.Entity("Hrms.Domain.Entities.ExpenseClaim", b =>
                 {
                     b.Navigation("OcrResults");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExternalTicketCategory", b =>
+                {
+                    b.Navigation("Topics");
+                });
+
+            modelBuilder.Entity("Hrms.Domain.Entities.ExternalTicketTopic", b =>
+                {
+                    b.Navigation("Subjects");
                 });
 
             modelBuilder.Entity("Hrms.Domain.Entities.Permission", b =>

@@ -108,4 +108,59 @@ internal static class TicketCommandSupport
     }
 
     private sealed record TicketNotificationPayload(string Message);
+
+    public static void QueueExternalRepairSync(
+        IApplicationDbContext db,
+        Ticket ticket,
+        Company targetCompany,
+        Department targetDepartment,
+        TicketCategory category,
+        TicketTopic topic,
+        TicketSubject subject)
+    {
+        var payload = new ExternalRepairSyncPayload(
+            ticket.TicketNo,
+            ticket.CreatedAt,
+            targetCompany.Name,
+            targetDepartment.Name,
+            category.Name,
+            topic.Name,
+            subject.Name,
+            ticket.OtherTopicText,
+            ticket.Title,
+            ticket.Detail,
+            ticket.Priority.ToString(),
+            ticket.VehicleText,
+            ticket.LocationText,
+            ticket.ContactPhone,
+            ticket.ContactNote,
+            ticket.RequesterNameSnapshot,
+            ticket.RequesterPhoneSnapshot);
+        db.ExternalRepairSyncOutboxes.Add(new ExternalRepairSyncOutbox
+        {
+            TicketId = ticket.Id,
+            PayloadJson = JsonSerializer.Serialize(payload),
+            DeduplicationKey = $"TicketCreated:{ticket.Id:N}",
+            Status = NotificationDeliveryStatus.Pending
+        });
+    }
+
+    private sealed record ExternalRepairSyncPayload(
+        string TicketNo,
+        DateTime CreatedAt,
+        string CompanyName,
+        string DepartmentName,
+        string CategoryName,
+        string TopicName,
+        string SubjectName,
+        string? OtherTopicText,
+        string Title,
+        string Detail,
+        string Priority,
+        string? VehicleText,
+        string? LocationText,
+        string? ContactPhone,
+        string? ContactNote,
+        string? RequesterName,
+        string? RequesterPhone);
 }

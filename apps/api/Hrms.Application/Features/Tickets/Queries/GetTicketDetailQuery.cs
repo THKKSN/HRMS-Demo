@@ -29,6 +29,9 @@ public class GetTicketDetailHandler(
             .Include(t => t.Category)
             .Include(t => t.Topic)
             .Include(t => t.Subject)
+            .Include(t => t.ExternalTicketCategory)
+            .Include(t => t.ExternalTicketTopic)
+            .Include(t => t.ExternalTicketSubject)
             .Include(t => t.ReceiverEmployee)
             .Include(t => t.SupervisorAcceptedByEmployee)
             .Include(t => t.WorkStartedByEmployee)
@@ -89,6 +92,7 @@ public class GetTicketDetailHandler(
             ticket.Id,
             ticket.TicketNo,
             ticket.RequestType,
+            ticket.SourceChannel,
             ticket.Status,
             ticket.Priority,
             ticket.RequesterEmployeeId,
@@ -101,13 +105,19 @@ public class GetTicketDetailHandler(
             ticket.TargetCompanyId,
             ticket.TargetCompany.Name,
             ticket.TargetDepartmentId,
-            ticket.TargetDepartment.Name,
+            ticket.TargetDepartment?.Name,
             ticket.CategoryId,
-            ticket.Category.Name,
+            ticket.Category?.Name,
             ticket.TopicId,
-            ticket.Topic.Name,
+            ticket.Topic?.Name,
             ticket.SubjectId,
             ticket.Subject?.Name,
+            ticket.ExternalTicketCategoryId,
+            ticket.ExternalTicketCategory?.Name,
+            ticket.ExternalTicketTopicId,
+            ticket.ExternalTicketTopic?.Name,
+            ticket.ExternalTicketSubjectId,
+            ticket.ExternalTicketSubject?.Name,
             ticket.OtherTopicText,
             ticket.Title,
             ticket.Detail,
@@ -231,7 +241,7 @@ public class GetTicketDetailHandler(
                 ticket.TargetCompanyId,
                 ticket.TargetCompany.Name,
                 ticket.TargetDepartmentId,
-                ticket.TargetDepartment.Name,
+                ticket.TargetDepartment?.Name,
                 ticket.Status,
                 ticket.UpdatedAt),
             auditEvents,

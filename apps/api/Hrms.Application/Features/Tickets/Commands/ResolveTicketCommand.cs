@@ -21,7 +21,7 @@ public class ResolveTicketHandler(
         var ticket = await db.Tickets
             .Include(t => t.RequesterEmployee)
             .Include(t => t.ExternalReporter)
-            .Include(t => t.TargetDepartment).ThenInclude(d => d.ManagerEmployee)
+            .Include(t => t.TargetDepartment).ThenInclude(d => d!.ManagerEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
             ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
         await TicketAccess.EnsureActiveAssigneeAsync(db, currentUser, permissions, "ticket:resolve", ticket, ct);
@@ -62,9 +62,12 @@ public class ResolveTicketHandler(
         var message = $"งาน {ticket.TicketNo} ดำเนินการเสร็จแล้วและรอตรวจรับ\nเรื่อง: {ticket.Title}";
         TicketCommandSupport.QueueNotification(
             db, "TicketResolved", occurrenceId, TicketCommandSupport.Requester(ticket), message, ticket);
-        TicketCommandSupport.QueueNotification(
-            db, "TicketResolved", occurrenceId, ticket.TargetDepartment.ManagerEmployeeId,
-            ticket.TargetDepartment.ManagerEmployee?.LineUserId, message, ticket);
+        if (ticket.TargetDepartment is not null)
+        {
+            TicketCommandSupport.QueueNotification(
+                db, "TicketResolved", occurrenceId, ticket.TargetDepartment.ManagerEmployeeId,
+                ticket.TargetDepartment.ManagerEmployee?.LineUserId, message, ticket);
+        }
         await db.SaveChangesAsync(ct);
 
         var actorName = TicketCommandSupport.FullName(actor);

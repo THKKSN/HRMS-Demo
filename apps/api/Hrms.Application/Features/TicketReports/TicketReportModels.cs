@@ -53,7 +53,7 @@ public record TicketTrendItemDto(DateOnly Date, int OpenedCount, int ClosedCount
 
 public record TicketBacklogItemDto(
     Guid Id, string TicketNo, string Title, TicketStatus Status, TicketPriority Priority,
-    string DepartmentName, string CategoryName, string TopicName, string? AssigneeName,
+    string? DepartmentName, string? CategoryName, string? TopicName, string? AssigneeName,
     DateTime CreatedAt, int AgeDays);
 
 public record TicketBacklogResultDto(
@@ -61,7 +61,7 @@ public record TicketBacklogResultDto(
     IReadOnlyDictionary<string, int> AgingBuckets, TicketReportMetaDto Meta);
 
 public record TicketCategoryReportItemDto(
-    Guid CategoryId, string CategoryName, Guid TopicId, string TopicName,
+    Guid? CategoryId, string? CategoryName, Guid? TopicId, string? TopicName,
     int TotalCount, int ClosedCount, int BacklogCount, double ReturnRatePercent);
 
 public record TicketWorkloadItemDto(

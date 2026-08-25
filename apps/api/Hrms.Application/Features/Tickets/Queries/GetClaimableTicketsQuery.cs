@@ -33,7 +33,7 @@ public class GetClaimableTicketsHandler(
             !t.Assignments.Any(a => a.IsActive && a.IsPrimary) &&
             db.EmployeeResponsibilities.Any(r =>
                 r.EmployeeId == employeeId && r.CompanyId == t.TargetCompanyId &&
-                r.DepartmentId == t.TargetDepartmentId && r.CategoryId == t.CategoryId &&
+                r.DepartmentId == t.TargetDepartmentId && r.CategoryId == t.CategoryId!.Value &&
                 (r.TopicId == null || r.TopicId == t.TopicId) && r.IsActive &&
                 (!r.EffectiveFrom.HasValue || r.EffectiveFrom.Value <= today) &&
                 (!r.EffectiveTo.HasValue || r.EffectiveTo.Value >= today) &&
@@ -74,15 +74,19 @@ public class GetClaimableTicketsHandler(
                 t.Status,
                 t.Priority,
                 t.RequestType,
+                t.SourceChannel,
                 t.RequesterEmployeeId,
                 t.ExternalReporterId,
                 RequesterName = t.RequesterEmployee != null
                     ? (t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName).Trim()
                     : t.RequesterNameSnapshot ?? t.RequesterLineDisplayNameSnapshot ?? "External requester",
+                RequesterNickname = t.RequesterEmployee != null
+                    ? t.RequesterEmployee.Nickname
+                    : t.RequesterNicknameSnapshot,
                 RequesterOrganization = t.RequesterOrganizationSnapshot ??
                     (t.SourceCompany != null ? t.SourceCompany.Name : null),
-                CategoryName = t.Category.Name,
-                TopicName = t.Topic.Name,
+                CategoryName = t.Category != null ? t.Category.Name : null,
+                TopicName = t.Topic != null ? t.Topic.Name : null,
                 t.VehicleText,
                 t.LocationText,
                 AssignedAt = t.CreatedAt,
@@ -114,9 +118,11 @@ public class GetClaimableTicketsHandler(
                         t.RequesterEmployeeId,
                         t.ExternalReporterId,
                         t.RequesterName,
+                        t.RequesterNickname,
                         null,
                         null,
                         t.RequesterOrganization),
+                    t.SourceChannel,
                     t.CategoryName,
                     t.TopicName,
                     t.VehicleText,

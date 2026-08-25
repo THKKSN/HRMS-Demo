@@ -27,7 +27,7 @@ public class GetTicketTopicsHandler(IApplicationDbContext db, ICurrentUser curre
         return await query
             .OrderBy(t => t.SortOrder)
             .ThenBy(t => t.Name)
-            .Select(t => new TicketTopicDto(t.Id, t.CompanyId, t.DepartmentId, t.CategoryId, t.Name, t.Description, t.SortOrder, t.IsActive, t.RoutingMode))
+            .Select(t => new TicketTopicDto(t.Id, t.CompanyId, t.DepartmentId, t.CategoryId, t.Name, t.Description, t.SortOrder, t.IsActive, t.RoutingMode, t.SyncToExternalRepairSystem))
             .ToListAsync(ct);
     }
 }

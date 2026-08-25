@@ -19,8 +19,8 @@ POST {{base}}/v1/auth/login
 Content-Type: application/json
 
 {
-  "email": "admin@hrms.com",
-  "password": "Admin@1234"
+  "email": "tbg.line.dev@gmail.com",
+  "password": "P@55W0rd"
 }
 
 ###
@@ -31,6 +31,33 @@ Content-Type: application/json
 
 GET {{base}}/v1/companies
 Authorization: Bearer {{token}}
+
+###
+
+### ============================================================
+### PISWIN EMPLOYEE IMPORT — Admin only
+### ============================================================
+
+### [P1] ค้นหาพนักงานจาก PISWIN เพื่อ preview ก่อนนำเข้า
+POST {{base}}/v1/employee-imports/preview
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nationalId": "1103703466623"
+}
+
+###
+
+### [P2] นำเข้าพนักงานไปยัง company ที่เลือก
+POST {{base}}/v1/employee-imports
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nationalId": "1103703466623",
+  "companyId": "{{companyId}}"
+}
 
 ###
 

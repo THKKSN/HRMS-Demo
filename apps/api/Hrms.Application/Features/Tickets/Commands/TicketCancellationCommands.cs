@@ -43,7 +43,7 @@ public class RequestTicketCancellationHandler(
             .Include(t => t.RequesterEmployee)
             .Include(t => t.ExternalReporter)
             .Include(t => t.TargetCompany)
-            .Include(t => t.TargetDepartment).ThenInclude(d => d.ManagerEmployee)
+            .Include(t => t.TargetDepartment).ThenInclude(d => d!.ManagerEmployee)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary))
                 .ThenInclude(a => a.AssignedToEmployee)
             .Include(t => t.CancellationRequests)
@@ -82,7 +82,7 @@ public class RequestTicketCancellationHandler(
         var requester = TicketCommandSupport.Requester(ticket);
         var message = $"มีคำขอยกเลิก {ticket.TicketNo}\nผู้แจ้ง: {requester.DisplayName}\nเหตุผล: {cancellation.Reason}";
         var recipients = new HashSet<string>(StringComparer.Ordinal);
-        var manager = ticket.TargetDepartment.ManagerEmployee;
+        var manager = ticket.TargetDepartment?.ManagerEmployee;
         if (!string.IsNullOrWhiteSpace(manager?.LineUserId) && recipients.Add(manager.LineUserId))
             TicketCommandSupport.QueueNotification(
                 db, "TicketCancellationRequested", cancellation.Id, manager.Id,
@@ -363,7 +363,7 @@ internal static class TicketCancellationMapping
             ticket.TargetCompanyId,
             ticket.TargetCompany.Name,
             ticket.TargetDepartmentId,
-            ticket.TargetDepartment.Name,
+            ticket.TargetDepartment?.Name,
             ticket.Status,
             ticket.UpdatedAt);
 }

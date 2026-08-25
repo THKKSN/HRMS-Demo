@@ -1,5 +1,6 @@
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
+using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Tickets.Dtos;
 using Hrms.Domain.Entities;
@@ -59,11 +60,20 @@ public class AssignTicketHandler(
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
         var actor = await db.Employees.FirstOrDefaultAsync(e => e.Id == actorId && e.IsActive, ct)
             ?? throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND");
+        // เฉพาะ role Supervisor (หรือ Admin) ของบริษัทปลายทางมอบหมายงานให้ตัวเองได้
+        // แม้ตัวเองจะไม่ได้สังกัดแผนกปลายทางของ ticket โดยตรง (เช่น ดูแลหลายแผนก)
+        var isSelfAssign = request.AssignedToEmployeeId == actorId;
+        var canSelfAssignAcrossDepartment = isSelfAssign &&
+            (currentUser.HasRole(RoleType.Admin) ||
+             currentUser.HasRole(RoleType.Supervisor, ticket.TargetCompanyId));
+        // External ticket ไม่ผูกแผนก — มอบหมายให้พนักงาน active คนไหนก็ได้ในบริษัทที่ fix ไว้
+        var allowAnyDepartment = canSelfAssignAcrossDepartment ||
+            ticket.RequestType == TicketRequestType.External;
         var assignee = await db.Employees.FirstOrDefaultAsync(e =>
             e.Id == request.AssignedToEmployeeId &&
             e.IsActive &&
             e.CompanyId == ticket.TargetCompanyId &&
-            e.DepartmentId == ticket.TargetDepartmentId, ct)
+            (allowAnyDepartment || e.DepartmentId == ticket.TargetDepartmentId), ct)
             ?? throw new FluentValidation.ValidationException("ผู้รับผิดชอบต้องเป็นพนักงานที่ใช้งานอยู่ในแผนกปลายทาง");
 
         var now = DateTime.UtcNow.AddHours(7);
