@@ -7,9 +7,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
-  ArrowLeft, Check, KeyRound, Pencil, Plus, RefreshCw, Trash2, X,
+  ArrowLeft, Check, Copy, Dices, Eye, EyeOff, KeyRound, Pencil, Plus, RefreshCw, Trash2, X,
   User, Building2, Layers, CalendarDays, Clock, Mail, Phone,
-  IdCard, ShieldCheck, CalendarClock,
+  IdCard, ShieldCheck, CalendarClock, CircleCheck,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -54,6 +54,59 @@ const editSchema = z.object({
 type EditValues = z.infer<typeof editSchema>
 
 type TabKey = 'info' | 'roles' | 'leave' | 'shift' | 'password'
+
+// ต้องตรงกับ SetPasswordCommandValidator ฝั่ง API (อย่างน้อย 8 ตัว + พิมพ์ใหญ่/เล็ก + ตัวเลข + อักขระพิเศษ)
+const PASSWORD_RULES: { label: string; test: (pw: string) => boolean }[] = [
+  { label: 'อย่างน้อย 8 ตัวอักษร',        test: (pw) => pw.length >= 8 },
+  { label: 'ตัวพิมพ์ใหญ่ (A-Z)',           test: (pw) => /[A-Z]/.test(pw) },
+  { label: 'ตัวพิมพ์เล็ก (a-z)',           test: (pw) => /[a-z]/.test(pw) },
+  { label: 'ตัวเลข (0-9)',                 test: (pw) => /\d/.test(pw) },
+  { label: 'อักขระพิเศษ (เช่น !@#$%)',     test: (pw) => /[\W_]/.test(pw) },
+]
+
+function isPasswordValid(pw: string) {
+  return PASSWORD_RULES.every(rule => rule.test(pw))
+}
+
+// ชุดตัวอักษรสำหรับสุ่มรหัส — ตัดตัวกำกวม (l I 1 O 0 o) ออกให้อ่าน/พิมพ์ต่อง่าย
+const PW_POOLS = [
+  'ABCDEFGHJKMNPQRSTUVWXYZ',
+  'abcdefghjkmnpqrstuvwxyz',
+  '23456789',
+  '!@#$%^&*-_+=?',
+]
+
+/** สุ่มรหัสผ่านด้วย crypto.getRandomValues การันตีมีครบทุกหมวดตาม PASSWORD_RULES */
+function generatePassword(length = 12) {
+  const all = PW_POOLS.join('')
+  const rand = new Uint32Array(length * 2)
+  crypto.getRandomValues(rand)
+  // ตัวแรกของแต่ละหมวดก่อน ที่เหลือสุ่มจากทุกหมวดรวมกัน
+  const chars = PW_POOLS.map((pool, i) => pool[rand[i] % pool.length])
+  for (let i = PW_POOLS.length; i < length; i++) chars.push(all[rand[i] % all.length])
+  // Fisher–Yates ไม่ให้ 4 ตัวแรกเรียงหมวดตายตัว
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = rand[length + i] % (i + 1)
+    ;[chars[i], chars[j]] = [chars[j], chars[i]]
+  }
+  return chars.join('')
+}
+
+function PasswordChecklist({ password }: { password: string }) {
+  return (
+    <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+      {PASSWORD_RULES.map(rule => {
+        const passed = rule.test(password)
+        return (
+          <li key={rule.label} className={`flex items-center gap-1.5 text-xs ${passed ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+            <CircleCheck className={`h-3.5 w-3.5 shrink-0 ${passed ? '' : 'opacity-40'}`} />
+            {rule.label}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
@@ -441,6 +494,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const [pwOpen,        setPwOpen]        = useState(false)
   const [newPw,         setNewPw]         = useState('')
   const [pwError,       setPwError]       = useState('')
+  const [showPw,        setShowPw]        = useState(false)
   const [removeTarget,  setRemoveTarget]  = useState<string | null>(null)
   const [toggleConfirm, setToggleConfirm] = useState(false)
 
@@ -538,11 +592,11 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   }
 
   async function handleSetPassword() {
-    if (newPw.length < 6) { setPwError('อย่างน้อย 6 ตัวอักษร'); return }
+    if (!isPasswordValid(newPw)) { setPwError('รหัสผ่านยังไม่ครบตามเงื่อนไขด้านล่าง'); return }
     try {
       await setPasswordMut.mutateAsync(newPw)
       toast.success('รีเซ็ตรหัสผ่านสำเร็จ')
-      setPwOpen(false); setNewPw(''); setPwError('')
+      setPwOpen(false); setNewPw(''); setPwError(''); setShowPw(false)
     } catch { toast.error('เกิดข้อผิดพลาด') }
   }
 
@@ -913,14 +967,43 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             <div className="rounded-lg border border-border bg-whited/40 p-4 space-y-3">
               <div className="space-y-1.5">
                 <Label>รหัสผ่านใหม่</Label>
-                <Input type="password" placeholder="อย่างน้อย 6 ตัวอักษร"
-                  value={newPw} onChange={(e) => setNewPw(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSetPassword()} />
+                <div className="relative">
+                  <Input type={showPw ? 'text' : 'password'} placeholder="อย่างน้อย 8 ตัวอักษร"
+                    className="pr-10"
+                    value={newPw} onChange={(e) => setNewPw(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSetPassword()} />
+                  <button type="button" tabIndex={-1}
+                    onClick={() => setShowPw(v => !v)}
+                    aria-label={showPw ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <Button size="sm" variant="outline" type="button"
+                    onClick={() => { setNewPw(generatePassword()); setShowPw(true); setPwError('') }}>
+                    <Dices className="h-4 w-4" /> สุ่มรหัส
+                  </Button>
+                  {newPw && (
+                    <Button size="sm" variant="outline" type="button"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(newPw)
+                          toast.success('คัดลอกรหัสผ่านแล้ว')
+                        } catch {
+                          toast.error('คัดลอกไม่สำเร็จ')
+                        }
+                      }}>
+                      <Copy className="h-4 w-4" /> คัดลอก
+                    </Button>
+                  )}
+                </div>
+                <PasswordChecklist password={newPw} />
                 {pwError && <p className="text-xs text-destructive">{pwError}</p>}
               </div>
               <div className="flex gap-2">
-                <Button size="sm" loading={setPasswordMut.isPending} onClick={handleSetPassword}>ยืนยัน</Button>
-                <Button size="sm" variant="ghost" onClick={() => { setPwOpen(false); setNewPw(''); setPwError('') }}>ยกเลิก</Button>
+                <Button size="sm" loading={setPasswordMut.isPending} disabled={!isPasswordValid(newPw)} onClick={handleSetPassword}>ยืนยัน</Button>
+                <Button size="sm" variant="ghost" onClick={() => { setPwOpen(false); setNewPw(''); setPwError(''); setShowPw(false) }}>ยกเลิก</Button>
               </div>
             </div>
           )}
