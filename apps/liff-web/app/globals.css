@@ -37,6 +37,7 @@
   --muted: #1a1a1a;
   --muted-foreground: #a3a3a3;
   --border: #262626;
+  color-scheme: dark;
 }
 
 body {

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
-import { ClipboardList, Settings2Icon, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, Settings2Icon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { canSeeItem, hasAnyPermission, hasAnyRole } from "@/lib/permission";
 import { useAuthStore } from "@/stores/auth.store";
 import { useSidebar } from "./sidebar-context";
 import {
@@ -16,9 +17,6 @@ import {
   MapPin,
   Tag,
   Clock,
-  CalendarOff,
-  CalendarCog,
-  ShieldAlert,
   ShieldCheck,
   UserCircle,
   Wallet,
@@ -32,7 +30,6 @@ import {
   BellRing,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { EmployeeSummaryDto } from "@hrms/shared-types";
 
 type NavItem = {
   label: string;
@@ -41,6 +38,7 @@ type NavItem = {
   permissions?: string[];
   allPermissions?: string[];
   fallbackRoles?: string[];
+  excludeRoles?: string[];
 };
 type NavGroup = { title: string; items: NavItem[] };
 
@@ -49,7 +47,8 @@ function NavLink({
   href,
   icon: Icon,
   onNavigate,
-}: NavItem & { onNavigate?: () => void }) {
+  collapsed,
+}: NavItem & { onNavigate?: () => void; collapsed?: boolean }) {
   const pathname = usePathname();
   // ใช้ exact match สำหรับ /my/leaves เพื่อกันชนกับ /my/leaves/new และ /my/leaves/balance
   const active =
@@ -59,72 +58,30 @@ function NavLink({
     <Link
       href={href}
       onClick={onNavigate}
+      title={collapsed ? label : undefined}
       className={cn(
         "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+        collapsed && "justify-center px-2",
         active
           ? "bg-primary/10 text-primary"
           : "text-muted-foreground hover:bg-whited hover:text-foreground",
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      {label}
+      {!collapsed && label}
     </Link>
   );
 }
 
-function hasAnyRole(employee: EmployeeSummaryDto | null, roles: string[]) {
-  return employee?.roles.some((role) => roles.includes(role.role)) ?? false;
-}
-
-function hasAnyPermission(
-  permissionCodes: Set<string>,
-  permissions?: string[],
-) {
-  return (
-    !permissions?.length ||
-    permissions.some((permission) => permissionCodes.has(permission))
-  );
-}
-
-function hasAllPermissions(
-  permissionCodes: Set<string>,
-  permissions?: string[],
-) {
-  return (
-    !permissions?.length ||
-    permissions.every((permission) => permissionCodes.has(permission))
-  );
-}
-
-function canSeeItem(
-  item: NavItem,
-  employee: EmployeeSummaryDto | null,
-  permissionCodes: Set<string>,
-  hasPermissionPayload: boolean,
-) {
-  const hasPermissionRule = Boolean(
-    item.permissions?.length || item.allPermissions?.length,
-  );
-
-  if (hasPermissionRule) {
-    const allowedByPermission =
-      hasAnyPermission(permissionCodes, item.permissions) &&
-      hasAllPermissions(permissionCodes, item.allPermissions);
-
-    if (allowedByPermission) return true;
-    return (
-      !hasPermissionPayload && hasAnyRole(employee, item.fallbackRoles ?? [])
-    );
-  }
-
-  if (item.fallbackRoles?.length) {
-    return hasAnyRole(employee, item.fallbackRoles);
-  }
-
-  return true;
-}
-
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({
+  onNavigate,
+  collapsed,
+  onToggleCollapse,
+}: {
+  onNavigate?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}) {
   const employee = useAuthStore((s) => s.employee);
   const permissionCodes = new Set(employee?.permissionCodes ?? []);
   const hasPermissionPayload = Array.isArray(employee?.permissionCodes);
@@ -135,6 +92,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
     ]) ||
     (!hasPermissionPayload &&
       hasAnyRole(employee, ["Admin", "Hr", "Supervisor"]));
+  const hasTicketOperationalAccess =
+    hasAnyPermission(permissionCodes, [
+      "ticket:create",
+      "ticket:view-own",
+      "ticket:view-team",
+      "ticket:view-assigned",
+      "ticket:update-status",
+    ]) ||
+    (!hasPermissionPayload &&
+      hasAnyRole(employee, ["Admin", "Hr", "Supervisor", "Employee"]));
+  const ticketHref = hasTicketOperationalAccess ? "/tickets" : "/tickets/reports";
 
   const groups: NavGroup[] = [
     // ── ทุก role ────────────────────────────────────────────────
@@ -147,64 +115,64 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       items: [
         { label: "โปรไฟล์", href: "/my/profile", icon: UserCircle },
         // { label: 'วันลาค  งเหลือ',  href: '/my/leaves/balance', icon: Wallet },
-        {
-          label: "ประวัติการเข้างาน",
-          href: "/my/attendance",
-          icon: Fingerprint,
-          permissions: ["attendance:view-own"],
-          fallbackRoles: ["Admin", "Hr", "Supervisor", "Executive", "Employee"],
-        },
-        { label: "สลิปเงินเดือน", href: "/my/payslips", icon: Receipt },
+        // {
+        //   label: "ประวัติการเข้างาน",
+        //   href: "/my/attendance",
+        //   icon: Fingerprint,
+        //   permissions: ["attendance:view-own"],
+        //   fallbackRoles: ["Admin", "Hr", "Supervisor", "Executive", "Employee"],
+        // },
+        // { label: "สลิปเงินเดือน", href: "/my/payslips", icon: Receipt },
       ],
     },
-    {
-      title: "การลา",
-      items: [
-        // { label: 'ยื่นลา',       href: '/my/leaves/new', icon: FileText },
-        {
-          label: "การลาของฉัน",
-          href: "/my/leaves",
-          icon: CalendarDays,
-          permissions: ["leave:view-own", "leave:request"],
-          fallbackRoles: ["Admin", "Hr", "Supervisor", "Executive", "Employee"],
-        },
-        // ── Admin / HR / Supervisor ─────────────────────────────────
-        {
-          label: "คำขอลาที่รออนุมัติ",
-          href: "/approvals/leaves",
-          icon: ClipboardCheck,
-          permissions: ["leave:approve-supervisor", "leave:approve-hr"],
-          fallbackRoles: ["Admin", "Hr", "Supervisor"],
-        },
-      ],
-    },
+    // {
+    //   title: "การลา",
+    //   items: [
+    //     // { label: 'ยื่นลา',       href: '/my/leaves/new', icon: FileText },
+    //     {
+    //       label: "การลาของฉัน",
+    //       href: "/my/leaves",
+    //       icon: CalendarDays,
+    //       permissions: ["leave:view-own", "leave:request"],
+    //       fallbackRoles: ["Admin", "Hr", "Supervisor", "Executive", "Employee"],
+    //     },
+    //     // ── Admin / HR / Supervisor ─────────────────────────────────
+    //     {
+    //       label: "คำขอลาที่รออนุมัติ",
+    //       href: "/approvals/leaves",
+    //       icon: ClipboardCheck,
+    //       permissions: ["leave:approve-supervisor", "leave:approve-hr"],
+    //       fallbackRoles: ["Admin", "Hr", "Supervisor"],
+    //     },
+    //   ],
+    // },
 
-    {
-      title: "OT",
-      items: [
-        {
-          label: canApproveOt ? "คำขอ OT" : "OT ของฉัน",
-          href: "/ot-requests",
-          icon: AlarmClock,
-          permissions: [
-            "ot:request",
-            "ot:view-own",
-            "ot:view-team",
-            "ot:view-all",
-            "ot:approve-supervisor",
-            "ot:approve-hr",
-          ],
-          fallbackRoles: ["Admin", "Hr", "Supervisor", "Employee"],
-        },
-      ],
-    },
+    // {
+    //   title: "OT",
+    //   items: [
+    //     {
+    //       label: canApproveOt ? "คำขอ OT" : "OT ของฉัน",
+    //       href: "/ot-requests",
+    //       icon: AlarmClock,
+    //       permissions: [
+    //         "ot:request",
+    //         "ot:view-own",
+    //         "ot:view-team",
+    //         "ot:view-all",
+    //         "ot:approve-supervisor",
+    //         "ot:approve-hr",
+    //       ],
+    //       fallbackRoles: ["Admin", "Hr", "Supervisor", "Employee"],
+    //     },
+    //   ],
+    // },
 
     {
       title: "การแจ้งเรื่อง",
       items: [
         {
           label: "Ticket",
-          href: "/tickets",
+          href: ticketHref,
           icon: FolderTree,
           permissions: [
             "ticket:create",
@@ -218,19 +186,26 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           fallbackRoles: ["Admin", "Hr", "Supervisor", "Executive", "Employee"],
         },
         {
-          label: "ตรวจบิลค่าใช้จ่าย",
-          href: "/expenses",
-          icon: Receipt,
-          permissions: ["expense:view-all", "expense:review", "expense:export"],
-          fallbackRoles: ["Admin", "Hr", "Executive"],
+          label: "Memo",
+          href: "/my/memos",
+          icon: FileText,
+          permissions: ["memo:create", "memo:view-own", "memo:approve", "memo:view-inbox"],
+          fallbackRoles: ["Admin", "Hr", "Supervisor", "Executive", "Employee"],
         },
-        {
-          label: "รอบวางบิล",
-          href: "/expense-billing-batches",
-          icon: FileSpreadsheet,
-          permissions: ["expense:view-all"],
-          fallbackRoles: ["Admin", "Hr", "Executive"],
-        },
+        // {
+        //   label: "ตรวจบิลค่าใช้จ่าย",
+        //   href: "/expenses",
+        //   icon: Receipt,
+        //   permissions: ["expense:view-all", "expense:review", "expense:export"],
+        //   fallbackRoles: ["Admin", "Hr", "Executive"],
+        // },
+        // {
+        //   label: "รอบวางบิล",
+        //   href: "/expense-billing-batches",
+        //   icon: FileSpreadsheet,
+        //   permissions: ["expense:view-all"],
+        //   fallbackRoles: ["Admin", "Hr", "Executive"],
+        // },
       ],
     },
 
@@ -244,6 +219,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           icon: Users,
           permissions: ["employee:view"],
           fallbackRoles: ["Admin", "Hr"],
+          excludeRoles: ["Executive"],
         },
         {
           label: "บันทึกการเข้างาน",
@@ -255,6 +231,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             "attendance:report",
           ],
           fallbackRoles: ["Admin", "Hr"],
+          excludeRoles: ["Executive"],
         },
         {
           label: "ประวัติการลา",
@@ -262,6 +239,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           icon: ClipboardList,
           permissions: ["leave:view-all"],
           fallbackRoles: ["Admin", "Hr"],
+          excludeRoles: ["Executive"],
         },
         {
           label: "ประเภทการลา",
@@ -275,34 +253,6 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           href: "/leave-balances",
           icon: BarChart3,
           permissions: ["leave:manage-balance"],
-          fallbackRoles: ["Admin", "Hr"],
-        },
-        {
-          label: "เวลาทำงาน",
-          href: "/shifts",
-          icon: Clock,
-          permissions: ["company:manage-shifts"],
-          fallbackRoles: ["Admin", "Hr"],
-        },
-        {
-          label: "วันหยุด",
-          href: "/holidays",
-          icon: CalendarOff,
-          permissions: ["company:manage-holidays"],
-          fallbackRoles: ["Admin", "Hr"],
-        },
-        {
-          label: "กฎวันหยุด",
-          href: "/holiday-schedules",
-          icon: CalendarCog,
-          permissions: ["company:manage-holidays"],
-          fallbackRoles: ["Admin", "Hr"],
-        },
-        {
-          label: "กฎการเข้างาน",
-          href: "/attendance-policy",
-          icon: ShieldAlert,
-          permissions: ["attendance:manage-policy"],
           fallbackRoles: ["Admin", "Hr"],
         },
       ],
@@ -322,6 +272,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             "system:manage-companies",
           ],
           fallbackRoles: ["Admin", "Hr"],
+          excludeRoles: ["Executive"],
         },
         {
           label: "สถานที่",
@@ -362,10 +313,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <>
-      <div className="flex h-14 items-center justify-between border-b border-border px-4 shrink-0">
-        <span className="text-base font-semibold text-foreground">
-          TBG Assistant
-        </span>
+      <div className={cn("flex h-14 items-center border-b border-border shrink-0", collapsed ? "justify-center px-2" : "justify-between px-4")}>
+        {!collapsed && (
+          <span className="text-base font-semibold text-foreground truncate">
+            TBG Assistant
+          </span>
+        )}
         {/* ปุ่มปิดบน mobile เท่านั้น */}
         {onNavigate && (
           <button
@@ -376,17 +329,30 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             <X className="h-5 w-5" />
           </button>
         )}
+        {/* ปุ่มพับ/ขยายเมนู — desktop เท่านั้น */}
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            className="hidden lg:flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-whited hover:text-foreground transition-colors"
+            aria-label={collapsed ? "ขยายเมนู" : "พับเมนู"}
+            title={collapsed ? "ขยายเมนู" : "พับเมนู"}
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3 space-y-4 scrollbar-none">
         {visibleGroups.map((group) => (
           <div key={group.title}>
-            <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-              {group.title}
-            </p>
+            {!collapsed && (
+              <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+                {group.title}
+              </p>
+            )}
             <div className="space-y-0.5">
               {group.items.map((item) => (
-                <NavLink key={item.href} {...item} onNavigate={onNavigate} />
+                <NavLink key={item.href} {...item} onNavigate={onNavigate} collapsed={collapsed} />
               ))}
             </div>
           </div>
@@ -398,9 +364,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 // ── Desktop sidebar (lg+) ──────────────────────────────────────────────────────
 export function Sidebar() {
+  const { collapsed, toggleCollapsed } = useSidebar();
   return (
-    <aside className="hidden lg:flex h-full w-(--sidebar-width) flex-col border-r border-border bg-background">
-      <SidebarContent />
+    <aside
+      className={cn(
+        "hidden lg:flex h-full flex-col border-r border-border bg-background transition-[width] duration-200",
+        collapsed ? "w-16" : "w-(--sidebar-width)",
+      )}
+    >
+      <SidebarContent collapsed={collapsed} onToggleCollapse={toggleCollapsed} />
     </aside>
   );
 }

@@ -528,7 +528,7 @@ export default function HolidaysPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">วันหยุด</h1>
+        <h1 className="text-xl font-semibold text-foreground">วันหยุดประจำปี</h1>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
             <Wand2 className="h-4 w-4" />

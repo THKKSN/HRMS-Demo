@@ -382,7 +382,7 @@ export default function HolidaySchedulesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">กฎวันหยุดประจำสัปดาห์</h1>
+        <h1 className="text-xl font-semibold text-foreground">ตารางวันหยุดประจำสัปดาห์</h1>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
           เพิ่มกฎ

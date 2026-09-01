@@ -278,7 +278,7 @@ export default function TicketTaxonomyPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">ตั้งค่าแจ้งเรื่อง (Internal)</h1>
+        <h1 className="text-xl font-semibold text-foreground">หมวดหมู่แจ้งเรื่อง (ภายใน)</h1>
         <p className="mt-1 text-sm text-muted-foreground">จัดลำดับและกำหนดหัวข้อที่แสดงในฟอร์มแจ้งเรื่อง</p>
       </div>
 

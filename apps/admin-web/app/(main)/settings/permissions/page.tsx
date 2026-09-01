@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils'
 const ROLES = ['Employee', 'Supervisor', 'Hr', 'Executive', 'Admin'] as const
 type Role = (typeof ROLES)[number]
 
-const MODULES = ['employee', 'leave', 'attendance', 'company', 'ticket', 'expense', 'system'] as const
+const MODULES = ['employee', 'leave', 'attendance', 'company', 'ticket', 'ticket-taxonomy', 'expense', 'memo', 'system'] as const
 
 const MODULE_META = {
   employee:   { label: 'พนักงาน',   Icon: Users,     color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-200',   dot: 'bg-blue-500'   },
@@ -26,7 +26,9 @@ const MODULE_META = {
   attendance: { label: 'การเข้างาน', Icon: Clock,     color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-200',  dot: 'bg-amber-500'  },
   company:    { label: 'บริษัท',    Icon: Building2, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', dot: 'bg-violet-500' },
   ticket:     { label: 'แจ้งเรื่อง', Icon: FolderTree, color: 'text-cyan-700',  bg: 'bg-cyan-50',   border: 'border-cyan-200',   dot: 'bg-cyan-500'   },
+  'ticket-taxonomy': { label: 'ตั้งค่าแจ้งเรื่อง', Icon: FolderTree, color: 'text-teal-700', bg: 'bg-teal-50', border: 'border-teal-200', dot: 'bg-teal-500' },
   expense:    { label: 'วางบิล',     Icon: ReceiptText, color: 'text-rose-700', bg: 'bg-rose-50',   border: 'border-rose-200',   dot: 'bg-rose-500'   },
+  memo:       { label: 'Memo', Icon: ReceiptText, color: 'text-lime-700', bg: 'bg-lime-50', border: 'border-lime-200', dot: 'bg-lime-500' },
   system:     { label: 'ระบบ',      Icon: Settings,  color: 'text-slate-600',  bg: 'bg-slate-100', border: 'border-slate-200',  dot: 'bg-slate-500'  },
 } as const
 
@@ -36,6 +38,12 @@ const ROLE_META: Record<Role, { label: string; color: string; bg: string; border
   Hr:         { label: 'HR',       color: 'text-emerald-700', bg: 'bg-emerald-100', border: 'border-emerald-300', checkBg: 'bg-emerald-600' },
   Executive:  { label: 'ผู้บริหาร', color: 'text-purple-700',  bg: 'bg-purple-100',  border: 'border-purple-300', checkBg: 'bg-purple-600'  },
   Admin:      { label: 'Admin',    color: 'text-amber-700',   bg: 'bg-amber-100',   border: 'border-amber-300',  checkBg: 'bg-amber-500'   },
+}
+
+// permission ที่อ่อนไหวสูง อนุญาตให้ผูกกับ role ที่กำหนดไว้เท่านั้น ต้องตรงกับ
+// RestrictedPermissions ใน SetRolePermissionsCommand.cs (backend เป็นตัว enforce จริง)
+const RESTRICTED_PERMISSIONS: Record<string, Role[]> = {
+  'memo:approve': ['Admin', 'Executive'],
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -131,7 +139,7 @@ export default function PermissionsPage() {
             <Shield className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">จัดการ Permission</h1>
+            <h1 className="text-xl font-semibold text-foreground">สิทธิ์การใช้งาน</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               กำหนดสิทธิ์การเข้าถึงของแต่ละ Role — Admin มีสิทธิ์ทุกอย่างเสมอ
             </p>
@@ -386,20 +394,24 @@ function PermissionRow({
       {ROLES.map((role) => {
         const checked = role === 'Admin' ? true : (matrix[role]?.has(perm.id) ?? false)
         const isAdmin = role === 'Admin'
+        const restrictedTo = RESTRICTED_PERMISSIONS[perm.code]
+        const isRestricted = !isAdmin && restrictedTo && !restrictedTo.includes(role)
+        const isLocked = isAdmin || isRestricted
         const meta = ROLE_META[role]
         return (
           <td key={role} className="px-4 py-3.5 text-center">
             <button
               type="button"
-              disabled={isAdmin}
-              onClick={() => !isAdmin && onToggle(role, perm.id)}
+              disabled={isLocked}
+              onClick={() => !isLocked && onToggle(role, perm.id)}
+              title={isRestricted ? `permission นี้กำหนดให้เฉพาะ ${restrictedTo.join('/')} เท่านั้น` : undefined}
               className={cn(
                 'inline-flex items-center justify-center w-6 h-6 rounded-md border-2 transition-all',
                 checked
                   ? cn(meta.checkBg, 'border-transparent text-white shadow-sm')
                   : 'border-border bg-background hover:border-muted-foreground/50',
-                isAdmin && 'cursor-not-allowed opacity-80',
-                !isAdmin && !checked && 'cursor-pointer hover:bg-whited/50',
+                isLocked && 'cursor-not-allowed opacity-80',
+                !isLocked && !checked && 'cursor-pointer hover:bg-whited/50',
               )}
             >
               {checked && <Check className="h-3.5 w-3.5 stroke-3" />}

@@ -46,6 +46,7 @@ const MODULE_CONFIG: Record<string, BadgeConfig> = {
   permission:           { label: 'สิทธิ์การใช้งาน',      icon: Lock,           bg: 'bg-yellow-100',  text: 'text-yellow-700',  border: 'border-l-yellow-400' },
   expense:              { label: 'การวางบิล',            icon: ClipboardList,  bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-l-emerald-400' },
   ticket:               { label: 'แจ้งเรื่อง',            icon: FolderTree,     bg: 'bg-fuchsia-100', text: 'text-fuchsia-700', border: 'border-l-fuchsia-400' },
+  memo:                 { label: 'Memo',        icon: FileText,       bg: 'bg-lime-100',    text: 'text-lime-700',    border: 'border-l-lime-400' },
   system:               { label: 'ระบบ',                 icon: Settings2,      bg: 'bg-gray-100',    text: 'text-gray-700',    border: 'border-l-gray-400' },
 }
 
@@ -351,7 +352,7 @@ export default function AuditLogsPage() {
           <ShieldCheck className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-xl font-semibold leading-none">Audit Log</h1>
+          <h1 className="text-xl font-semibold leading-none">ประวัติการใช้งานระบบ</h1>
           <p className="text-sm text-muted-foreground mt-0.5">ประวัติการเปลี่ยนแปลงข้อมูลทั้งหมดในระบบ</p>
         </div>
         {data && (
@@ -406,6 +407,7 @@ export default function AuditLogsPage() {
               <option value="permission">สิทธิ์การใช้งาน</option>
               <option value="expense">การวางบิล</option>
               <option value="ticket">แจ้งเรื่อง</option>
+              <option value="memo">บันทึกข้อความ (Memo)</option>
             </Select>
           </div>
 

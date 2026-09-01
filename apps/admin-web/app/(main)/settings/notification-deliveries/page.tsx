@@ -112,7 +112,7 @@ export default function NotificationDeliveriesPage() {
       <header className="flex items-start gap-3">
         <BellRing className="mt-1 h-5 w-5 text-primary" />
         <div>
-          <h1 className="text-xl font-semibold">การส่งการแจ้งเตือน</h1>
+          <h1 className="text-xl font-semibold">การแจ้งเตือน</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             ตรวจสอบคิว LINE และนำรายการที่ส่งไม่สำเร็จกลับเข้าคิว
           </p>

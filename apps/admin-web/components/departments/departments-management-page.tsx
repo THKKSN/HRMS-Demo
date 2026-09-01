@@ -15,6 +15,7 @@ import { Modal } from '@/components/ui/modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { useCompanies } from '@/hooks/use-companies'
 import { useDepartments, useCreateDepartment, useUpdateDepartment } from '@/hooks/use-departments'
+import { useEmployees } from '@/hooks/use-employees'
 import { useShifts } from '@/hooks/use-shifts'
 import type { DepartmentListItemDto } from '@hrms/shared-types'
 
@@ -139,6 +140,7 @@ const editDeptSchema = z.object({
   name: z.string().min(1, 'กรุณากรอกชื่อแผนก').max(200),
   deptType: z.string().max(100).optional().or(z.literal('')),
   shiftId: z.string().optional().or(z.literal('')),
+  managerEmployeeId: z.string().optional().or(z.literal('')),
 })
 
 type EditDeptFormValues = z.infer<typeof editDeptSchema>
@@ -156,6 +158,9 @@ function EditDeptModal({
   const { data: shifts = [] } = useShifts(dept.companyId)
   const activeShifts = shifts.filter((s) => s.isActive)
 
+  const { data: employeesResult } = useEmployees({ departmentId: dept.id, isActive: true, pageSize: 200 })
+  const departmentEmployees = employeesResult?.items ?? []
+
   const { register, handleSubmit, setError, getValues, formState: { errors, isSubmitting, isDirty } } =
     useForm<EditDeptFormValues>({
       resolver: zodResolver(editDeptSchema),
@@ -163,6 +168,7 @@ function EditDeptModal({
         name: dept.name,
         deptType: dept.deptType ?? '',
         shiftId: dept.shiftId ?? '',
+        managerEmployeeId: dept.managerEmployeeId ?? '',
       },
     })
 
@@ -173,6 +179,7 @@ function EditDeptModal({
         name: values.name,
         deptType: values.deptType || undefined,
         shiftId: values.shiftId || null,
+        managerEmployeeId: values.managerEmployeeId || undefined,
         isActive,
       })
       toast.success('อัปเดตข้อมูลแผนกสำเร็จ')
@@ -212,6 +219,23 @@ function EditDeptModal({
                 </option>
               ))}
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="ed-manager">หัวหน้าแผนก (รับแจ้งเตือน LINE เมื่อมีเรื่องใหม่)</Label>
+            <Select id="ed-manager" {...register('managerEmployeeId')}>
+              <option value="">— ไม่ระบุ —</option>
+              {departmentEmployees.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.employeeCode} — {emp.fullName}
+                </option>
+              ))}
+            </Select>
+            {dept.managerEmployeeId && !departmentEmployees.some((emp) => emp.id === dept.managerEmployeeId) && (
+              <p className="text-xs text-muted-foreground">
+                หัวหน้าแผนกปัจจุบัน ({dept.managerName ?? dept.managerEmployeeId}) ไม่อยู่ในรายชื่อพนักงานที่ใช้งานอยู่ของแผนกนี้แล้ว
+              </p>
+            )}
           </div>
 
           {errors.root && <p className="text-sm text-destructive">{errors.root.message}</p>}

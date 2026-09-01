@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* ผูก dark: variant เข้ากับ class .dark (ปุ่มสลับธีมของแอป) แทน prefers-color-scheme ของ OS
+   ไม่งั้นเครื่องที่ตั้ง OS เป็น dark จะเห็น dark: utilities ทำงานทั้งที่เว็บอยู่โหมด light */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -32,6 +36,7 @@
   --muted: #1a1a1a;
   --muted-foreground: #a3a3a3;
   --border: #262626;
+  color-scheme: dark;
 }
 
 body {

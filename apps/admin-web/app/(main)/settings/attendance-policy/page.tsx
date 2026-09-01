@@ -430,7 +430,7 @@ export default function AttendancePolicyPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-foreground">กฎการเข้างาน</h1>
+          <h1 className="text-xl font-bold text-foreground">นโยบายการเข้างาน</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             ตั้งค่าเกณฑ์สายและขาดงานรายเดือนต่อบริษัท
           </p>

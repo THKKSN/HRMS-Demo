@@ -12,9 +12,9 @@ export default function ExternalTicketTaxonomyPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">ตั้งค่าแจ้งเรื่อง (External)</h1>
+        <h1 className="text-xl font-semibold text-foreground">หมวดหมู่แจ้งเรื่อง (บุคคลภายนอก)</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          จัดการหมวด หมวดย่อย หัวข้อ และ Template/Suggest สำหรับช่องทางแจ้งเรื่องของExternal
+          จัดการหมวด หมวดย่อย หัวข้อ และ Template/Suggest สำหรับช่องทางบุคคลภายนอก
         </p>
       </div>
 
