@@ -1,4 +1,3 @@
-using Hrms.Api.Authorization;
 using Hrms.Application.Features.WeeklyHolidaySchedules.Commands;
 using Hrms.Application.Features.WeeklyHolidaySchedules.Queries;
 using MediatR;
@@ -9,7 +8,7 @@ namespace Hrms.Api.Controllers;
 
 [ApiController]
 [Route("v1/holiday-schedules")]
-[Authorize(Policy = AuthPolicies.RequireHr)]
+[Authorize(Policy = "perm:company:manage-holidays")]
 public class WeeklyHolidayScheduleController(IMediator mediator) : ControllerBase
 {
     /// <summary>รายการกฎวันหยุดประจำสัปดาห์</summary>

@@ -1,4 +1,3 @@
-using Hrms.Api.Authorization;
 using Hrms.Application.Features.Companies.Commands;
 using Hrms.Application.Features.Companies.Queries;
 using Hrms.Domain.Enums;
@@ -13,9 +12,9 @@ namespace Hrms.Api.Controllers;
 [Authorize]
 public class CompanyController(IMediator mediator) : ControllerBase
 {
-    /// <summary>รายการบริษัทเป็น tree structure (HR / Admin)</summary>
+    /// <summary>รายการบริษัทเป็น tree structure (ต้องมี company:view permission)</summary>
     [HttpGet]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:company:view")]
     public async Task<IActionResult> GetAll(
         [FromQuery] bool includeInactive = false,
         CancellationToken ct = default)
@@ -24,18 +23,18 @@ public class CompanyController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>รายละเอียดบริษัท (HR / Admin)</summary>
+    /// <summary>รายละเอียดบริษัท (ต้องมี company:view permission)</summary>
     [HttpGet("{id:guid}")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:company:view")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await mediator.Send(new GetCompanyByIdQuery(id), ct);
         return Ok(result);
     }
 
-    /// <summary>สร้างบริษัทใหม่ (Admin เท่านั้น)</summary>
+    /// <summary>สร้างบริษัทใหม่ (ต้องมี system:manage-companies permission)</summary>
     [HttpPost]
-    [Authorize(Policy = AuthPolicies.RequireAdmin)]
+    [Authorize(Policy = "perm:system:manage-companies")]
     public async Task<IActionResult> Create(
         [FromBody] CreateCompanyRequest request,
         CancellationToken ct)
@@ -49,9 +48,9 @@ public class CompanyController(IMediator mediator) : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
-    /// <summary>แก้ไขบริษัท (HR / Admin — เฉพาะในสังกัด)</summary>
+    /// <summary>แก้ไขบริษัท (ต้องมี company:edit permission — เฉพาะในสังกัด)</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:company:edit")]
     public async Task<IActionResult> Update(
         Guid id,
         [FromBody] UpdateCompanyRequest request,

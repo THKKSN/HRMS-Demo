@@ -1,4 +1,3 @@
-using Hrms.Api.Authorization;
 using Hrms.Application.Features.Holidays.Commands;
 using Hrms.Application.Features.Holidays.Dtos;
 using Hrms.Application.Features.Holidays.Queries;
@@ -28,7 +27,7 @@ public class HolidayController(IMediator mediator) : ControllerBase
 
     /// <summary>รายละเอียดวันหยุด (HR / Admin)</summary>
     [HttpGet("{id:guid}")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:company:manage-holidays")]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var result = await mediator.Send(new GetHolidayByIdQuery(id), ct);
@@ -37,7 +36,7 @@ public class HolidayController(IMediator mediator) : ControllerBase
 
     /// <summary>เพิ่มวันหยุด (HR / Admin)</summary>
     [HttpPost]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:company:manage-holidays")]
     public async Task<IActionResult> Create(
         [FromBody] CreateHolidayRequest request,
         CancellationToken ct)
@@ -51,7 +50,7 @@ public class HolidayController(IMediator mediator) : ControllerBase
 
     /// <summary>แก้ไขวันหยุด (HR / Admin)</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:company:manage-holidays")]
     public async Task<IActionResult> Update(
         Guid id,
         [FromBody] UpdateHolidayRequest request,
@@ -67,7 +66,7 @@ public class HolidayController(IMediator mediator) : ControllerBase
 
     /// <summary>เปิด/ปิดวันหยุด (HR / Admin)</summary>
     [HttpPatch("{id:guid}/status")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:company:manage-holidays")]
     public async Task<IActionResult> ToggleStatus(
         Guid id,
         [FromBody] ToggleHolidayStatusRequest request,
@@ -84,7 +83,7 @@ public class HolidayController(IMediator mediator) : ControllerBase
 
     /// <summary>Preview วันเสาร์ที่เป็นวันหยุดตามกฎ (เสาร์แรกของเดือน = วันทำงาน) ไม่บันทึก DB</summary>
     [HttpGet("generate-saturdays")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:company:manage-holidays")]
     public async Task<IActionResult> GenerateSaturdays(
         [FromQuery] int? year,
         [FromQuery] Guid? companyId,
@@ -99,7 +98,7 @@ public class HolidayController(IMediator mediator) : ControllerBase
 
     /// <summary>สร้างวันหยุดหลายรายการครั้งเดียว — skip duplicate, partial success (HR / Admin)</summary>
     [HttpPost("bulk")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:company:manage-holidays")]
     public async Task<IActionResult> BulkCreate(
         [FromBody] BulkCreateHolidaysRequest request,
         CancellationToken ct)

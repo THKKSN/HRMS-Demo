@@ -1,4 +1,3 @@
-using Hrms.Api.Authorization;
 using Hrms.Application.Features.LeaveBalances.Commands.AdjustLeaveBalance;
 using Hrms.Application.Features.LeaveBalances.Commands.CreateLeaveBalance;
 using Hrms.Application.Features.LeaveBalances.Commands.RecalcLeaveBalances;
@@ -15,7 +14,7 @@ public class LeaveBalanceController(IMediator mediator) : ControllerBase
 {
     /// <summary>ดู balance วันลาของพนักงานทุกคน (ต้องมี leave:manage-balance permission)</summary>
     [HttpGet]
-    [Authorize]
+    [Authorize(Policy = "perm:leave:manage-balance")]
     public async Task<IActionResult> GetAll(
         [FromQuery] int year,
         [FromQuery] int page = 1,
@@ -31,7 +30,7 @@ public class LeaveBalanceController(IMediator mediator) : ControllerBase
 
     /// <summary>สร้างสิทธิ์วันลาให้พนักงาน 1 คน × 1 ประเภท</summary>
     [HttpPost]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:leave:manage-balance")]
     public async Task<IActionResult> Create(
         [FromBody] CreateLeaveBalanceRequest request,
         CancellationToken ct)
@@ -43,7 +42,7 @@ public class LeaveBalanceController(IMediator mediator) : ControllerBase
 
     /// <summary>ปรับสิทธิ์วันลารายคน</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:leave:manage-balance")]
     public async Task<IActionResult> Adjust(
         Guid id,
         [FromBody] AdjustLeaveBalanceRequest request,
@@ -55,7 +54,7 @@ public class LeaveBalanceController(IMediator mediator) : ControllerBase
 
     /// <summary>Seed balance ทุกคน × ทุก leave type ในปีที่ระบุ (ต้องมี leave:manage-balance permission)</summary>
     [HttpPost("seed")]
-    [Authorize]
+    [Authorize(Policy = "perm:leave:manage-balance")]
     public async Task<IActionResult> Seed(
         [FromBody] SeedLeaveBalanceRequest request,
         CancellationToken ct)
@@ -69,7 +68,7 @@ public class LeaveBalanceController(IMediator mediator) : ControllerBase
 
     /// <summary>Seed balance ให้พนักงาน 1 คน × ทุก leave type ของบริษัทนั้น (ต้องมี leave:manage-balance permission)</summary>
     [HttpPost("seed/employee/{employeeId:guid}")]
-    [Authorize]
+    [Authorize(Policy = "perm:leave:manage-balance")]
     public async Task<IActionResult> SeedForEmployee(
         Guid employeeId,
         [FromBody] SeedForEmployeeRequest request,

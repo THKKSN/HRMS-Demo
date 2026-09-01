@@ -1,4 +1,3 @@
-using Hrms.Api.Authorization;
 using Hrms.Application.Features.ShiftOverride.Commands.RemoveEmployeeShiftOverride;
 using Hrms.Application.Features.ShiftOverride.Commands.SetEmployeeShiftOverride;
 using Hrms.Application.Features.ShiftOverride.Queries.GetCurrentShift;
@@ -11,7 +10,7 @@ namespace Hrms.Api.Controllers;
 
 [ApiController]
 [Route("v1/employees/{employeeId:guid}/shift-overrides")]
-[Authorize(Policy = AuthPolicies.RequireHr)]
+[Authorize(Policy = "perm:company:manage-shifts")]
 public class EmployeeShiftOverrideController(IMediator mediator) : ControllerBase
 {
     /// <summary>ประวัติ shift override ของพนักงาน</summary>

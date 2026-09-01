@@ -12,7 +12,6 @@ public class PermissionSeeder(HrmsDbContext db)
         (SystemRoleIds.Employee, RoleType.Employee, "พนักงาน"),
         (SystemRoleIds.Supervisor, RoleType.Supervisor, "หัวหน้างาน"),
         (SystemRoleIds.Hr, RoleType.Hr, "ฝ่ายทรัพยากรบุคคล"),
-        (SystemRoleIds.SchoolAdmin, RoleType.SchoolAdmin, "ผู้ดูแลโรงเรียน"),
         (SystemRoleIds.Executive, RoleType.Executive, "ผู้บริหาร"),
         (SystemRoleIds.Admin, RoleType.Admin, "ผู้ดูแลระบบ"),
     ];
@@ -70,10 +69,11 @@ public class PermissionSeeder(HrmsDbContext db)
         ("ticket:resolve",            "ticket",    "resolve",       "บันทึกผลการดำเนินการ"),
         ("ticket:close",              "ticket",    "close",         "ปิดใบแจ้งเรื่อง"),
         ("ticket:verify",             "ticket",    "verify",        "ตรวจรับใบแจ้งเรื่อง"),
-        ("ticket:manage-categories",  "ticket",    "manage",        "จัดการหมวดแจ้งเรื่อง"),
-        ("ticket:manage-topics",      "ticket",    "manage",        "จัดการหัวข้อย่อยแจ้งเรื่อง"),
-        ("ticket:manage-responsibilities", "ticket", "manage",      "จัดการผู้รับผิดชอบแจ้งเรื่อง"),
-        ("ticket:manage-external-config", "ticket", "manage",       "จัดการช่องทางและหมวดแจ้งเรื่องสำหรับบุคคลภายนอก"),
+        // ticket-taxonomy (แยก module จาก ticket เพราะเป็นการตั้งค่า ไม่ใช่การดำเนินการกับใบแจ้งเรื่อง)
+        ("ticket:manage-categories",  "ticket-taxonomy", "manage",  "จัดการหมวดแจ้งเรื่อง"),
+        ("ticket:manage-topics",      "ticket-taxonomy", "manage",  "จัดการหัวข้อย่อยแจ้งเรื่อง"),
+        ("ticket:manage-responsibilities", "ticket-taxonomy", "manage", "จัดการผู้รับผิดชอบแจ้งเรื่อง"),
+        ("ticket:manage-external-config", "ticket-taxonomy", "manage", "จัดการช่องทางและหมวดแจ้งเรื่องสำหรับบุคคลภายนอก"),
         ("ticket:comment",            "ticket",    "create",        "เพิ่มความคิดเห็นในใบแจ้งเรื่อง"),
         ("ticket:add-internal-note",  "ticket",    "create",        "เพิ่มบันทึกภายในใบแจ้งเรื่อง"),
         ("ticket:add-attachment",     "ticket",    "create",        "เพิ่มหลักฐานในใบแจ้งเรื่อง"),
@@ -97,6 +97,12 @@ public class PermissionSeeder(HrmsDbContext db)
         ("system:manage-notifications", "system", "manage",        "ตรวจสอบและส่งการแจ้งเตือนใหม่"),
         ("system:manage-companies", "system",     "manage",        "สร้าง/แก้ไข Company"),
         ("system:manage-ticket",    "system",     "manage",        "ตั้งค่าหมวด หมวดย่อย หัวข้อ และ Template/Suggest ของระบบแจ้งเรื่อง"),
+        ("system:manage-memo",      "system",     "manage",        "ตั้งค่าประเภทเรื่อง หมวดหมู่ และหัวข้อย่อยของระบบMemo"),
+        // memo
+        ("memo:create",             "memo",       "create",        "สร้างMemo"),
+        ("memo:view-own",           "memo",       "view",          "ดูMemoของตัวเอง"),
+        ("memo:approve",            "memo",       "approve",       "อนุมัติ/ไม่Memo (ผู้บริหาร)"),
+        ("memo:view-inbox",         "memo",       "view",          "ดู Memo เข้าแผนก และรับทราบ/ส่งมอบ (หัวหน้าแผนกปลายทาง)"),
     ];
 
     // Default permissions per role
@@ -110,6 +116,7 @@ public class PermissionSeeder(HrmsDbContext db)
             "ticket:create", "ticket:view-own", "ticket:view-assigned",
             "ticket:update-status", "ticket:resolve", "ticket:comment", "ticket:add-attachment",
             "expense:create", "expense:view-own", "expense:update-draft", "expense:upload-attachment", "expense:ocr",
+            "memo:create", "memo:view-own",
         ],
         ["Supervisor"] =
         [
@@ -124,7 +131,8 @@ public class PermissionSeeder(HrmsDbContext db)
             "ticket:comment", "ticket:add-internal-note", "ticket:add-attachment",
             "ticket:return", "ticket:view-report",
             "expense:create", "expense:view-own", "expense:update-draft", "expense:upload-attachment", "expense:ocr",
-            "system:manage-ticket",
+            "system:manage-ticket", "system:manage-memo",
+            "memo:create", "memo:view-own", "memo:view-inbox",
         ],
         ["Hr"] =
         [
@@ -141,6 +149,7 @@ public class PermissionSeeder(HrmsDbContext db)
             "ticket:comment", "ticket:add-attachment",
             "expense:create", "expense:view-own", "expense:update-draft", "expense:upload-attachment", "expense:ocr",
             "expense:view-all", "expense:review", "expense:export", "expense:create-batch", "expense:mark-paid",
+            "memo:create", "memo:view-own",
         ],
         ["Executive"] =
         [
@@ -151,6 +160,7 @@ public class PermissionSeeder(HrmsDbContext db)
             "ot:view-all",
             "ticket:view-all", "ticket:view-report",
             "expense:view-all",
+            "memo:create", "memo:view-own", "memo:approve",
         ],
         ["Admin"] =
         [
@@ -173,7 +183,8 @@ public class PermissionSeeder(HrmsDbContext db)
             "expense:create", "expense:view-own", "expense:update-draft", "expense:upload-attachment", "expense:ocr",
             "expense:view-all", "expense:review", "expense:export", "expense:create-batch", "expense:mark-paid",
             "system:manage-roles", "system:view-audit-logs", "system:manage-notifications",
-            "system:manage-companies", "system:manage-ticket",
+            "system:manage-companies", "system:manage-ticket", "system:manage-memo",
+            "memo:create", "memo:view-own", "memo:approve",
         ],
     };
 
@@ -230,6 +241,26 @@ public class PermissionSeeder(HrmsDbContext db)
             db.Permissions.AddRange(toAdd);
             await db.SaveChangesAsync(ct);
         }
+
+        // sync module/action/description ของ permission ที่มีอยู่แล้วให้ตรงกับ catalog เสมอ
+        // (เช่น ticket:manage-* ที่ย้าย module จาก "ticket" ไป "ticket-taxonomy")
+        var catalogByCode = AllPermissions.ToDictionary(p => p.Code);
+        var existingPermissions = await db.Permissions
+            .Where(p => existingCodes.Contains(p.Code))
+            .ToListAsync(ct);
+        var changed = false;
+        foreach (var permission in existingPermissions)
+        {
+            if (!catalogByCode.TryGetValue(permission.Code, out var def)) continue;
+            if (permission.Module == def.Module && permission.Action == def.Action && permission.Description == def.Description) continue;
+            permission.Module = def.Module;
+            permission.Action = def.Action;
+            permission.Description = def.Description;
+            permission.UpdatedAt = now;
+            changed = true;
+        }
+        if (changed)
+            await db.SaveChangesAsync(ct);
 
         // Load full permission map after seed
         var permissionMap = await db.Permissions

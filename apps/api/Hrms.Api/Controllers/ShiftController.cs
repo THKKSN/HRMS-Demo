@@ -1,4 +1,3 @@
-using Hrms.Api.Authorization;
 using Hrms.Application.Features.Shifts.Commands;
 using Hrms.Application.Features.Shifts.Queries;
 using MediatR;
@@ -9,7 +8,7 @@ namespace Hrms.Api.Controllers;
 
 [ApiController]
 [Route("v1/shifts")]
-[Authorize(Policy = AuthPolicies.RequireHr)]
+[Authorize(Policy = "perm:company:manage-shifts")]
 public class ShiftController(IMediator mediator) : ControllerBase
 {
     /// <summary>รายการกะงานทั้งหมด (HR / Admin)</summary>

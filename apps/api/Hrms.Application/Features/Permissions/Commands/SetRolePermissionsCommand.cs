@@ -1,6 +1,8 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Permissions.Dtos;
 using Hrms.Domain.Entities;
+using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +18,12 @@ public class SetRolePermissionsHandler(
     IAuditLogService auditLog)
     : IRequestHandler<SetRolePermissionsCommand, RolePermissionSummaryDto>
 {
+    // permission ที่อ่อนไหวสูง อนุญาตให้ผูกกับ role ที่กำหนดไว้เท่านั้น ป้องกัน role อื่นได้สิทธิ์นี้ผ่าน permission matrix UI
+    private static readonly Dictionary<string, RoleType[]> RestrictedPermissions = new()
+    {
+        ["memo:approve"] = [RoleType.Admin, RoleType.Executive],
+    };
+
     public async Task<RolePermissionSummaryDto> Handle(
         SetRolePermissionsCommand request, CancellationToken cancellationToken)
     {
@@ -27,13 +35,23 @@ public class SetRolePermissionsHandler(
             .Where(rp => rp.RoleId == request.RoleId)
             .ToListAsync(cancellationToken);
 
+        // เพิ่มใหม่ตาม PermissionIds ที่ส่งมา
+        var validPerms = await db.Permissions
+            .Where(p => request.PermissionIds.Contains(p.Id))
+            .Select(p => new { p.Id, p.Code })
+            .ToListAsync(cancellationToken);
+
+        foreach (var perm in validPerms)
+        {
+            if (RestrictedPermissions.TryGetValue(perm.Code, out var allowedRoles) && !allowedRoles.Contains(role.Code))
+                throw new ConflictException(
+                    "PERMISSION_RESTRICTED",
+                    $"permission '{perm.Code}' กำหนดให้ role {string.Join("/", allowedRoles)} เท่านั้น");
+        }
+
         db.RolePermissions.RemoveRange(existing);
 
-        // เพิ่มใหม่ตาม PermissionIds ที่ส่งมา
-        var validPermIds = await db.Permissions
-            .Where(p => request.PermissionIds.Contains(p.Id))
-            .Select(p => p.Id)
-            .ToListAsync(cancellationToken);
+        var validPermIds = validPerms.Select(p => p.Id).ToList();
 
         var now = DateTime.UtcNow.AddHours(7);
         var newEntries = validPermIds.Select(permId => new RolePermission

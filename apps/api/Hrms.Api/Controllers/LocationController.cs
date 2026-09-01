@@ -1,4 +1,3 @@
-using Hrms.Api.Authorization;
 using Hrms.Application.Features.Locations.Commands;
 using Hrms.Application.Features.Locations.Queries;
 using MediatR;
@@ -9,7 +8,7 @@ namespace Hrms.Api.Controllers;
 
 [ApiController]
 [Route("v1/locations")]
-[Authorize(Policy = AuthPolicies.RequireHr)]
+[Authorize(Policy = "perm:company:manage-locations")]
 public class LocationController(IMediator mediator) : ControllerBase
 {
     /// <summary>รายการ Location ทั้งหมด (HR / Admin)</summary>

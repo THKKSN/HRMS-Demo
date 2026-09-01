@@ -1,4 +1,3 @@
-using Hrms.Api.Authorization;
 using Hrms.Application.Features.AttendancePolicies.Commands;
 using Hrms.Application.Features.AttendancePolicies.Queries;
 using MediatR;
@@ -9,10 +8,10 @@ namespace Hrms.Api.Controllers;
 
 [ApiController]
 [Route("v1/attendance-policies")]
-[Authorize(Policy = AuthPolicies.RequireHr)]
+[Authorize(Policy = "perm:attendance:manage-policy")]
 public class AttendancePolicyController(IMediator mediator) : ControllerBase
 {
-    /// <summary>ดู policy ของบริษัท (HR / Admin)</summary>
+    /// <summary>ดู policy ของบริษัท (ต้องมี attendance:manage-policy permission)</summary>
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] Guid companyId, CancellationToken ct)
     {
@@ -20,7 +19,7 @@ public class AttendancePolicyController(IMediator mediator) : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
-    /// <summary>สร้างหรืออัปเดต policy (Upsert) (HR / Admin)</summary>
+    /// <summary>สร้างหรืออัปเดต policy (Upsert) (ต้องมี attendance:manage-policy permission)</summary>
     [HttpPut]
     public async Task<IActionResult> Upsert(
         [FromBody] UpsertAttendancePolicyCommand command, CancellationToken ct)

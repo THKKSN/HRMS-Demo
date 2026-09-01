@@ -1,4 +1,3 @@
-using Hrms.Api.Authorization;
 using Hrms.Application.Features.Employees.AddEmployeeRole;
 using Hrms.Application.Features.Employees.CreateEmployee;
 using Hrms.Application.Features.Employees.GetEmployeeById;
@@ -57,9 +56,9 @@ public class EmployeeController(IMediator mediator) : ControllerBase
         return Ok(result);
     }
 
-    /// <summary>รายละเอียดพนักงานรายคน (Supervisor / HR / Admin)</summary>
+    /// <summary>รายละเอียดพนักงานรายคน (ต้องมี employee:view permission)</summary>
     [HttpGet("{id:guid}")]
-    [Authorize(Policy = AuthPolicies.RequireSupervisor)]
+    [Authorize(Policy = "perm:employee:view")]
     public async Task<IActionResult> GetEmployeeById(Guid id, CancellationToken ct)
     {
         var result = await mediator.Send(new GetEmployeeByIdQuery(id), ct);
@@ -68,6 +67,7 @@ public class EmployeeController(IMediator mediator) : ControllerBase
 
     /// <summary>สร้างพนักงานใหม่ (ต้องมี employee:create permission)</summary>
     [HttpPost]
+    [Authorize(Policy = "perm:employee:create")]
     public async Task<IActionResult> CreateEmployee(
         [FromBody] CreateEmployeeRequest request,
         CancellationToken ct)
@@ -88,9 +88,9 @@ public class EmployeeController(IMediator mediator) : ControllerBase
         return CreatedAtAction(nameof(GetEmployeeById), new { id = result.Id }, result);
     }
 
-    /// <summary>แก้ไขข้อมูลพนักงาน (HR / Admin เท่านั้น)</summary>
+    /// <summary>แก้ไขข้อมูลพนักงาน (ต้องมี employee:edit permission)</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:employee:edit")]
     public async Task<IActionResult> UpdateEmployee(
         Guid id,
         [FromBody] UpdateEmployeeRequest request,
@@ -112,6 +112,7 @@ public class EmployeeController(IMediator mediator) : ControllerBase
 
     /// <summary>เปิด/ปิดการใช้งานพนักงาน (ต้องมี employee:toggle-status permission)</summary>
     [HttpPatch("{id:guid}/status")]
+    [Authorize(Policy = "perm:employee:toggle-status")]
     public async Task<IActionResult> ToggleStatus(
         Guid id,
         [FromBody] ToggleStatusRequest request,
@@ -121,9 +122,9 @@ public class EmployeeController(IMediator mediator) : ControllerBase
         return NoContent();
     }
 
-    /// <summary>รายการ role ของพนักงาน (Supervisor / HR / Admin)</summary>
+    /// <summary>รายการ role ของพนักงาน (ต้องมี employee:view permission)</summary>
     [HttpGet("{id:guid}/roles")]
-    [Authorize(Policy = AuthPolicies.RequireSupervisor)]
+    [Authorize(Policy = "perm:employee:view")]
     public async Task<IActionResult> GetRoles(Guid id, CancellationToken ct)
     {
         var result = await mediator.Send(new GetEmployeeRolesQuery(id), ct);
@@ -132,6 +133,7 @@ public class EmployeeController(IMediator mediator) : ControllerBase
 
     /// <summary>เพิ่ม role ให้พนักงาน (ต้องมี employee:assign-role permission)</summary>
     [HttpPost("{id:guid}/roles")]
+    [Authorize(Policy = "perm:employee:assign-role")]
     public async Task<IActionResult> AddRole(
         Guid id,
         [FromBody] AddRoleRequest request,
@@ -143,6 +145,7 @@ public class EmployeeController(IMediator mediator) : ControllerBase
 
     /// <summary>ลบ role ของพนักงาน (ต้องมี employee:assign-role permission)</summary>
     [HttpDelete("{id:guid}/roles/{roleId:guid}")]
+    [Authorize(Policy = "perm:employee:assign-role")]
     public async Task<IActionResult> RemoveRole(Guid id, Guid roleId, CancellationToken ct)
     {
         await mediator.Send(new RemoveEmployeeRoleCommand(id, roleId), ct);
@@ -151,6 +154,7 @@ public class EmployeeController(IMediator mediator) : ControllerBase
 
     /// <summary>ตั้ง / รีเซ็ตรหัสผ่านพนักงาน (ต้องมี employee:reset-password permission)</summary>
     [HttpPut("{id:guid}/password")]
+    [Authorize(Policy = "perm:employee:reset-password")]
     public async Task<IActionResult> SetPassword(
         Guid id,
         [FromBody] SetPasswordRequest request,

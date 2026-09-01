@@ -1,4 +1,3 @@
-using Hrms.Api.Authorization;
 using Hrms.Application.Features.LeaveTypes.Commands;
 using Hrms.Application.Features.LeaveTypes.Queries;
 using MediatR;
@@ -22,7 +21,7 @@ public class LeaveTypeController(IMediator mediator) : ControllerBase
 
     /// <summary>สร้างประเภทการลาใหม่ (HR / Admin เท่านั้น)</summary>
     [HttpPost]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:leave:manage-types")]
     public async Task<IActionResult> Create(
         [FromBody] CreateLeaveTypeRequest request,
         CancellationToken ct)
@@ -38,7 +37,7 @@ public class LeaveTypeController(IMediator mediator) : ControllerBase
 
     /// <summary>แก้ไขประเภทการลา (HR / Admin เท่านั้น)</summary>
     [HttpPut("{id:guid}")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:leave:manage-types")]
     public async Task<IActionResult> Update(
         Guid id,
         [FromBody] UpdateLeaveTypeRequest request,
@@ -55,7 +54,7 @@ public class LeaveTypeController(IMediator mediator) : ControllerBase
 
     /// <summary>เปิด/ปิดประเภทการลา (HR / Admin เท่านั้น)</summary>
     [HttpPatch("{id:guid}/status")]
-    [Authorize(Policy = AuthPolicies.RequireHr)]
+    [Authorize(Policy = "perm:leave:manage-types")]
     public async Task<IActionResult> ToggleStatus(
         Guid id,
         [FromBody] ToggleLeaveTypeStatusRequest request,

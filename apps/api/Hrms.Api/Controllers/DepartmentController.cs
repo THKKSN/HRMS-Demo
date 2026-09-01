@@ -1,4 +1,3 @@
-using Hrms.Api.Authorization;
 using Hrms.Application.Features.Departments.Commands;
 using Hrms.Application.Features.Departments.Queries;
 using MediatR;
@@ -9,7 +8,7 @@ namespace Hrms.Api.Controllers;
 
 [ApiController]
 [Route("v1/departments")]
-[Authorize(Policy = AuthPolicies.RequireHr)]
+[Authorize(Policy = "perm:company:manage-departments")]
 public class DepartmentController(IMediator mediator) : ControllerBase
 {
     /// <summary>รายการแผนกทั้งหมด พร้อม employeeCount (HR / Admin)</summary>
