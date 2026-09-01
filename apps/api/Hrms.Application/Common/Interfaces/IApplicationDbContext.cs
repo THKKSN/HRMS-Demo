@@ -58,6 +58,12 @@ public interface IApplicationDbContext
     DbSet<ExternalTicketTopic> ExternalTicketTopics { get; } // table: external_ticket_topics
     DbSet<ExternalTicketSubject> ExternalTicketSubjects { get; } // table: external_ticket_subjects
 
+    DbSet<MemoType> MemoTypes { get; } // table: memo_types
+    DbSet<MemoCategory> MemoCategories { get; } // table: memo_categories
+    DbSet<MemoSubCategory> MemoSubCategories { get; } // table: memo_sub_categories
+    DbSet<Memo> Memos { get; } // table: memos
+    DbSet<MemoMonthlySequence> MemoMonthlySequences { get; }
+
     // Address reference data — read-only, imported directly to DB
     DbSet<Province>    Provinces    { get; }
     DbSet<District>    Districts    { get; }

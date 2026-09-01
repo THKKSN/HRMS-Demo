@@ -1,5 +1,0 @@
-import { redirect } from 'next/navigation'
-
-export default function TicketTaxonomyRedirectPage() {
-  redirect('/settings/ticket-taxonomy/internal')
-}

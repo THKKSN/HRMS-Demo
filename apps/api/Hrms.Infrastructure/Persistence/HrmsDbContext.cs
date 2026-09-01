@@ -66,6 +66,12 @@ public class HrmsDbContext(
     public DbSet<ExternalTicketTopic> ExternalTicketTopics => Set<ExternalTicketTopic>();
     public DbSet<ExternalTicketSubject> ExternalTicketSubjects => Set<ExternalTicketSubject>();
 
+    public DbSet<MemoType> MemoTypes => Set<MemoType>();
+    public DbSet<MemoCategory> MemoCategories => Set<MemoCategory>();
+    public DbSet<MemoSubCategory> MemoSubCategories => Set<MemoSubCategory>();
+    public DbSet<Memo> Memos => Set<Memo>();
+    public DbSet<MemoMonthlySequence> MemoMonthlySequences => Set<MemoMonthlySequence>();
+
     // Address reference data — read-only, imported directly to DB (no migrations)
     public DbSet<Province>    Provinces    => Set<Province>();
     public DbSet<District>    Districts    => Set<District>();

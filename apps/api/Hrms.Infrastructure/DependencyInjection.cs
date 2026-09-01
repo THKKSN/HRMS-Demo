@@ -69,6 +69,7 @@ public static class DependencyInjection
         services.AddScoped<ILeaveNotificationService, HangfireLeaveNotificationService>();
         services.AddScoped<INotificationDispatchSignal, HangfireNotificationDispatchSignal>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddScoped<IMemoPdfGenerator, QuestPdfMemoGenerator>();
         services.AddScoped<IExpenseOcrQueue, HangfireExpenseOcrQueue>();
         services.AddHttpClient<IExpenseOcrEngine, HttpExpenseOcrEngine>();
         services.AddHttpClient<IPiswinEmployeeClient, PiswinEmployeeClient>((sp, client) =>
@@ -82,6 +83,7 @@ public static class DependencyInjection
             client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
         });
         services.AddScoped<ITicketNumberGenerator, TicketNumberGenerator>();
+        services.AddScoped<IMemoNumberGenerator, MemoNumberGenerator>();
         services.AddScoped<IShiftResolver, ShiftResolverService>();
         services.AddScoped<DailyAttendanceReportJob>();
         services.AddScoped<TicketUploadCleanupJob>();
