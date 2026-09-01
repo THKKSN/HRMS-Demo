@@ -83,6 +83,15 @@ export function useRequestTicketCancellation(id: string) {
     ticketsApi.requestCancellation(id, body))
 }
 
+export function useTicketPendingCounts(enabled = true) {
+  return useQuery({
+    queryKey: [...ticketKeys.all, 'pending-counts'],
+    queryFn: ticketsApi.getPendingCounts,
+    enabled,
+    staleTime: 30_000,
+  })
+}
+
 export function useTicket(id: string) {
   return useQuery({
     queryKey: ticketKeys.detail(id),

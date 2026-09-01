@@ -16,7 +16,9 @@ public static class TicketReportAccess
         CancellationToken ct)
     {
         await currentUser.ThrowIfNoPermissionAsync(permissions, "ticket:view-report", ct);
-        if (currentUser.HasRole(RoleType.Admin)) return query;
+        // Executive = กลุ่มบริหารชุดเดียวกันทุกบริษัท (แยกบริษัทไว้เพื่อการจัดการ)
+        // จึงเห็นภาพรวมทุกบริษัทเหมือน Admin โดยไม่ต้องผูก ManagedCompanyIds
+        if (currentUser.HasRole(RoleType.Admin) || currentUser.HasRole(RoleType.Executive)) return query;
 
         var employeeId = currentUser.EmployeeId;
         if (currentUser.HasRole(RoleType.Supervisor) && employeeId.HasValue)
@@ -88,7 +90,7 @@ public static class TicketReportAccess
             filter.DateBasis,
             "Asia/Bangkok",
             new DateOnly(2026, 7, 21),
-            currentUser.HasRole(RoleType.Admin)
+            currentUser.HasRole(RoleType.Admin) || currentUser.HasRole(RoleType.Executive)
                 ? "All"
                 : currentUser.HasRole(RoleType.Supervisor)
                     ? "SupervisorScope"

@@ -179,6 +179,7 @@ public class CloseTicketHandler(
             ticket.VerifiedByEmployeeId = actorId;
             ticket.VerifiedAt = now;
             TicketCommandSupport.SetWorkflowBoardState(ticket, "accepted", workState: "ปิดงานเรียบร้อย");
+            // owner = ผู้ทำงาน (assignee) ให้สอดคล้องกับ entry อื่นในฟีด — ไม่ใช่ผู้แจ้ง
             TicketCommandSupport.AddProgressEntry(
                 db,
                 ticket,
@@ -186,7 +187,7 @@ public class CloseTicketHandler(
                 "accepted",
                 workState: "ปิดงานเรียบร้อย",
                 note: review.ReviewNote ?? "Approved",
-                ownerEmployeeId: ticket.RequesterEmployeeId);
+                ownerEmployeeId: assignment.AssignedToEmployeeId);
             ticket.UpdatedBy = actorId;
             TicketStatusTransition.Record(db, ticket, TicketStatus.Resolved, TicketStatus.AwaitingRequesterConfirmation,
                 actorId, now, review.ReviewNote ?? "Approved", assignment.Id);

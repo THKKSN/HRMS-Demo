@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight, EyeIcon, Inbox, Search } from 'lucide-react'
 import { toast } from 'sonner'
@@ -17,6 +18,8 @@ import {
   useManagedTicketTopics,
   useTicketManagementScope,
 } from '@/hooks/use-ticket-taxonomy'
+import { hasAnyPermission, hasAnyRole } from '@/lib/permission'
+import { useAuthStore } from '@/stores/auth.store'
 
 const PAGE_SIZE = 10
 
@@ -104,7 +107,9 @@ function InlineAssignCell({ ticket }: { ticket: TicketInboxItemDto }) {
         {candidatesQuery.isError && <option disabled>ไม่มีสิทธิ์มอบหมายงานใบนี้</option>}
         {candidates.map(candidate => (
           <option key={candidate.employeeId} value={candidate.employeeId}>
-            {candidate.isRecommended ? 'แนะนำ · ' : ''}{candidate.employeeName} · งานค้าง {candidate.activeTicketCount}
+            {candidate.isRecommended ? 'แนะนำ · ' : ''}{candidate.employeeName}
+            {!candidate.isInTargetDepartment && candidate.departmentName ? ` · ${candidate.departmentName}` : ''}
+            {' · งานค้าง '}{candidate.activeTicketCount}
           </option>
         ))}
       </Select>
@@ -121,6 +126,15 @@ function InlineAssignCell({ ticket }: { ticket: TicketInboxItemDto }) {
 }
 
 export default function TicketInboxPage() {
+  const router = useRouter()
+  const employee = useAuthStore((s) => s.employee)
+  // gate เดียวกับ backend (GetTicketInboxQuery เช็ค ticket:view-team) — Employee เข้าหน้านี้ไม่ได้
+  const permissionCodes = new Set(employee?.permissionCodes ?? [])
+  const hasPermissionPayload = Array.isArray(employee?.permissionCodes)
+  const canViewInbox =
+    hasAnyPermission(permissionCodes, ['ticket:view-team']) ||
+    (!hasPermissionPayload && hasAnyRole(employee, ['Admin', 'Hr', 'Supervisor']))
+
   const [status, setStatus] = useState<TicketStatus | undefined>()
   const [companyId, setCompanyId] = useState('')
   const [departmentId, setDepartmentId] = useState('')
@@ -166,6 +180,10 @@ export default function TicketInboxPage() {
     }
   }, [companyId, departmentId, departments])
 
+  useEffect(() => {
+    if (employee && !canViewInbox) router.replace('/tickets')
+  }, [employee, canViewInbox, router])
+
   const totalCount = query.data?.totalCount ?? 0
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const firstItem = totalCount === 0 ? 0 : ((page - 1) * PAGE_SIZE) + 1
@@ -174,6 +192,8 @@ export default function TicketInboxPage() {
   function resetPage() {
     setPage(1)
   }
+
+  if (!employee || !canViewInbox) return null
 
   return (
     <div className="space-y-4">
@@ -288,22 +308,22 @@ export default function TicketInboxPage() {
             <tr>
               <th className="px-4 py-3 font-medium">Ticket</th>
               <th className="px-4 py-3 font-medium">ผู้แจ้ง</th>
-              <th className="px-4 py-3 font-medium">หมวด / หัวข้อ</th>
-              <th className="px-4 py-3 font-medium">สถานที่</th>
-              <th className="px-4 py-3 font-medium">การมอบหมาย</th>
-              <th className="px-4 py-3 font-medium">สถานะ</th>
-              <th className="px-4 py-3 font-medium">เปิดเมื่อ</th>
+              <th className="px-4 py-3 font-medium text-center">หมวดหมู่</th>
+              {requestType === 'External' && <th className="px-4 py-3 font-medium">สถานที่</th>}
+              <th className="px-4 py-3 font-medium text-center">การมอบหมาย</th>
+              <th className="px-4 py-3 font-medium text-center">สถานะ</th>
+              <th className="px-4 py-3 font-medium text-center">เปิดเมื่อ</th>
               <th className="px-4 py-3 font-medium">จัดการ</th>
             </tr>
           </thead>
           <tbody>
             {query.isLoading && Array.from({ length: PAGE_SIZE }).map((_, index) => (
               <tr key={index} className="border-b border-border">
-                <td colSpan={7} className="px-4 py-3"><div className="h-5 animate-pulse rounded bg-muted" /></td>
+                <td colSpan={requestType === 'External' ? 8 : 7} className="px-4 py-3"><div className="h-5 animate-pulse rounded bg-muted" /></td>
               </tr>
             ))}
             {!query.isLoading && (query.data?.items.length ?? 0) === 0 && (
-              <tr><td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">ไม่พบใบแจ้งเรื่องในเงื่อนไขที่เลือก</td></tr>
+              <tr><td colSpan={requestType === 'External' ? 8 : 7} className="px-4 py-16 text-center text-muted-foreground">ไม่พบใบแจ้งเรื่องในเงื่อนไขที่เลือก</td></tr>
             )}
             {query.data?.items.map(ticket => (
               <tr key={ticket.id} className="border-b border-border last:border-0 hover:bg-muted/20">
@@ -312,15 +332,10 @@ export default function TicketInboxPage() {
                     {ticket.ticketNo}
                     <SourceChannelIcon channel={ticket.sourceChannel} />
                   </p>
-                  <p className="mt-1 max-w-72 truncate font-medium">{ticket.title}</p>
+                  {/* title = ชื่อหัวข้อ (subject) — เคส "อื่น ๆ" แสดงข้อความที่ผู้แจ้งระบุแทน */}
+                  <p className="mt-1 max-w-72 truncate font-medium">{ticket.otherTopicText ?? ticket.title}</p>
                   <span className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs ${priorityClass(ticket.priority)}`}>{PRIORITY_LABEL[ticket.priority]}</span>
-                  <TicketBoardSummary
-                    compact
-                    workflowCurrentStepLabel={ticket.workflowCurrentStepLabel}
-                    currentWorkState={ticket.currentWorkState}
-                    currentBlockerReason={ticket.currentBlockerReason}
-                    currentNextAction={ticket.currentNextAction}
-                  />
+                  
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -331,15 +346,16 @@ export default function TicketInboxPage() {
                   </div>
                   <p className="text-xs text-muted-foreground">{ticket.sourceDepartmentName ?? '-'}</p>
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 text-center">
                   <p>{ticket.categoryName ?? ticket.externalTicketCategoryName ?? '-'}</p>
+                  {/* หัวข้อ (subject) แสดงเป็น title อยู่แล้ว — บรรทัดนี้เหลือ หมวดย่อย (topic) */}
                   <p className="text-xs text-muted-foreground">
                     {ticket.topicName ?? ticket.externalTicketTopicName ?? '-'}
-                    {ticket.externalTicketSubjectName ? ` / ${ticket.externalTicketSubjectName}` : ''}
-                    {ticket.otherTopicText ? `: ${ticket.otherTopicText}` : ''}
                   </p>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">{ticket.locationText ?? ticket.vehicleText ?? '-'}</td>
+                {requestType === 'External' && (
+                  <td className="px-4 py-3 text-muted-foreground">{ticket.locationText ?? ticket.vehicleText ?? '-'}</td>
+                )}
                 <td className="px-4 py-3">
                   {ASSIGNABLE_STATUSES.includes(ticket.status) ? (
                     <InlineAssignCell ticket={ticket} />
@@ -360,8 +376,15 @@ export default function TicketInboxPage() {
                     </>
                   )}
                 </td>
-                <td className="px-4 py-3"><Badge variant={statusVariant(ticket.status)}>{STATUS_LABEL[ticket.status]}</Badge></td>
-                <td className="px-4 py-3 text-muted-foreground">{thaiDateTime(ticket.createdAt)}</td>
+                <td className="px-4 py-3 flex-col justify-items-center text-center"><Badge variant={statusVariant(ticket.status)}>{STATUS_LABEL[ticket.status]}</Badge>
+                  <TicketBoardSummary
+                    compact
+                    workflowCurrentStepLabel={ticket.workflowCurrentStepLabel}
+                    currentWorkState={ticket.currentWorkState}
+                    currentBlockerReason={ticket.currentBlockerReason}
+                    currentNextAction={ticket.currentNextAction}
+                  /></td>
+                <td className="px-4 py-3 text-muted-foreground text-center">{thaiDateTime(ticket.createdAt)}</td>
                 <td className="px-4 py-3">
                   <Link
                     href={`/tickets/${ticket.id}`}

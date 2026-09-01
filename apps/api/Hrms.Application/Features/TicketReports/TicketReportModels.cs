@@ -62,11 +62,14 @@ public record TicketBacklogResultDto(
 
 public record TicketCategoryReportItemDto(
     Guid? CategoryId, string? CategoryName, Guid? TopicId, string? TopicName,
+    Guid? SubjectId, string? SubjectName,
     int TotalCount, int ClosedCount, int BacklogCount, double ReturnRatePercent);
 
 public record TicketWorkloadItemDto(
     Guid EmployeeId, string EmployeeName, int AssignedCount, int InProgressCount,
-    int WaitingInfoCount, int WaitingReviewCount, int ClosedCount);
+    int WaitingInfoCount, int WaitingReviewCount, int ClosedCount,
+    double? AverageLeadTimeMinutes, double? MedianLeadTimeMinutes,
+    double? AverageWorkTimeMinutes, int ClosedSampleCount);
 
 public record TicketQualityReportDto(
     int ReviewedTicketCount, int ReturnedReviewCount, int ApprovedReviewCount,

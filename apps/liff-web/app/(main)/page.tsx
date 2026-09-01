@@ -9,8 +9,11 @@ import {
   Inbox,
   Wrench,
   ReceiptText,
+  FileText,
+  PenBox,
 } from "lucide-react";
 import { usePendingApprovals, useLeaveBalance } from "@/hooks/use-leaves";
+import { useTicketPendingCounts } from "@/hooks/use-tickets";
 import { useAttendanceToday } from "@/hooks/use-attendance";
 import { useMyHolidays } from "@/hooks/use-holidays";
 import { useProfile } from "@/hooks/use-profile";
@@ -61,7 +64,7 @@ function AttendanceCard() {
     today?.status === "HalfDay" ? "ครึ่งวัน" : null;
 
   return (
-    <div className="rounded-2xl border border-border bg-white overflow-hidden">
+    <div className="rounded-2xl border border-border bg-background overflow-hidden">
       {/* header row */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-2">
@@ -255,6 +258,67 @@ function PendingApprovalCard() {
   );
 }
 
+// ── Pending Work Card (งานคงค้างของฉัน) ───────────────────────────────────────
+
+function PendingWorkRow({ href, label, count }: { href: string; label: string; count: number }) {
+  return (
+    <Link href={href} className="flex items-center justify-between px-4 py-2.5 active:bg-whited/60">
+      <span className="text-sm">{label}</span>
+      <span className="flex items-center gap-1.5">
+        <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground">
+          {count > 99 ? "99+" : count}
+        </span>
+        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      </span>
+    </Link>
+  );
+}
+
+function PendingWorkCard() {
+  const employee = useAuthStore(s => s.employee);
+  const { data: counts, isLoading, isError } = useTicketPendingCounts(!!employee);
+  if (!employee || isError) return null;
+
+  const rows = counts ? [
+    { key: "assignedActive", label: "งานที่รับไว้กำลังทำ", href: "/tickets/assigned", count: counts.assignedActive },
+    { key: "assignedWaitingInfo", label: "งานรอข้อมูลเพิ่มเติม", href: "/tickets/assigned", count: counts.assignedWaitingInfo },
+    { key: "claimable", label: "งานใหม่รอรับ", href: "/tickets/assigned", count: counts.claimable },
+    { key: "awaitingMyConfirmation", label: "เรื่องที่แจ้งรอตรวจรับงาน", href: "/tickets/my", count: counts.awaitingMyConfirmation },
+    { key: "inboxUntriaged", label: "เรื่องใหม่รอจัดการ", href: "/tickets/inbox", count: counts.inboxUntriaged },
+    { key: "cancellationPending", label: "คำขอยกเลิกรอตัดสิน", href: "/tickets/inbox", count: counts.cancellationPending },
+    { key: "memoAwaitingAck", label: "Memo รอรับทราบ", href: "/memos/inbox", count: counts.memoAwaitingAck },
+    { key: "memoAwaitingApproval", label: "Memo รออนุมัติ", href: "/memos/approvals", count: counts.memoAwaitingApproval },
+  ].filter(row => (row.count ?? 0) > 0) : [];
+
+  // ผู้ใช้ที่ไม่มีสิทธิ์เห็นงานส่วนไหนเลย (ทุก field เป็น null) ไม่ต้องแสดงการ์ด
+  const hasAnyScope = counts
+    ? Object.values(counts).some(value => value !== null && value !== undefined)
+    : false;
+  if (!isLoading && (!counts || !hasAnyScope)) return null;
+
+  return (
+    <div className="rounded-2xl border border-border bg-background overflow-hidden">
+      <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+        <Briefcase className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold">งานคงค้างของฉัน</span>
+      </div>
+      {isLoading ? (
+        <div className="px-4 pb-4 space-y-2">
+          {[0, 1].map(i => <div key={i} className="h-9 rounded-xl bg-whited animate-pulse" />)}
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="px-4 pb-4 text-sm text-muted-foreground">ไม่มีงานคงค้าง 🎉</p>
+      ) : (
+        <div className="divide-y divide-border">
+          {rows.map(row => (
+            <PendingWorkRow key={row.key} href={row.href} label={row.label} count={row.count ?? 0} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Quick Actions ─────────────────────────────────────────────────────────────
 
 const QUICK_ACTIONS = [
@@ -322,6 +386,16 @@ export default function HomePage() {
           <span className="text-sm font-semibold text-cyan-900">เรื่องที่แจ้ง</span>
           <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-cyan-500" />
         </Link>}
+        <Link href="/memos/new" className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 active:opacity-80">
+          <PenBox className="h-5 w-5 shrink-0 text-indigo-700" />
+          <span className="text-sm font-semibold text-indigo-900">ขอ Memo</span>
+          <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-indigo-500" />
+        </Link>
+        <Link href="/memos/my" className="flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 active:opacity-80">
+          <FileText className="h-5 w-5 shrink-0 text-violet-700" />
+          <span className="text-sm font-semibold text-violet-900">Memo ของฉัน</span>
+          <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-violet-500" />
+        </Link>
         {/* ช่องทางแจ้งเรื่องภายนอก — ticket จะติดแท็ก "ภายนอก" (ตัวตนผู้แจ้งภายนอกแยกจากบัญชีพนักงาน) */}
         {/* <Link href="/external" className="col-span-2 flex items-center gap-3 rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 active:opacity-80">
           <Wrench className="h-5 w-5 shrink-0 text-rose-700" />
@@ -330,12 +404,12 @@ export default function HomePage() {
         </Link> */}
         {/* {canCreateTicket && <Link href="/tickets/assigned" className="flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 active:opacity-80">
           <Wrench className="h-5 w-5 shrink-0 text-violet-700" />
-          <span className="text-sm font-semibold text-violet-900">กล่องงาน</span>
+          <span className="text-sm font-semibold text-violet-900">งานที่รับผิดชอบ</span>
           <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-violet-500" />
         </Link>}
         {canViewTicketInbox && <Link href="/tickets/inbox" className="flex items-center gap-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 active:opacity-80">
           <Inbox className="h-5 w-5 shrink-0 text-sky-700" />
-          <span className="text-sm font-semibold text-sky-900">กล่องรับเรื่อง</span>
+          <span className="text-sm font-semibold text-sky-900">กล่องงาน</span>
           <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-sky-500" />
         </Link>} */}
         {/* <Link href="/leaves/new" className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 active:opacity-80">
@@ -354,6 +428,9 @@ export default function HomePage() {
           <ChevronRight className="ml-auto h-4 w-4 text-orange-400 shrink-0" />
         </Link> */}
       </div>
+
+      {/* Pending work (ticket/memo) — ปิดไว้: badge บน bottom nav ทำหน้าที่นี้แทนแล้ว */}
+      {/* <PendingWorkCard /> */}
 
       {/* Attendance */}
       {/* <AttendanceCard /> */}

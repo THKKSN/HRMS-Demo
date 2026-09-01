@@ -12,6 +12,7 @@ import type {
   TicketTopicDto,
   TicketDetailDto,
   TicketActionResultDto,
+  TicketPendingCountsDto,
   TicketCommentDto,
   TicketCommentType,
   TicketAttachmentDto,
@@ -53,6 +54,7 @@ export type TicketInboxParams = {
 export type TriageTicketBody = {
   categoryId: string
   topicId: string
+  subjectId?: string
   otherTopicText?: string
   priority: TicketPriority
   locationText?: string
@@ -93,6 +95,9 @@ export const ticketsApi = {
 
   getClaimable: (params: { search?: string; page?: number; pageSize?: number }) =>
     api.get<PagedResult<AssignedTicketItemDto>>('/tickets/claimable', { params }).then(r => r.data),
+
+  getPendingCounts: () =>
+    api.get<TicketPendingCountsDto>('/tickets/pending-counts').then(r => r.data),
 
   getInbox: (params: TicketInboxParams) =>
     api.get<PagedResult<TicketInboxItemDto>>('/tickets/inbox', { params }).then(r => r.data),

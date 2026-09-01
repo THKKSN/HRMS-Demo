@@ -3,6 +3,8 @@
 import { Building2, LayoutDashboard, Users, UserCheck } from 'lucide-react'
 import { useAdminDashboard } from '@/hooks/use-dashboard'
 import { AuditLogTable } from './widgets/AuditLogTable'
+import { MemoPendingCard } from './MemoPendingCard'
+import { TicketOverviewSection } from './TicketOverviewSection'
 
 export function AdminDashboard() {
   const { data, isLoading, isError } = useAdminDashboard()
@@ -34,6 +36,11 @@ export function AdminDashboard() {
           </div>
         ))}
       </div>
+
+      <MemoPendingCard variant="approval" />
+
+      {/* ภาพรวมการแจ้งเรื่อง */}
+      <TicketOverviewSection showCompanyFilter showSlowClosers />
 
       <AuditLogTable logs={data.recentAuditLogs} />
     </div>

@@ -463,10 +463,10 @@ export default function TicketReportsPage() {
 
       {tab === 'หมวดปัญหา' && (
         <ReportTable
-          headers={['หมวด / หัวข้อ', 'ปริมาณ', 'ปิดแล้ว', 'ค้าง', 'ส่งกลับ %']}
+          headers={['หมวด / หมวดย่อย / หัวข้อ', 'ปริมาณ', 'ปิดแล้ว', 'ค้าง', 'ส่งกลับ %']}
           rows={(categories.data ?? []).map(item => [
-            <div key={item.topicId} className="space-y-1">
-              <p>{item.categoryName} / {item.topicName}</p>
+            <div key={`${item.categoryId}-${item.topicId}-${item.subjectId}`} className="space-y-1">
+              <p>{[item.categoryName, item.topicName, item.subjectName].filter(Boolean).join(' / ') || '—'}</p>
               <MiniBar value={item.totalCount} max={categoryMax} className="bg-primary" />
             </div>,
             item.totalCount,

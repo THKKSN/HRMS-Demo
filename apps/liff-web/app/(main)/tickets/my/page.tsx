@@ -112,7 +112,8 @@ function TicketCard({ ticket }: { ticket: MyTicketItemDto }) {
               {PRIORITY_LABEL[ticket.priority]}
             </span>
           </div>
-          <h2 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{ticket.title}</h2>
+          {/* title = ชื่อหัวข้อ (subject) — เคส "อื่น ๆ" แสดงข้อความที่ผู้แจ้งระบุแทน */}
+          <h2 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{ticket.otherTopicText ?? ticket.title}</h2>
         </div>
         <span className={`shrink-0 rounded-md border px-2 py-1 text-[10px] font-semibold ${TICKET_STATUS_CLASS[ticket.status]}`}>
           {TICKET_STATUS_LABEL[ticket.status]}
@@ -128,7 +129,6 @@ function TicketCard({ ticket }: { ticket: MyTicketItemDto }) {
         </p>
         <p className="pl-5">
           {ticket.categoryName} / {ticket.topicName}
-          {ticket.otherTopicText ? `: ${ticket.otherTopicText}` : ''}
         </p>
       </div>
 

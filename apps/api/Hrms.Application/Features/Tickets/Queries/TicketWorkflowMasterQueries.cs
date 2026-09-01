@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Tickets.Dtos;
 using MediatR;
@@ -8,11 +9,15 @@ namespace Hrms.Application.Features.Tickets.Queries;
 public record GetTicketWorkflowDefinitionsQuery(Guid CompanyId, Guid DepartmentId)
     : IRequest<IReadOnlyList<TicketWorkflowDefinitionDto>>;
 
-public class GetTicketWorkflowDefinitionsHandler(IApplicationDbContext db)
+public class GetTicketWorkflowDefinitionsHandler(
+    IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permissionService)
     : IRequestHandler<GetTicketWorkflowDefinitionsQuery, IReadOnlyList<TicketWorkflowDefinitionDto>>
 {
     public async Task<IReadOnlyList<TicketWorkflowDefinitionDto>> Handle(GetTicketWorkflowDefinitionsQuery request, CancellationToken ct)
     {
+        await TicketManagementAccess.EnsureDepartmentAsync(
+            db, currentUser, permissionService, "ticket:manage-topics", request.CompanyId, request.DepartmentId, ct);
+
         return await db.TicketWorkflowDefinitions.AsNoTracking()
             .Where(item => item.CompanyId == request.CompanyId && item.DepartmentId == request.DepartmentId)
             .OrderBy(item => item.SortOrder)
@@ -39,11 +44,15 @@ public class GetTicketWorkflowDefinitionsHandler(IApplicationDbContext db)
 public record GetTicketSubjectGuidanceConfigsQuery(Guid CompanyId, Guid DepartmentId)
     : IRequest<IReadOnlyList<TicketSubjectGuidanceConfigDto>>;
 
-public class GetTicketSubjectGuidanceConfigsHandler(IApplicationDbContext db)
+public class GetTicketSubjectGuidanceConfigsHandler(
+    IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permissionService)
     : IRequestHandler<GetTicketSubjectGuidanceConfigsQuery, IReadOnlyList<TicketSubjectGuidanceConfigDto>>
 {
     public async Task<IReadOnlyList<TicketSubjectGuidanceConfigDto>> Handle(GetTicketSubjectGuidanceConfigsQuery request, CancellationToken ct)
     {
+        await TicketManagementAccess.EnsureDepartmentAsync(
+            db, currentUser, permissionService, "ticket:manage-topics", request.CompanyId, request.DepartmentId, ct);
+
         var items = await db.TicketSubjectGuidanceConfigs.AsNoTracking()
             .Where(item => item.CompanyId == request.CompanyId && item.DepartmentId == request.DepartmentId)
             .Include(item => item.WorkflowDefinition)
@@ -76,11 +85,14 @@ public record ResolveTicketSubjectGuidanceQuery(
     Guid TopicId,
     Guid SubjectId) : IRequest<TicketResolvedSubjectGuidanceDto?>;
 
-public class ResolveTicketSubjectGuidanceHandler(IApplicationDbContext db)
+public class ResolveTicketSubjectGuidanceHandler(
+    IApplicationDbContext db, ICurrentUser currentUser, IPermissionService permissionService)
     : IRequestHandler<ResolveTicketSubjectGuidanceQuery, TicketResolvedSubjectGuidanceDto?>
 {
     public async Task<TicketResolvedSubjectGuidanceDto?> Handle(ResolveTicketSubjectGuidanceQuery request, CancellationToken ct)
     {
+        await currentUser.ThrowIfNoPermissionAsync(permissionService, "ticket:create", ct);
+
         var guidance = await TicketWorkflowRuntime.ResolveGuidanceAsync(
             db,
             request.CompanyId,

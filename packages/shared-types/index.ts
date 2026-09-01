@@ -497,6 +497,8 @@ export type TicketInboxItemDto = {
   categoryName?: string
   topicId?: string
   topicName?: string
+  subjectId?: string
+  subjectName?: string
   externalTicketCategoryId?: string
   externalTicketCategoryName?: string
   externalTicketTopicId?: string
@@ -570,6 +572,9 @@ export type TicketAssignmentCandidateDto = {
   activeTicketCount: number
   isRecommended: boolean
   responsibilityLevel: TicketRoutingLevel
+  departmentName?: string
+  // false = คนนอกแผนกปลายทาง (จ่ายข้ามแผนกใน company เดียวกัน)
+  isInTargetDepartment: boolean
 }
 
 export type EmployeeResponsibilityDto = {
@@ -841,10 +846,12 @@ export type TicketBacklogResultDto = {
 }
 
 export type TicketCategoryReportItemDto = {
-  categoryId: string
-  categoryName: string
-  topicId: string
-  topicName: string
+  categoryId?: string
+  categoryName?: string
+  topicId?: string
+  topicName?: string
+  subjectId?: string
+  subjectName?: string
   totalCount: number
   closedCount: number
   backlogCount: number
@@ -859,6 +866,23 @@ export type TicketWorkloadItemDto = {
   waitingInfoCount: number
   waitingReviewCount: number
   closedCount: number
+  averageLeadTimeMinutes?: number
+  medianLeadTimeMinutes?: number
+  averageWorkTimeMinutes?: number
+  closedSampleCount: number
+}
+
+// ตัวเลขงานคงค้างของผู้เรียก — field ที่ไม่มีสิทธิ์เห็นเป็น null
+export type TicketPendingCountsDto = {
+  assignedActive?: number | null
+  assignedWaitingInfo?: number | null
+  claimable?: number | null
+  myOpen?: number | null
+  awaitingMyConfirmation?: number | null
+  inboxUntriaged?: number | null
+  cancellationPending?: number | null
+  memoAwaitingAck?: number | null
+  memoAwaitingApproval?: number | null
 }
 
 export type TicketQualityReportDto = {
@@ -933,6 +957,119 @@ export type TicketActionResultDto = {
   status: TicketStatus
   updatedAt: string
   progressEntryId?: string
+}
+
+// ─── Memo ────────────────────────────────────────────────────────────────────
+
+export type MemoStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected'
+
+export type MemoTypeDto = {
+  id: string
+  name: string
+  companyId: string
+  companyName: string
+  departmentId: string
+  departmentName: string
+  isActive: boolean
+}
+
+export type MemoCategoryDto = {
+  id: string
+  memoTypeId: string
+  name: string
+  isActive: boolean
+}
+
+export type MemoSubCategoryDto = {
+  id: string
+  memoCategoryId: string
+  name: string
+  isActive: boolean
+}
+
+export type MemoDto = {
+  id: string
+  memoNo: string
+  memoTypeId: string
+  memoTypeName: string
+  memoCategoryId: string
+  memoCategoryNameSnapshot: string
+  memoSubCategoryId: string
+  memoSubCategoryNameSnapshot: string
+  detail: string
+  requesterId: string
+  requesterName: string
+  companyId: string
+  companyName: string
+  departmentId: string
+  departmentName: string
+  status: MemoStatus
+  approvedAt?: string
+  approvedByName?: string
+  rejectedAt?: string
+  rejectReason?: string
+  acknowledgedAt?: string
+  acknowledgedByName?: string
+  deliveredAt?: string
+  deliveredByName?: string
+  receivedAt?: string
+  receivedByName?: string
+  createdAt: string
+}
+
+export type MemoListItemDto = {
+  id: string
+  memoNo: string
+  memoTypeName: string
+  memoCategoryNameSnapshot: string
+  memoSubCategoryNameSnapshot: string
+  status: MemoStatus
+  acknowledgedAt?: string
+  deliveredAt?: string
+  receivedAt?: string
+  createdAt: string
+}
+
+export type PendingMemoItemDto = {
+  id: string
+  memoNo: string
+  memoTypeName: string
+  memoCategoryNameSnapshot: string
+  memoSubCategoryNameSnapshot: string
+  detail: string
+  requesterId: string
+  requesterName: string
+  companyName: string
+  departmentName: string
+  status: MemoStatus
+  createdAt: string
+}
+
+export type MemoInboxItemDto = {
+  id: string
+  memoNo: string
+  memoTypeName: string
+  memoCategoryNameSnapshot: string
+  memoSubCategoryNameSnapshot: string
+  detail: string
+  requesterId: string
+  requesterName: string
+  requesterCompanyName: string
+  requesterDepartmentName: string
+  status: MemoStatus
+  approvedAt?: string
+  acknowledgedAt?: string
+  acknowledgedByName?: string
+  deliveredAt?: string
+  deliveredByName?: string
+  receivedAt?: string
+  createdAt: string
+}
+
+export type SystemRoleDto = {
+  id: string
+  code: string
+  nameTh: string
 }
 
 // ─── Address Reference ───────────────────────────────────────────────────────

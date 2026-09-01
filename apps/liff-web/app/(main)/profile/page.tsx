@@ -170,6 +170,12 @@ export default function ProfilePage() {
           {isLoggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
         </button>
 
+        <div>
+          <p className="text-xs text-muted-foreground text-center">
+            Version {process.env.NEXT_PUBLIC_APP_VERSION}
+          </p>
+        </div>
+
       </div>
     </>
   )

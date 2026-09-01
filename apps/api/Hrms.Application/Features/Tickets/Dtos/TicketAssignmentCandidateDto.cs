@@ -9,4 +9,6 @@ public record TicketAssignmentCandidateDto(
     string? RoleLabelName,
     int ActiveTicketCount,
     bool IsRecommended,
-    TicketRoutingLevel ResponsibilityLevel);
+    TicketRoutingLevel ResponsibilityLevel,
+    string? DepartmentName,
+    bool IsInTargetDepartment);

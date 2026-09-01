@@ -6,6 +6,10 @@ import { LeaveBalanceCards } from './widgets/LeaveBalanceCards'
 import { MonthStatsCard } from './widgets/MonthStatsCard'
 import { TeamSummaryCards } from './widgets/TeamSummaryCards'
 import { PendingApprovalList } from './widgets/PendingApprovalList'
+import { MemoPendingCard } from './MemoPendingCard'
+import { MyAssignedTicketsTable } from './MyAssignedTicketsTable'
+import { PendingWorkChips } from './PendingWorkChips'
+import { TicketOverviewSection } from './TicketOverviewSection'
 
 export function SupervisorDashboard() {
   const myQuery   = useMyDashboard()
@@ -17,24 +21,32 @@ export function SupervisorDashboard() {
 
   return (
     <div className="space-y-5">
+      {/* งานคงค้าง + memo รอรับทราบ */}
+      <PendingWorkChips />
+
       {/* ส่วนตัว */}
-      {myQuery.data && (
+      {/* {myQuery.data && (
         <>
           <AttendanceTodayCard data={myQuery.data.todayAttendance} />
           <LeaveBalanceCards balances={myQuery.data.leaveBalance} />
           <MonthStatsCard stats={myQuery.data.monthStats} />
         </>
-      )}
+      )} */}
 
       {/* ทีม */}
-      {teamQuery.data && (
+      {/* {teamQuery.data && (
         <>
           <div className="h-px bg-border" />
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">ภาพรวมทีม</p>
           <TeamSummaryCards data={teamQuery.data} />
           <PendingApprovalList items={teamQuery.data.pendingApprovals} />
         </>
-      )}
+      )} */}
+
+      {/* ภาพรวมการแจ้งเรื่อง — scope ระดับแผนกถูกกรองที่ backend */}
+      <TicketOverviewSection />
+      <MemoPendingCard variant="inbox" />
+      <MyAssignedTicketsTable />
     </div>
   )
 }

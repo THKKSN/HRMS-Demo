@@ -42,6 +42,7 @@ import {
   useTicketAssignmentCandidates,
   useTicketCategories,
   useTicketComments,
+  useTicketSubjects,
   useTicketTopics,
   useTriageTicket,
   useUpdateTicketWorkDetail,
@@ -66,6 +67,7 @@ const priorityLabel: Record<TicketPriority, string> = {
 }
 
 const MAX_ACTIVITY_FILES = 5
+const MAX_COMPLETION_FILES = 5
 const ACTIVITY_CARD_PREVIEW_COUNT = 3
 
 function PendingTicketFileItem({
@@ -109,6 +111,46 @@ function PendingTicketFileItem({
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-destructive disabled:opacity-50"
       >
         <Trash2 className="h-4 w-4" />
+      </button>
+    </div>
+  )
+}
+
+function UploadedEvidenceItem({
+  attachment,
+  disabled,
+  deleting,
+  onDelete,
+}: {
+  attachment: TicketAttachmentDto
+  disabled: boolean
+  deleting: boolean
+  onDelete: () => void
+}) {
+  const url = useProtectedFileUrl(attachment.url)
+  const isImage = isImageAttachment(attachment)
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-white p-2.5 shadow-sm dark:bg-slate-900">
+      {isImage && url ? (
+        <img src={url} alt={attachment.fileName} className="h-14 w-14 shrink-0 rounded-lg object-cover" />
+      ) : (
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+          <FileText className="h-6 w-6 text-primary" />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold">{attachment.fileName}</p>
+        <p className="mt-0.5 text-xs text-emerald-600 dark:text-emerald-400">อัปโหลดแล้ว</p>
+      </div>
+      <button
+        type="button"
+        title="ลบภาพที่อัปโหลดแล้ว"
+        disabled={disabled}
+        onClick={onDelete}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-destructive disabled:opacity-50"
+      >
+        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
       </button>
     </div>
   )
@@ -768,16 +810,36 @@ function CompletionSheet({ ticket, onClose }: { ticket: TicketDetailDto; onClose
   const saveWork = useUpdateTicketWorkDetail(ticket.id)
   const resolveWork = useResolveTicket(ticket.id)
   const addAttachment = useAddTicketAttachment(ticket.id)
+  const deleteAttachment = useDeleteTicketAttachment(ticket.id)
   const [problemType, setProblemType] = useState<TicketProblemType | ''>(ticket.problemType ?? '')
   const [resolution, setResolution] = useState(ticket.resolutionNote ?? '')
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
-  const busy = saveWork.isPending || resolveWork.isPending || uploading
+  const [deletingId, setDeletingId] = useState<string | undefined>()
+  const uploadedEvidence = ticket.attachments.filter(item => item.stage === 'Resolved')
+  const totalImages = uploadedEvidence.length + files.length
+  const busy = saveWork.isPending || resolveWork.isPending || uploading || !!deletingId
+
+  async function removeUploaded(attachment: TicketAttachmentDto) {
+    if (!window.confirm('ลบภาพหลักฐานนี้หรือไม่')) return
+    setDeletingId(attachment.id)
+    try {
+      await deleteAttachment.mutateAsync(attachment.id)
+      toast.success('ลบภาพหลักฐานแล้ว')
+    } catch (error) {
+      toast.error(apiMessage(error))
+    } finally {
+      setDeletingId(undefined)
+    }
+  }
 
   async function submit() {
     if (!problemType) return toast.error('กรุณาเลือกประเภทปัญหา')
     if (!resolution.trim()) return toast.error('กรุณาระบุรายละเอียดการดำเนินงานและผลการแก้ไข')
-    if (files.length === 0) return toast.error('กรุณาแนบภาพประกอบการจบงานอย่างน้อย 1 ภาพ')
+    if (totalImages === 0) return toast.error('กรุณาแนบภาพประกอบการจบงานอย่างน้อย 1 ภาพ')
+    if (totalImages > MAX_COMPLETION_FILES) {
+      return toast.error(`ภาพประกอบเกิน ${MAX_COMPLETION_FILES} ภาพ กรุณาลบภาพที่อัปโหลดแล้วออกก่อนส่งตรวจ`)
+    }
 
     try {
       const saved = await saveWork.mutateAsync({
@@ -795,6 +857,8 @@ function CompletionSheet({ ticket, onClose }: { ticket: TicketDetailDto; onClose
           sizeBytes: uploaded.sizeBytes,
           stage: 'Resolved',
         })
+        // ตัดไฟล์ที่ขึ้น server สำเร็จแล้วออกจาก state กันอัปโหลดซ้ำเมื่อกดส่งใหม่หลังเกิด error
+        setFiles(current => current.filter(item => item !== file))
       }
       await resolveWork.mutateAsync(saved.updatedAt)
       toast.success('ส่งงานเพื่อตรวจสอบแล้ว')
@@ -828,27 +892,43 @@ function CompletionSheet({ ticket, onClose }: { ticket: TicketDetailDto; onClose
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-sm font-medium">ภาพประกอบการจบงาน <span className="text-destructive">*</span></span>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              files.length > 0 ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+              totalImages > MAX_COMPLETION_FILES
+                ? 'bg-destructive/10 text-destructive'
+                : totalImages > 0 ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
             }`}>
-              {files.length}/5 ภาพ
+              {totalImages}/{MAX_COMPLETION_FILES} ภาพ
             </span>
           </div>
+          {uploadedEvidence.length > 0 && (
+            <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-2">
+              <p className="px-1 pt-1 text-xs text-muted-foreground">ภาพที่อัปโหลดไว้แล้ว — ลบได้ก่อนส่งตรวจ</p>
+              {uploadedEvidence.map(item => (
+                <UploadedEvidenceItem
+                  key={item.id}
+                  attachment={item}
+                  disabled={busy}
+                  deleting={deletingId === item.id}
+                  onDelete={() => removeUploaded(item)}
+                />
+              ))}
+            </div>
+          )}
           <label className={`flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-4 text-center active:bg-primary/10 ${
-            files.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-800'
+            totalImages > 0 ? 'border-primary bg-primary/5' : 'border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-800'
           }`}>
             <ImagePlus className="h-5 w-5 text-primary" />
-            <span className="mt-2 text-sm font-medium">{files.length > 0 ? 'เพิ่มภาพหลักฐาน' : 'เลือกภาพหลักฐาน'}</span>
-            <span className="mt-1 text-xs text-muted-foreground">{files.length > 0 ? `เลือกแล้ว ${files.length} ภาพ` : 'JPG, PNG หรือ WEBP'}</span>
+            <span className="mt-2 text-sm font-medium">{totalImages > 0 ? 'เพิ่มภาพหลักฐาน' : 'เลือกภาพหลักฐาน'}</span>
+            <span className="mt-1 text-xs text-muted-foreground">{totalImages > 0 ? `มีแล้ว ${totalImages} ภาพ` : 'JPG, PNG หรือ WEBP'}</span>
             <input
               type="file"
               accept="image/*"
               multiple
-              disabled={busy || files.length >= 5}
+              disabled={busy || totalImages >= MAX_COMPLETION_FILES}
               className="hidden"
               onChange={event => {
                 const selectedFiles = Array.from(event.currentTarget.files ?? [])
                 event.currentTarget.value = ''
-                setFiles(current => [...current, ...selectedFiles].slice(0, 5))
+                setFiles(current => [...current, ...selectedFiles].slice(0, Math.max(0, MAX_COMPLETION_FILES - uploadedEvidence.length)))
               }}
             />
           </label>
@@ -877,14 +957,17 @@ function TriageSheet({ ticket, onClose }: { ticket: TicketDetailDto; onClose: ()
   const triage = useTriageTicket(ticket.id)
   const [categoryId, setCategoryId] = useState(ticket.categoryId)
   const [topicId, setTopicId] = useState(ticket.topicId)
+  const [subjectId, setSubjectId] = useState(ticket.subjectId ?? '')
   const [otherTopicText, setOtherTopicText] = useState(ticket.otherTopicText ?? '')
   const [priority, setPriority] = useState<TicketPriority>(ticket.priority)
   const [locationText, setLocationText] = useState(ticket.locationText ?? '')
   const [vehicleText, setVehicleText] = useState(ticket.vehicleText ?? '')
   const { data: categories = [] } = useTicketCategories({ companyId: ticket.targetCompanyId, departmentId: ticket.targetDepartmentId })
   const { data: topics = [] } = useTicketTopics({ companyId: ticket.targetCompanyId, departmentId: ticket.targetDepartmentId, categoryId })
+  const { data: subjects = [] } = useTicketSubjects({ companyId: ticket.targetCompanyId, departmentId: ticket.targetDepartmentId, categoryId, topicId })
   const selectedTopic = topics.find(topic => topic.id === topicId)
-  const requiresOther = selectedTopic?.name.trim() === 'อื่น ๆ'
+  const selectedSubject = subjects.find(subject => subject.id === subjectId)
+  const requiresOther = selectedTopic?.name.trim() === 'อื่น ๆ' || selectedSubject?.name.trim() === 'อื่น ๆ'
 
   async function submit() {
     if (!categoryId || !topicId) return toast.error('กรุณาเลือกหมวดและหมวดย่อย')
@@ -893,6 +976,7 @@ function TriageSheet({ ticket, onClose }: { ticket: TicketDetailDto; onClose: ()
       await triage.mutateAsync({
         categoryId,
         topicId,
+        subjectId: subjectId || undefined,
         otherTopicText: requiresOther ? otherTopicText.trim() : undefined,
         priority,
         locationText: locationText.trim() || undefined,
@@ -911,16 +995,23 @@ function TriageSheet({ ticket, onClose }: { ticket: TicketDetailDto; onClose: ()
       <div className="space-y-4">
         <label className="block space-y-1.5 text-sm">
           <span className="font-medium">หมวด</span>
-          <select value={categoryId} onChange={event => { setCategoryId(event.target.value); setTopicId(''); setOtherTopicText('') }} className="h-10 w-full rounded-md border border-border bg-background px-3 outline-none focus:border-primary">
+          <select value={categoryId} onChange={event => { setCategoryId(event.target.value); setTopicId(''); setSubjectId(''); setOtherTopicText('') }} className="h-10 w-full rounded-md border border-border bg-background px-3 outline-none focus:border-primary">
             <option value="">เลือกหมวด</option>
             {categories.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </label>
         <label className="block space-y-1.5 text-sm">
-          <span className="font-medium">หัวข้อ</span>
-          <select value={topicId} onChange={event => { setTopicId(event.target.value); setOtherTopicText('') }} className="h-10 w-full rounded-md border border-border bg-background px-3 outline-none focus:border-primary">
-            <option value="">เลือกหัวข้อ</option>
+          <span className="font-medium">หมวดย่อย</span>
+          <select value={topicId} onChange={event => { setTopicId(event.target.value); setSubjectId(''); setOtherTopicText('') }} className="h-10 w-full rounded-md border border-border bg-background px-3 outline-none focus:border-primary">
+            <option value="">เลือกหมวดย่อย</option>
             {topics.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </label>
+        <label className="block space-y-1.5 text-sm">
+          <span className="font-medium">หัวข้อ</span>
+          <select value={subjectId} disabled={!topicId} onChange={event => setSubjectId(event.target.value)} className="h-10 w-full rounded-md border border-border bg-background px-3 outline-none focus:border-primary disabled:opacity-50">
+            <option value="">— ไม่ระบุ —</option>
+            {subjects.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </label>
         {requiresOther && (
@@ -939,10 +1030,13 @@ function TriageSheet({ ticket, onClose }: { ticket: TicketDetailDto; onClose: ()
           <span className="font-medium">รถ / ทะเบียน</span>
           <input value={vehicleText} onChange={event => setVehicleText(event.target.value)} maxLength={100} className="h-10 w-full rounded-md border border-border bg-background px-3 outline-none focus:border-primary" />
         </label>
-        <label className="block space-y-1.5 text-sm">
-          <span className="font-medium">สถานที่</span>
-          <input value={locationText} onChange={event => setLocationText(event.target.value)} maxLength={200} className="h-10 w-full rounded-md border border-border bg-background px-3 outline-none focus:border-primary" />
-        </label>
+        {/* งานภายในไม่ใช้สถานที่ — เปิดเฉพาะ ticket จาก external portal (แจ้งซ่อม) */}
+        {ticket.requester.type === 'External' && (
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium">สถานที่</span>
+            <input value={locationText} onChange={event => setLocationText(event.target.value)} maxLength={200} className="h-10 w-full rounded-md border border-border bg-background px-3 outline-none focus:border-primary" />
+          </label>
+        )}
         <button type="button" disabled={triage.isPending} onClick={submit} className="flex h-11 w-full items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground disabled:opacity-50">
           {triage.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'บันทึก'}
         </button>
@@ -988,7 +1082,9 @@ function AssignSheet({
             <option value="">เลือกพนักงาน</option>
             {candidates.map(candidate => (
               <option key={candidate.employeeId} value={candidate.employeeId}>
-                {candidate.isRecommended ? 'แนะนำ · ' : ''}{candidate.employeeName} · งานค้าง {candidate.activeTicketCount}
+                {candidate.isRecommended ? 'แนะนำ · ' : ''}{candidate.employeeName}
+                {!candidate.isInTargetDepartment && candidate.departmentName ? ` · ${candidate.departmentName}` : ''}
+                {' · งานค้าง '}{candidate.activeTicketCount}
               </option>
             ))}
           </select>
@@ -1328,8 +1424,11 @@ export default function TicketWorkDetailPage() {
       <div className="border-b border-border bg-background px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-base font-semibold">{ticket.title}</h1>
-            <p className="mt-1 text-xs text-muted-foreground">{ticket.categoryName} / {ticket.topicName}</p>
+            {/* title = ชื่อหัวข้อ (subject) — เคส "อื่น ๆ" แสดงข้อความที่ผู้แจ้งระบุแทน */}
+            <h1 className="text-base font-semibold">{ticket.otherTopicText ?? ticket.title}</h1>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {[ticket.categoryName, ticket.topicName].filter(Boolean).join(' / ')}
+            </p>
           </div>
           <span
             className={`shrink-0 rounded px-2 py-1 text-xs font-semibold ${TICKET_STATUS_CLASS[ticket.status]}`}

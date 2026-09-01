@@ -92,6 +92,10 @@ internal static class TicketCommandSupport
     {
         if (string.IsNullOrWhiteSpace(lineUserId)) return;
         var recipientKey = recipientEmployeeId?.ToString("N") ?? lineUserId;
+        var deduplicationKey = $"{eventType}:{ticket.Id:N}:{occurrenceId:N}:{recipientKey}";
+        // ผู้รับซ้ำใน occurrence เดียวกัน (เช่น ผู้แจ้งเป็นหัวหน้าแผนกปลายทางเอง หรือ assignee เป็นผู้แจ้งเอง)
+        // — DeduplicationKey เป็น unique index ถ้าปล่อย insert ซ้ำจะพัง SaveChanges ทั้งก้อน
+        if (db.NotificationOutboxes.Local.Any(n => n.DeduplicationKey == deduplicationKey)) return;
         db.NotificationOutboxes.Add(new NotificationOutbox
         {
             Channel = NotificationChannel.Line,
@@ -102,7 +106,7 @@ internal static class TicketCommandSupport
             EntityId = ticket.Id,
             EntityReference = ticket.TicketNo,
             PayloadJson = JsonSerializer.Serialize(new TicketNotificationPayload(message)),
-            DeduplicationKey = $"{eventType}:{ticket.Id:N}:{occurrenceId:N}:{recipientKey}",
+            DeduplicationKey = deduplicationKey,
             Status = NotificationDeliveryStatus.Pending
         });
     }

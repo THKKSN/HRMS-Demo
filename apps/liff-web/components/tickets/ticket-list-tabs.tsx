@@ -27,7 +27,6 @@ export function TicketListTabs() {
       >
         {visibleTabs.map(({ href, label, icon: Icon }) => {
           const active = pathname.startsWith(href)
-            || (href === '/tickets/inbox' && pathname.startsWith('/ticket/inbox'))
           return (
             <Link
               key={href}

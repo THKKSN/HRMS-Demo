@@ -93,6 +93,7 @@ const PROBLEM_TYPE_LABEL: Record<TicketProblemType, string> = {
 }
 
 const MAX_ACTIVITY_FILES = 5
+const MAX_COMPLETION_FILES = 5
 const ACTIVITY_CARD_PREVIEW_COUNT = 3
 
 function PendingTicketFileItem({
@@ -174,11 +175,11 @@ function eventStation(action: string) {
   return { Icon: CircleDot, station: 'border-border bg-muted text-muted-foreground' }
 }
 
-function InfoRow({ label, value }: { label: string; value?: string | null }) {
+function InfoRow({ label, value, children }: { label: string; value?: string | null; children?: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[130px_1fr] gap-3 py-2 text-sm">
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 whitespace-pre-wrap text-foreground">{value || '-'}</dd>
+      <dd className="min-w-0 whitespace-pre-wrap text-foreground">{children ?? (value || '-')}</dd>
     </div>
   )
 }
@@ -1085,20 +1086,80 @@ function WorkModal({ ticket, onClose }: { ticket: TicketDetailDto; onClose: () =
   )
 }
 
+function UploadedEvidenceItem({
+  attachment,
+  disabled,
+  deleting,
+  onDelete,
+}: {
+  attachment: TicketAttachmentDto
+  disabled: boolean
+  deleting: boolean
+  onDelete: () => void
+}) {
+  const url = useProtectedFileUrl(attachment.url)
+  const isImage = isImageAttachment(attachment)
+
+  return (
+    <div className="flex items-center gap-3 rounded-md border border-border bg-white p-2.5 shadow-sm">
+      {isImage && url ? (
+        <img src={url} alt={attachment.fileName} className="h-14 w-14 shrink-0 rounded-md object-cover" />
+      ) : (
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-primary/10">
+          <FileText className="h-6 w-6 text-primary" />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold">{attachment.fileName}</p>
+        <p className="mt-0.5 text-xs text-emerald-600">อัปโหลดแล้ว</p>
+      </div>
+      <button
+        type="button"
+        title="ลบภาพที่อัปโหลดแล้ว"
+        disabled={disabled}
+        onClick={onDelete}
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-destructive disabled:opacity-50"
+      >
+        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+      </button>
+    </div>
+  )
+}
+
 function CompletionModal({ ticket, onClose }: { ticket: TicketDetailDto; onClose: () => void }) {
   const saveWork = useUpdateTicketWorkDetail(ticket.id)
   const resolveWork = useResolveTicket(ticket.id)
   const addAttachment = useAddTicketAttachment(ticket.id)
+  const deleteAttachment = useDeleteTicketAttachment(ticket.id)
   const [problemType, setProblemType] = useState<TicketProblemType | ''>(ticket.problemType ?? '')
   const [resolution, setResolution] = useState(ticket.resolutionNote ?? '')
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
-  const busy = saveWork.isPending || resolveWork.isPending || uploading
+  const [deletingId, setDeletingId] = useState<string | undefined>()
+  const uploadedEvidence = ticket.attachments.filter(item => item.stage === 'Resolved')
+  const totalImages = uploadedEvidence.length + files.length
+  const busy = saveWork.isPending || resolveWork.isPending || uploading || !!deletingId
+
+  async function removeUploaded(attachment: TicketAttachmentDto) {
+    if (!window.confirm('ลบภาพหลักฐานนี้หรือไม่')) return
+    setDeletingId(attachment.id)
+    try {
+      await deleteAttachment.mutateAsync(attachment.id)
+      toast.success('ลบภาพหลักฐานแล้ว')
+    } catch (error) {
+      toast.error(apiMessage(error))
+    } finally {
+      setDeletingId(undefined)
+    }
+  }
 
   async function submit() {
     if (!problemType) return toast.error('กรุณาเลือกประเภทปัญหา')
     if (!resolution.trim()) return toast.error('กรุณาระบุรายละเอียดการดำเนินงานและผลการแก้ไข')
-    if (files.length === 0) return toast.error('กรุณาแนบภาพประกอบการจบงานอย่างน้อย 1 ภาพ')
+    if (totalImages === 0) return toast.error('กรุณาแนบภาพประกอบการจบงานอย่างน้อย 1 ภาพ')
+    if (totalImages > MAX_COMPLETION_FILES) {
+      return toast.error(`ภาพประกอบเกิน ${MAX_COMPLETION_FILES} ภาพ กรุณาลบภาพที่อัปโหลดแล้วออกก่อนส่งตรวจ`)
+    }
 
     try {
       const saved = await saveWork.mutateAsync({
@@ -1116,6 +1177,8 @@ function CompletionModal({ ticket, onClose }: { ticket: TicketDetailDto; onClose
           sizeBytes: uploaded.sizeBytes,
           stage: 'Resolved',
         })
+        // ตัดไฟล์ที่ขึ้น server สำเร็จแล้วออกจาก state กันอัปโหลดซ้ำเมื่อกดส่งใหม่หลังเกิด error
+        setFiles(current => current.filter(item => item !== file))
       }
       await resolveWork.mutateAsync(saved.updatedAt)
       toast.success('ส่งงานเพื่อตรวจสอบแล้ว')
@@ -1151,27 +1214,43 @@ function CompletionModal({ ticket, onClose }: { ticket: TicketDetailDto; onClose
           <div className="flex items-baseline justify-between gap-3">
             <Label>ภาพประกอบการจบงาน <span className="text-destructive">*</span></Label>
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-              files.length > 0 ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500'
+              totalImages > MAX_COMPLETION_FILES
+                ? 'bg-destructive/10 text-destructive'
+                : totalImages > 0 ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500'
             }`}>
-              {files.length}/5 ภาพ
+              {totalImages}/{MAX_COMPLETION_FILES} ภาพ
             </span>
           </div>
+          {uploadedEvidence.length > 0 && (
+            <div className="space-y-2 rounded-md border border-border bg-muted/30 p-2">
+              <p className="px-1 pt-1 text-xs text-muted-foreground">ภาพที่อัปโหลดไว้แล้ว — ลบได้ก่อนส่งตรวจ</p>
+              {uploadedEvidence.map(item => (
+                <UploadedEvidenceItem
+                  key={item.id}
+                  attachment={item}
+                  disabled={busy}
+                  deleting={deletingId === item.id}
+                  onDelete={() => removeUploaded(item)}
+                />
+              ))}
+            </div>
+          )}
           <label className={`flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-4 text-center hover:border-primary hover:bg-primary/5 ${
-            files.length > 0 ? 'border-primary bg-primary/5' : 'border-slate-300 bg-slate-50'
+            totalImages > 0 ? 'border-primary bg-primary/5' : 'border-slate-300 bg-slate-50'
           }`}>
             <ImagePlus className="h-5 w-5 text-primary" />
-            <span className="mt-2 text-sm font-medium">{files.length > 0 ? 'เพิ่มภาพหลักฐาน' : 'เลือกภาพหลักฐาน'}</span>
-            <span className="mt-1 text-xs text-muted-foreground">{files.length > 0 ? `เลือกแล้ว ${files.length} ภาพ` : 'JPG, PNG หรือ WEBP'}</span>
+            <span className="mt-2 text-sm font-medium">{totalImages > 0 ? 'เพิ่มภาพหลักฐาน' : 'เลือกภาพหลักฐาน'}</span>
+            <span className="mt-1 text-xs text-muted-foreground">{totalImages > 0 ? `มีแล้ว ${totalImages} ภาพ` : 'JPG, PNG หรือ WEBP'}</span>
             <input
               type="file"
               accept="image/*"
               multiple
-              disabled={busy || files.length >= 5}
+              disabled={busy || totalImages >= MAX_COMPLETION_FILES}
               className="hidden"
               onChange={event => {
                 const selectedFiles = Array.from(event.currentTarget.files ?? [])
                 event.currentTarget.value = ''
-                setFiles(current => [...current, ...selectedFiles].slice(0, 5))
+                setFiles(current => [...current, ...selectedFiles].slice(0, Math.max(0, MAX_COMPLETION_FILES - uploadedEvidence.length)))
               }}
             />
           </label>
@@ -1429,7 +1508,9 @@ function AssignModal({
             <option value="">— เลือกพนักงาน —</option>
             {candidates.map(candidate => (
               <option key={candidate.employeeId} value={candidate.employeeId}>
-                {candidate.isRecommended ? 'แนะนำ · ' : ''}{candidate.employeeName} · {candidate.employeeCode} · งานค้าง {candidate.activeTicketCount}
+                {candidate.isRecommended ? 'แนะนำ · ' : ''}{candidate.employeeName}
+                {!candidate.isInTargetDepartment && candidate.departmentName ? ` · ${candidate.departmentName}` : ''}
+                {' · '}{candidate.employeeCode} · งานค้าง {candidate.activeTicketCount}
               </option>
             ))}
           </Select>
@@ -1466,7 +1547,8 @@ function TriageModal({ ticket, onClose }: { ticket: TicketDetailDto; onClose: ()
   const { data: topics = [] } = useManagedTicketTopics(ticket.targetCompanyId, ticket.targetDepartmentId ?? '', categoryId ?? '')
   const { data: subjects = [] } = useManagedTicketSubjects(ticket.targetCompanyId, ticket.targetDepartmentId ?? '', categoryId ?? '', topicId ?? '')
   const selectedTopic = topics.find(topic => topic.id === topicId)
-  const requiresOther = selectedTopic?.name.trim() === 'อื่น ๆ'
+  const selectedSubject = subjects.find(subject => subject.id === subjectId)
+  const requiresOther = selectedTopic?.name.trim() === 'อื่น ๆ' || selectedSubject?.name.trim() === 'อื่น ๆ'
 
   async function submit() {
     if (!categoryId || !topicId) return toast.error('กรุณาเลือกหมวดและหมวดย่อย')
@@ -1507,12 +1589,6 @@ function TriageModal({ ticket, onClose }: { ticket: TicketDetailDto; onClose: ()
             {topics.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </Select>
         </div>
-        {requiresOther && (
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label>ระบุหัวข้ออื่น ๆ *</Label>
-            <Input value={otherTopicText} onChange={event => setOtherTopicText(event.target.value)} maxLength={200} />
-          </div>
-        )}
         <div className="space-y-1.5 sm:col-span-2">
           <Label>หัวข้อ</Label>
           <Select value={subjectId} disabled={!topicId} onChange={event => setSubjectId(event.target.value)}>
@@ -1520,6 +1596,12 @@ function TriageModal({ ticket, onClose }: { ticket: TicketDetailDto; onClose: ()
             {subjects.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
           </Select>
         </div>
+        {requiresOther && (
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>ระบุหัวข้ออื่น ๆ *</Label>
+            <Input value={otherTopicText} onChange={event => setOtherTopicText(event.target.value)} maxLength={200} />
+          </div>
+        )}
         <div className="space-y-1.5 sm:col-span-2">
           <Label>Detail</Label>
           <textarea
@@ -1530,10 +1612,13 @@ function TriageModal({ ticket, onClose }: { ticket: TicketDetailDto; onClose: ()
             className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label>สถานที่</Label>
-          <Input value={locationText} onChange={event => setLocationText(event.target.value)} maxLength={200} />
-        </div>
+        {/* งานภายในไม่ใช้สถานที่ — เปิดเฉพาะ ticket จาก external portal (แจ้งซ่อม) */}
+        {ticket.requester.type === 'External' && (
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>สถานที่</Label>
+            <Input value={locationText} onChange={event => setLocationText(event.target.value)} maxLength={200} />
+          </div>
+        )}
       </div>
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
@@ -1740,7 +1825,9 @@ function CancellationReviewModal({
     >
       <div className="space-y-4">
         <div className="rounded-md bg-muted p-3 text-sm">
-          <p className="font-semibold">{ticket.ticketNo} · {ticket.title}</p>
+          <p className="font-semibold">
+            {ticket.ticketNo} · {ticket.otherTopicText ?? ticket.title}
+          </p>
           <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
             {ticket.latestCancellationRequest?.reason ?? '-'}
           </p>
@@ -1859,7 +1946,10 @@ export default function TicketDetailPage() {
               {PRIORITY_LABEL[ticket.priority]}
             </Badge>
           </div>
-          <p className="mt-2 text-base font-medium">{ticket.title}</p>
+          {/* title = ชื่อหัวข้อ (subject) — เคส "อื่น ๆ" แสดงข้อความที่ผู้แจ้งระบุแทน */}
+          <p className="mt-2 text-base font-medium">
+            {ticket.otherTopicText ?? ticket.title}
+          </p>
         </div>
         <div className="flex flex-col items-end gap-2">
           <Button variant="outline" onClick={() => setModal('events')}>
@@ -2020,41 +2110,69 @@ export default function TicketDetailPage() {
           <section>
             <h2 className="border-b border-border pb-2 text-sm font-semibold">รายละเอียดปัญหา</h2>
             <dl className="divide-y divide-border/60">
-              <InfoRow label="รายละเอียด" value={ticket.detail} />
               <InfoRow
-                label="หมวด"
+                label="หมวด/ย่อย/หัวข้อ"
                 value={ticket.requestType === 'External'
                   ? [ticket.externalTicketCategoryName, ticket.externalTicketTopicName, ticket.externalTicketSubjectName]
                       .filter(Boolean).join(' / ') || '-'
-                  : `${ticket.categoryName ?? '-'} / ${ticket.topicName ?? '-'}${ticket.otherTopicText ? `: ${ticket.otherTopicText}` : ''}`}
+                  : [ticket.categoryName ?? '-', ticket.topicName ?? '-', ticket.otherTopicText]
+                      .filter(Boolean).join(' / ')}
               />
+              <InfoRow label="รายละเอียด" value={ticket.detail} />
             </dl>
           </section>
 
-          <section>
-            <h2 className="border-b border-border pb-2 text-sm font-semibold">ผู้แจ้งและปลายทาง</h2>
+          <div className="grid gap-6 sm:grid-cols-2">
+            <section>
+              <h2 className="border-b border-border pb-2 text-sm font-semibold">ผู้แจ้ง</h2>
+              <dl className="divide-y divide-border/60">
+                <InfoRow label="ผู้แจ้ง">
+                  <div className="flex items-center gap-2">
+                    <span>
+                      {ticket.requester.nickname
+                        ? `${ticket.requesterName} (${ticket.requester.nickname})`
+                        : ticket.requesterName}
+                    </span>
+                    <Badge variant={ticket.requester.type === 'External' ? 'destructive' : 'secondary'}>
+                      {ticket.requester.type === 'External' ? 'ภายนอก' : 'ภายใน'}
+                    </Badge>
+                  </div>
+                </InfoRow>
+                <InfoRow label="บริษัทผู้แจ้ง" value={ticket.sourceCompanyName} />
+                <InfoRow label="แผนกผู้แจ้ง" value={ticket.sourceDepartmentName} />
+                <InfoRow label="ติดต่อ" value={[ticket.contactPhone, ticket.contactNote].filter(Boolean).join(' · ')} />
+                <InfoRow label="เปิดเมื่อ" value={thaiDateTime(ticket.createdAt)} />
+              </dl>
+            </section>
+
+            <section>
+              <h2 className="border-b border-border pb-2 text-sm font-semibold">ปลายทาง</h2>
+              <dl className="divide-y divide-border/60">
+                <InfoRow label="บริษัทผู้รับ" value={ticket.targetCompanyName} />
+                <InfoRow label="แผนกผู้รับ" value={ticket.targetDepartmentName ?? (ticket.requestType === 'External' ? 'รอ Supervisor จ่ายงาน (ไม่ผูกแผนก)' : '-')} />
+              </dl>
+            </section>
+            <section>
+
+            </section>
+            <section>
+            <h2 className="border-b border-border pb-2 text-sm font-semibold">การรับและมอบหมาย</h2>
             <dl className="divide-y divide-border/60">
-              <div className="flex items-start justify-between gap-4 border-b border-border/60 py-3">
-                <dt className="text-sm font-semibold text-slate-700">ผู้แจ้ง</dt>
-                <dd className="flex items-center gap-2 text-right">
-                  <span>
-                    {ticket.requester.nickname
-                      ? `${ticket.requesterName} (${ticket.requester.nickname})`
-                      : ticket.requesterName}
-                  </span>
-                  <Badge variant={ticket.requester.type === 'External' ? 'destructive' : 'secondary'}>
-                    {ticket.requester.type === 'External' ? 'ภายนอก' : 'ภายใน'}
-                  </Badge>
-                </dd>
-              </div>
-              <InfoRow label="บริษัทผู้แจ้ง" value={ticket.sourceCompanyName} />
-              <InfoRow label="แผนกผู้แจ้ง" value={ticket.sourceDepartmentName} />
-              <InfoRow label="ติดต่อ" value={[ticket.contactPhone, ticket.contactNote].filter(Boolean).join(' · ')} />
-              <InfoRow label="บริษัทผู้รับ" value={ticket.targetCompanyName} />
-              <InfoRow label="แผนกผู้รับ" value={ticket.targetDepartmentName ?? (ticket.requestType === 'External' ? 'รอ Supervisor จ่ายงาน (ไม่ผูกแผนก)' : '-')} />
-              <InfoRow label="เปิดเมื่อ" value={thaiDateTime(ticket.createdAt)} />
+              <InfoRow label="ผู้รับเรื่อง" value={ticket.supervisorAcceptedByEmployeeName} />
+              <InfoRow label="เวลารับเรื่อง" value={thaiDateTime(ticket.supervisorAcceptedAt)} />
+              <InfoRow label="ผู้รับผิดชอบ" value={ticket.currentAssignment?.assignedToEmployeeName} />
+              <InfoRow
+                label="มอบหมายโดย"
+                value={ticket.currentAssignment
+                  ? ticket.currentAssignment.assignedByEmployeeName
+                    ?? (ticket.currentAssignment.assignmentSource === 'SelfClaim' ? 'ผู้รับผิดชอบรับงานเอง' : 'ระบบอัตโนมัติ')
+                  : undefined}
+              />
+              <InfoRow label="เวลามอบหมาย" value={thaiDateTime(ticket.currentAssignment?.assignedAt)} />
+              <InfoRow label="คำสั่งงาน" value={ticket.currentAssignment?.note} />
             </dl>
           </section>
+          </div>
 
           <section>
             <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
@@ -2063,6 +2181,24 @@ export default function TicketDetailPage() {
             </div>
             <AttachmentList attachments={createdAttachments} />
           </section>
+
+          {resolvedAttachments.length > 0 && (
+            <section>
+              <div className="flex items-center justify-between gap-3 border-b border-border pb-2">
+                <h2 className="text-sm font-semibold">หลักฐานปิดเรื่อง</h2>
+                <span className="text-xs text-muted-foreground">{resolvedAttachments.length} ไฟล์</span>
+              </div>
+              {(ticket.resolvedByEmployeeName || ticket.resolvedAt) && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {[
+                    ticket.resolvedByEmployeeName ? `ส่งงานโดย ${ticket.resolvedByEmployeeName}` : null,
+                    ticket.resolvedAt ? thaiDateTime(ticket.resolvedAt) : null,
+                  ].filter(Boolean).join(' · ')}
+                </p>
+              )}
+              <AttachmentList attachments={resolvedAttachments} />
+            </section>
+          )}
 
           {/* {(ticket.problemType
             || ticket.initialInspectionNote
@@ -2105,7 +2241,7 @@ export default function TicketDetailPage() {
 
           <ConversationPanel ticket={ticket} />
 
-          <section>
+          {/* <section>
             <h2 className="border-b border-border pb-2 text-sm font-semibold">การรับและมอบหมาย</h2>
             <dl className="divide-y divide-border/60">
               <InfoRow label="ผู้รับเรื่อง" value={ticket.supervisorAcceptedByEmployeeName} />
@@ -2121,7 +2257,7 @@ export default function TicketDetailPage() {
               <InfoRow label="เวลามอบหมาย" value={thaiDateTime(ticket.currentAssignment?.assignedAt)} />
               <InfoRow label="คำสั่งงาน" value={ticket.currentAssignment?.note} />
             </dl>
-          </section>
+          </section> */}
 
           {canViewAssignmentHistory && (
             <section>

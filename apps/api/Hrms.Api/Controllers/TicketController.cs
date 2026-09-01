@@ -123,6 +123,10 @@ public class TicketController(IMediator mediator, IFileStorageService storage) :
         CancellationToken ct = default)
         => Ok(await mediator.Send(new GetClaimableTicketsQuery(search, page, pageSize), ct));
 
+    [HttpGet("pending-counts")]
+    public async Task<IActionResult> GetPendingCounts(CancellationToken ct)
+        => Ok(await mediator.Send(new GetTicketPendingCountsQuery(), ct));
+
     [HttpGet("cancellation-pending")]
     public async Task<IActionResult> GetPendingCancellations(
         [FromQuery] string? search,

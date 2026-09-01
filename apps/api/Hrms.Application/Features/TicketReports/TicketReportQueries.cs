@@ -21,7 +21,8 @@ public class GetTicketReportScopeHandler(
         var departmentsQuery = db.Departments.AsNoTracking()
             .Where(department => department.IsActive && department.Company.IsActive);
 
-        if (!currentUser.HasRole(RoleType.Admin))
+        // Executive เห็นทุกบริษัทเหมือน Admin (กลุ่มบริหารชุดเดียวกัน)
+        if (!currentUser.HasRole(RoleType.Admin) && !currentUser.HasRole(RoleType.Executive))
         {
             if (currentUser.HasRole(RoleType.Supervisor) && currentUser.EmployeeId.HasValue)
             {
@@ -226,7 +227,8 @@ public class GetTicketCategoryReportHandler(
         var tickets = await filtered.Select(t => new
         {
             t.Id, t.CategoryId, CategoryName = t.Category != null ? t.Category.Name : null,
-            t.TopicId, TopicName = t.Topic != null ? t.Topic.Name : null, t.Status
+            t.TopicId, TopicName = t.Topic != null ? t.Topic.Name : null,
+            t.SubjectId, SubjectName = t.Subject != null ? t.Subject.Name : null, t.Status
         }).ToListAsync(ct);
         var returnedByTicket = await db.TicketReviews.AsNoTracking()
             .Where(r => r.Decision == TicketReviewDecision.Returned && filtered.Any(t => t.Id == r.TicketId))
@@ -235,9 +237,10 @@ public class GetTicketCategoryReportHandler(
             .ToDictionaryAsync(x => x.TicketId, x => x.Count, ct);
 
         return tickets
-            .GroupBy(t => new { t.CategoryId, t.CategoryName, t.TopicId, t.TopicName })
+            .GroupBy(t => new { t.CategoryId, t.CategoryName, t.TopicId, t.TopicName, t.SubjectId, t.SubjectName })
             .Select(g => new TicketCategoryReportItemDto(
                 g.Key.CategoryId, g.Key.CategoryName, g.Key.TopicId, g.Key.TopicName,
+                g.Key.SubjectId, g.Key.SubjectName,
                 g.Count(), g.Count(t => t.Status == TicketStatus.Closed),
                 g.Count(t => t.Status is not (TicketStatus.Closed or TicketStatus.Rejected or TicketStatus.Cancelled)),
                 Math.Round(g.Sum(t => returnedByTicket.GetValueOrDefault(t.Id)) * 100.0 / g.Count(), 2)))
@@ -263,22 +266,57 @@ public class GetTicketWorkloadReportHandler(
                 a.AssignedToEmployeeId,
                 EmployeeName = (a.AssignedToEmployee.FirstName + " " + a.AssignedToEmployee.LastName).Trim(),
                 a.TicketId,
-                a.Ticket.Status
+                a.Ticket.Status,
+                a.Ticket.CreatedAt,
+                a.Ticket.ClosedAt,
+                a.Ticket.WorkStartedAt,
+                a.Ticket.ResolvedAt
             })
             .ToListAsync(ct);
 
         return assignments
             .GroupBy(a => new { a.AssignedToEmployeeId, a.EmployeeName })
-            .Select(g => new TicketWorkloadItemDto(
-                g.Key.AssignedToEmployeeId, g.Key.EmployeeName,
-                g.Select(a => a.TicketId).Distinct().Count(),
-                g.Where(a => a.Status == TicketStatus.InProgress).Select(a => a.TicketId).Distinct().Count(),
-                g.Where(a => a.Status == TicketStatus.WaitingInfo).Select(a => a.TicketId).Distinct().Count(),
-                g.Where(a => a.Status == TicketStatus.Resolved).Select(a => a.TicketId).Distinct().Count(),
-                g.Where(a => a.Status == TicketStatus.Closed).Select(a => a.TicketId).Distinct().Count()))
+            .Select(g =>
+            {
+                var closedTickets = g
+                    .Where(a => a.Status == TicketStatus.Closed && a.ClosedAt.HasValue)
+                    .DistinctBy(a => a.TicketId)
+                    .ToList();
+                var leadTimes = closedTickets
+                    .Select(a => (a.ClosedAt!.Value - a.CreatedAt).TotalMinutes)
+                    .Where(x => x >= 0)
+                    .ToList();
+                // เวลาลงมือทำจริง (Resolved − WorkStarted) — ไม่รวมเวลารอคิว/รอตรวจรับ
+                var workTimes = closedTickets
+                    .Where(a => a.WorkStartedAt.HasValue && a.ResolvedAt.HasValue)
+                    .Select(a => (a.ResolvedAt!.Value - a.WorkStartedAt!.Value).TotalMinutes)
+                    .Where(x => x >= 0)
+                    .ToList();
+
+                return new TicketWorkloadItemDto(
+                    g.Key.AssignedToEmployeeId, g.Key.EmployeeName,
+                    g.Select(a => a.TicketId).Distinct().Count(),
+                    g.Where(a => a.Status == TicketStatus.InProgress).Select(a => a.TicketId).Distinct().Count(),
+                    g.Where(a => a.Status == TicketStatus.WaitingInfo).Select(a => a.TicketId).Distinct().Count(),
+                    g.Where(a => a.Status == TicketStatus.Resolved).Select(a => a.TicketId).Distinct().Count(),
+                    g.Where(a => a.Status == TicketStatus.Closed).Select(a => a.TicketId).Distinct().Count(),
+                    leadTimes.Count > 0 ? Math.Round(leadTimes.Average(), 2) : null,
+                    leadTimes.Count > 0 ? Median(leadTimes) : null,
+                    workTimes.Count > 0 ? Math.Round(workTimes.Average(), 2) : null,
+                    leadTimes.Count);
+            })
             .OrderByDescending(x => x.InProgressCount)
             .ThenBy(x => x.EmployeeName)
             .ToList();
+    }
+
+    private static double Median(List<double> values)
+    {
+        var sorted = values.OrderBy(x => x).ToList();
+        var median = sorted.Count % 2 == 1
+            ? sorted[sorted.Count / 2]
+            : (sorted[sorted.Count / 2 - 1] + sorted[sorted.Count / 2]) / 2;
+        return Math.Round(median, 2);
     }
 }
 

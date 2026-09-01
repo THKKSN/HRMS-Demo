@@ -56,10 +56,7 @@ public class GetAssignedTicketsHandler(
         var page = Math.Max(1, request.Page);
         var pageSize = Math.Clamp(request.PageSize, 1, 100);
         var rows = await assignments
-            .OrderBy(a => a.Ticket.Priority == TicketPriority.Critical ? 0 :
-                a.Ticket.Priority == TicketPriority.High ? 1 :
-                a.Ticket.Priority == TicketPriority.Medium ? 2 : 3)
-            .ThenBy(a => a.AssignedAt)
+            .OrderByDescending(a => a.AssignedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(a => new

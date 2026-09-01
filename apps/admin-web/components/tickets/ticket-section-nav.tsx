@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { hasAnyPermission } from "@/lib/permission";
 import { useAuthStore } from "@/stores/auth.store";
 
 export type TicketSection = {
@@ -38,7 +39,13 @@ export function useTicketSections(): TicketNavigation {
     employee?.roles.some((role) => role.role === "Executive") ?? false;
   const isEmployee =
     employee?.roles.some((role) => role.role === "Employee") ?? false;
+  const permissionCodes = new Set(employee?.permissionCodes ?? []);
+  const hasPermissionPayload = Array.isArray(employee?.permissionCodes);
   const canCreateTicket = isAdmin || isHr || isSupervisor || isEmployee;
+  // กล่องงานใช้ endpoint ที่ backend คุมด้วย ticket:view-team — Employee ไม่มีสิทธิ์ ห้ามเห็น tab
+  const canViewInbox =
+    hasAnyPermission(permissionCodes, ["ticket:view-team"]) ||
+    (!hasPermissionPayload && (isAdmin || isHr || isSupervisor));
   const canManageTicketTaxonomy = isAdmin || isSupervisor;
   const canViewTicketReports = isAdmin || isSupervisor || isExecutive;
 
@@ -53,7 +60,7 @@ export function useTicketSections(): TicketNavigation {
           },
         ]
       : []),
-      ...(canCreateTicket
+      ...(canViewInbox
       ? [
           {
             label: "กล่องงาน",
@@ -86,16 +93,6 @@ export function useTicketSections(): TicketNavigation {
           },
         ]
       : []),
-    ...(canManageTicketTaxonomy
-      ? [
-          {
-            label: "Config",
-            description: "ตั้งค่า",
-            href: "/tickets/taxonomy",
-            icon: Settings2Icon,
-          },
-        ]
-      : []),
   ] satisfies TicketSection[];
 
   const createAction: TicketSection | undefined = canCreateTicket
@@ -119,12 +116,10 @@ export function TicketSectionNav() {
     "inbox",
     "new",
     "reports",
-    "taxonomy",
   ]);
   const isTicketDetail = !!detailMatch && !knownSections.has(detailMatch[1]);
   const isReportsPage = pathname.startsWith("/tickets/reports");
-  const isTaxonomyPage = pathname.startsWith("/tickets/taxonomy");
-  if (isTicketDetail || isReportsPage || isTaxonomyPage) return null;
+  if (isTicketDetail || isReportsPage) return null;
   const CreateIcon = createAction?.icon;
   if (primary.length === 0 && utilityActions.length === 0 && !createAction)
     return null;

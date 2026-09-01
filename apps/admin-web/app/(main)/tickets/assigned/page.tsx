@@ -147,7 +147,7 @@ export default function AssignedTicketsPage() {
               <th className="px-4 py-3 font-medium">Ticket</th>
               <th className="px-4 py-3 font-medium">ผู้แจ้ง</th>
               <th className="px-4 py-3 font-medium">หมวด / หัวข้อ</th>
-              <th className="px-4 py-3 font-medium">สถานที่</th>
+              {requestType === 'External' && <th className="px-4 py-3 font-medium">สถานที่</th>}
               <th className="px-4 py-3 font-medium">สถานะ</th>
               <th className="px-4 py-3 font-medium">รับงานเมื่อ</th>
               <th className="w-32 px-4 py-3 font-medium">จัดการ</th>
@@ -156,14 +156,14 @@ export default function AssignedTicketsPage() {
           <tbody>
             {query.isLoading && Array.from({ length: 5 }).map((_, index) => (
               <tr key={index} className="border-b border-border">
-                <td colSpan={7} className="px-4 py-4">
+                <td colSpan={requestType === 'External' ? 7 : 6} className="px-4 py-4">
                   <div className="h-5 animate-pulse rounded bg-muted" />
                 </td>
               </tr>
             ))}
             {!query.isLoading && (query.data?.items.length ?? 0) === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">
+                <td colSpan={requestType === 'External' ? 7 : 6} className="px-4 py-16 text-center text-muted-foreground">
                   {history ? 'ยังไม่มีประวัติงาน' : 'ยังไม่มีงานที่มอบหมายให้คุณ'}
                 </td>
               </tr>
@@ -199,9 +199,11 @@ export default function AssignedTicketsPage() {
                   <p>{ticket.categoryName}</p>
                   <p className="text-xs text-muted-foreground">{ticket.topicName}</p>
                 </td>
-                <td className="px-4 py-3 text-muted-foreground">
-                  {ticket.locationText ?? ticket.vehicleText ?? '-'}
-                </td>
+                {requestType === 'External' && (
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {ticket.locationText ?? ticket.vehicleText ?? '-'}
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <Badge variant={statusVariant(ticket.status)}>{TICKET_STATUS_LABEL[ticket.status]}</Badge>
                 </td>

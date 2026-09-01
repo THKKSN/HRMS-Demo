@@ -60,21 +60,20 @@ public class AssignTicketHandler(
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
         var actor = await db.Employees.FirstOrDefaultAsync(e => e.Id == actorId && e.IsActive, ct)
             ?? throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND");
-        // เฉพาะ role Supervisor (หรือ Admin) ของบริษัทปลายทางมอบหมายงานให้ตัวเองได้
-        // แม้ตัวเองจะไม่ได้สังกัดแผนกปลายทางของ ticket โดยตรง (เช่น ดูแลหลายแผนก)
-        var isSelfAssign = request.AssignedToEmployeeId == actorId;
-        var canSelfAssignAcrossDepartment = isSelfAssign &&
-            (currentUser.HasRole(RoleType.Admin) ||
-             currentUser.HasRole(RoleType.Supervisor, ticket.TargetCompanyId));
+        // Supervisor (หรือ Admin) ของบริษัทปลายทางจ่ายงานข้ามแผนกได้ภายใน company เดียวกัน
+        // — งานยังเป็นของแผนกปลายทาง (inbox/scope ไม่เปลี่ยน) แค่ผู้รับผิดชอบมาจากแผนกอื่นได้
+        var canAssignAcrossDepartment =
+            currentUser.HasRole(RoleType.Admin) ||
+            currentUser.HasRole(RoleType.Supervisor, ticket.TargetCompanyId);
         // External ticket ไม่ผูกแผนก — มอบหมายให้พนักงาน active คนไหนก็ได้ในบริษัทที่ fix ไว้
-        var allowAnyDepartment = canSelfAssignAcrossDepartment ||
+        var allowAnyDepartment = canAssignAcrossDepartment ||
             ticket.RequestType == TicketRequestType.External;
         var assignee = await db.Employees.FirstOrDefaultAsync(e =>
             e.Id == request.AssignedToEmployeeId &&
             e.IsActive &&
             e.CompanyId == ticket.TargetCompanyId &&
             (allowAnyDepartment || e.DepartmentId == ticket.TargetDepartmentId), ct)
-            ?? throw new FluentValidation.ValidationException("ผู้รับผิดชอบต้องเป็นพนักงานที่ใช้งานอยู่ในแผนกปลายทาง");
+            ?? throw new FluentValidation.ValidationException("ผู้รับผิดชอบต้องเป็นพนักงานที่ใช้งานอยู่ในบริษัทปลายทาง");
 
         var now = DateTime.UtcNow.AddHours(7);
         var action = currentAssignment is null ? "assign" : reassigningStartedWork ? "reassign-after-start" : "reassign";
@@ -145,9 +144,13 @@ public class AssignTicketHandler(
         var actorName = TicketCommandSupport.FullName(actor);
         var assigneeName = TicketCommandSupport.FullName(assignee);
         var eventType = currentAssignment is null ? "TicketAssigned" : "TicketReassigned";
+        // งานภายในไม่ใช้สถานที่ — ใส่เฉพาะ ticket จาก external portal ที่มีข้อมูลสถานที่จริง
+        var locationLine = ticket.RequestType == TicketRequestType.External
+            ? $"\nสถานที่: {ticket.LocationText ?? "-"}"
+            : string.Empty;
         TicketCommandSupport.QueueNotification(
             db, eventType, newAssignment.Id, assignee.Id, assignee.LineUserId,
-            $"คุณได้รับมอบหมายงาน {ticket.TicketNo}\nเรื่อง: {ticket.Title}\nสถานที่: {ticket.LocationText ?? "-"}\nผู้มอบหมาย: {actorName}",
+            $"คุณได้รับมอบหมายงาน {ticket.TicketNo}\nเรื่อง: {ticket.Title}{locationLine}\nผู้มอบหมาย: {actorName}",
             ticket);
         TicketCommandSupport.QueueNotification(
             db, eventType, newAssignment.Id, TicketCommandSupport.Requester(ticket),

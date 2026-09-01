@@ -6,6 +6,7 @@ import type {
   TicketProblemType,
   TicketQualityReportDto,
   TicketReportSummaryDto,
+  TicketRequestType,
   TicketReportScopeDto,
   TicketRoutingReportDto,
   TicketStatus,
@@ -23,6 +24,7 @@ export type TicketReportParams = {
   priority?: TicketPriority
   status?: TicketStatus
   responsibleEmployeeId?: string
+  requestType?: TicketRequestType
   problemType?: TicketProblemType
   dateBasis?: 'CreatedAt' | 'ClosedAt'
 }

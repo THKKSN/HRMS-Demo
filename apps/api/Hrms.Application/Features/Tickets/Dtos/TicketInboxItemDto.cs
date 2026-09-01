@@ -21,6 +21,8 @@ public record TicketInboxItemDto(
     string? CategoryName,
     Guid? TopicId,
     string? TopicName,
+    Guid? SubjectId,
+    string? SubjectName,
     Guid? ExternalTicketCategoryId,
     string? ExternalTicketCategoryName,
     Guid? ExternalTicketTopicId,

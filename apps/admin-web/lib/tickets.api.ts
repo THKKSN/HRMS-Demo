@@ -3,6 +3,7 @@ import type {
   PagedResult,
   TicketActionResultDto,
   TicketAssignmentCandidateDto,
+  TicketPendingCountsDto,
   TicketAssignmentDto,
   TicketDetailDto,
   TicketInboxItemDto,
@@ -111,6 +112,9 @@ export const ticketsApi = {
 
   getPendingCancellations: (params: { search?: string; page?: number; pageSize?: number }) =>
     api.get<PagedResult<TicketCancellationRequestDto>>('/tickets/cancellation-pending', { params }).then(r => r.data),
+
+  getPendingCounts: () =>
+    api.get<TicketPendingCountsDto>('/tickets/pending-counts').then(r => r.data),
 
   getById: (id: string) =>
     api.get<TicketDetailDto>(`/tickets/${id}`).then(r => r.data),

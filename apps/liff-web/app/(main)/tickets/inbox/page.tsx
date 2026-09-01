@@ -54,17 +54,18 @@ function TicketInboxCard({ ticket }: { ticket: TicketInboxItemDto }) {
             {ticket.ticketNo}
             <SourceChannelIcon channel={ticket.sourceChannel} className="h-3.5 w-3.5 shrink-0" />
           </p>
-          <h2 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{ticket.title}</h2>
+          {/* title = ชื่อหัวข้อ (subject) — เคส "อื่น ๆ" แสดงข้อความที่ผู้แจ้งระบุแทน */}
+          <h2 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{ticket.otherTopicText ?? ticket.title}</h2>
         </div>
         <span className={`shrink-0 rounded px-2 py-1 text-[10px] font-semibold ${priorityClass(ticket.priority)}`}>
           {PRIORITY_LABEL[ticket.priority]}
         </span>
       </div>
 
+      {/* หัวข้อ (subject) แสดงเป็น title อยู่แล้ว — บรรทัดนี้เหลือ หมวด / หมวดย่อย */}
       <p className="mt-2 text-xs text-muted-foreground">
-        {ticket.categoryName ?? ticket.externalTicketCategoryName ?? '-'} / {ticket.topicName ?? ticket.externalTicketTopicName ?? '-'}
-        {ticket.externalTicketSubjectName ? ` / ${ticket.externalTicketSubjectName}` : ''}
-        {ticket.otherTopicText ? `: ${ticket.otherTopicText}` : ''}
+        {ticket.categoryName ?? ticket.externalTicketCategoryName ?? '-'} /{' '}
+        {ticket.topicName ?? ticket.externalTicketTopicName ?? '-'}
       </p>
 
       <div className="mt-3 space-y-1 text-xs text-muted-foreground">

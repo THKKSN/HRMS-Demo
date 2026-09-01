@@ -15,7 +15,7 @@ export function TicketBoardSummary({
 }: TicketBoardSummaryProps) {
   const items = [
     currentWorkState ? { label: 'กำลังทำ', value: currentWorkState, className: 'border-cyan-200 bg-cyan-50 text-cyan-800' } : null,
-    currentBlockerReason ? { label: 'ติด', value: currentBlockerReason, className: 'border-amber-200 bg-amber-50 text-amber-800' } : null,
+    currentBlockerReason ? { label: 'รอ/ติดขัด', value: currentBlockerReason, className: 'border-amber-200 bg-amber-50 text-amber-800' } : null,
     currentNextAction ? { label: 'ถัดไป', value: currentNextAction, className: 'border-emerald-200 bg-emerald-50 text-emerald-800' } : null,
   ].filter(Boolean) as Array<{ label: string; value: string; className: string }>
 

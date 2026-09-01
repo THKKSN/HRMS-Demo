@@ -12,7 +12,7 @@ export function PendingApprovalList({ items }: Props) {
           <ClipboardList className="h-4 w-4 text-amber-500" />
           <p className="text-sm font-semibold text-foreground">รออนุมัติ</p>
           {items.length > 0 && (
-            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
               {items.length}
             </span>
           )}
@@ -38,7 +38,7 @@ export function PendingApprovalList({ items }: Props) {
               </div>
               <Link
                 href={`/leaves/${item.id}`}
-                className="rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100"
+                className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
               >
                 พิจารณา
               </Link>

@@ -67,10 +67,9 @@ public class TriageTicketHandler(
             t.IsActive, ct) ?? throw new FluentValidation.ValidationException("ไม่พบหัวข้อย่อยที่เปิดใช้งานในหมวดนี้");
 
         var otherTopicText = TrimOrNull(request.OtherTopicText);
-        if (topic.Name.Trim() == "อื่น ๆ" && otherTopicText is null)
-            throw new FluentValidation.ValidationException("กรุณาระบุหัวข้ออื่น ๆ");
 
         Guid? subjectId = null;
+        string? subjectName = null;
         if (request.SubjectId.HasValue)
         {
             var subject = await db.TicketSubjects.FirstOrDefaultAsync(s =>
@@ -78,7 +77,14 @@ public class TriageTicketHandler(
                 s.TopicId == topic.Id &&
                 s.IsActive, ct) ?? throw new FluentValidation.ValidationException("ไม่พบหัวข้อที่เปิดใช้งานในหมวดย่อยนี้");
             subjectId = subject.Id;
+            subjectName = subject.Name;
         }
+
+        // "อื่น ๆ" เลือกได้ทั้งระดับหัวข้อย่อย (topic) และหัวข้อ (subject) — เกณฑ์เดียวกับ CreateTicketHandler
+        var requiresOtherTopicText = topic.Name.Trim() == "อื่น ๆ"
+            || (subjectName is not null && subjectName.Trim().Equals("อื่น ๆ", StringComparison.OrdinalIgnoreCase));
+        if (requiresOtherTopicText && otherTopicText is null)
+            throw new FluentValidation.ValidationException("กรุณาระบุหัวข้ออื่น ๆ");
 
         var oldValues = new
         {
@@ -94,7 +100,9 @@ public class TriageTicketHandler(
         ticket.CategoryId = category.Id;
         ticket.TopicId = topic.Id;
         ticket.SubjectId = subjectId;
-        ticket.OtherTopicText = topic.Name.Trim() == "อื่น ๆ" ? otherTopicText : null;
+        // Title ถูก set จากชื่อ subject ตอนสร้าง — เปลี่ยน subject ต้อง sync Title ตาม
+        if (subjectName is not null) ticket.Title = subjectName.Trim();
+        ticket.OtherTopicText = requiresOtherTopicText ? otherTopicText : null;
         if (request.Detail is not null) ticket.Detail = request.Detail.Trim();
         ticket.Priority = request.Priority;
         ticket.LocationText = TrimOrNull(request.LocationText);

@@ -303,13 +303,13 @@ public class CreateTicketHandler(
     {
         var managerLineUserId = targetDepartment.ManagerEmployee?.LineUserId;
         var requesterName = $"{requester.FirstName} {requester.LastName}".Trim();
+        // งานภายในไม่ใช้สถานที่ — ไม่ต้องใส่ในข้อความแจ้งเตือน (external มี flow แจ้งเตือนแยกของตัวเอง)
         var message =
             $"มีใบแจ้งเรื่องใหม่ {ticket.TicketNo}\n" +
             $"หัวข้อ: {ticket.Title}\n" +
             $"จาก: {requesterName}\n" +
             $"ปลายทาง: {targetDepartment.Name}\n" +
             $"หมวด: {category.Name} / {topic.Name}\n" +
-            $"สถานที่: {ticket.LocationText ?? "-"}\n" +
             $"ความเร่งด่วน: {PriorityLabel(ticket.Priority)}\n" +
             $"การกระจายงาน: {RoutingOutcomeLabel(routing.Outcome)}";
         var sent = new HashSet<string>(StringComparer.Ordinal);

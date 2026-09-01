@@ -151,9 +151,8 @@ export default function TicketsPage() {
               >
                 <td className="px-4 py-3">
                   <p className="font-medium text-primary">{ticket.ticketNo}</p>
-                  <p className="mt-1 max-w-72 truncate font-medium">
-                    {ticket.title}
-                  </p>
+                  {/* title = ชื่อหัวข้อ (subject) — เคส "อื่น ๆ" แสดงข้อความที่ผู้แจ้งระบุแทน */}
+                  <p className="mt-1 max-w-72 truncate font-medium">{ticket.otherTopicText ?? ticket.title}</p>
                   <span
                     className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs ${priorityClass(ticket.priority)}`}
                   >
@@ -176,9 +175,9 @@ export default function TicketsPage() {
                 </td>
                 <td className="px-4 py-3">
                   <p>{ticket.categoryName}</p>
+                  {/* หัวข้อ (subject) แสดงเป็น title อยู่แล้ว — บรรทัดนี้เหลือ หมวดย่อย (topic) */}
                   <p className="text-xs text-muted-foreground">
-                    {ticket.topicName}
-                    {ticket.otherTopicText ? `: ${ticket.otherTopicText}` : ""}
+                    {ticket.topicName ?? "-"}
                   </p>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">

@@ -4,6 +4,8 @@ import { useMyDashboard } from '@/hooks/use-dashboard'
 import { AttendanceTodayCard } from './widgets/AttendanceTodayCard'
 import { LeaveBalanceCards } from './widgets/LeaveBalanceCards'
 import { MonthStatsCard } from './widgets/MonthStatsCard'
+import { MyAssignedTicketsTable } from './MyAssignedTicketsTable'
+import { PendingWorkChips } from './PendingWorkChips'
 
 export function EmployeeDashboard() {
   const { data, isLoading, isError } = useMyDashboard()
@@ -13,9 +15,13 @@ export function EmployeeDashboard() {
 
   return (
     <div className="space-y-5">
-      <AttendanceTodayCard data={data.todayAttendance} />
+      {/* งานคงค้าง ticket ของฉัน */}
+      <PendingWorkChips />
+      <MyAssignedTicketsTable />
+
+      {/* <AttendanceTodayCard data={data.todayAttendance} />
       <LeaveBalanceCards balances={data.leaveBalance} />
-      <MonthStatsCard stats={data.monthStats} />
+      <MonthStatsCard stats={data.monthStats} /> */}
     </div>
   )
 }
