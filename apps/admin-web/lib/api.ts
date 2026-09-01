@@ -20,22 +20,34 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
+/**
+ * endpoint กลุ่ม /auth/* (login, refresh) — 401 ของกลุ่มนี้คือ "ข้อมูล/token ที่ส่งไปไม่ถูกต้อง"
+ * ไม่ใช่ access token หมดอายุ ห้าม trigger refresh ซ้อน (โดยเฉพาะ /auth/refresh เอง)
+ */
+function isAuthRequest(url: string | undefined) {
+  return (url ?? '').startsWith('/auth/')
+}
+
 // Response: 401 → auto refresh → retry ครั้งเดียว
 api.interceptors.response.use(
   (res) => res,
   async (err) => {
     const original = err.config as InternalAxiosRequestConfig & { _retry?: boolean }
-    if (err.response?.status === 401 && !original._retry) {
+    if (err.response?.status === 401 && !original._retry && !isAuthRequest(original.url)) {
       original._retry = true
       try {
         await getAuthStore().getState().refreshTokens()
         const token = getAuthStore().getState().accessToken
         original.headers.Authorization = `Bearer ${token}`
         return api(original)
-      } catch {
-        getAuthStore().getState().clearAuth()
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login'
+      } catch (refreshErr) {
+        // เด้งออกเฉพาะเมื่อ refresh token ใช้ไม่ได้จริง (401) —
+        // 429/network error เป็นอาการชั่วคราว ห้าม logout ไม่งั้นผู้ใช้หลุดทั้งที่ token ยังดี
+        if (axios.isAxiosError(refreshErr) && refreshErr.response?.status === 401) {
+          getAuthStore().getState().clearAuth()
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login'
+          }
         }
       }
     }

@@ -168,7 +168,12 @@ public class LineMessagingService(
         var body = new { to = lineUserId, messages };
         var response = await httpClient.PostAsJsonAsync(
             "https://api.line.me/v2/bot/message/push", body, ct);
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            throw new HttpRequestException(
+                $"LINE push failed with {(int)response.StatusCode} {response.StatusCode}: {errorBody}");
+        }
     }
 
     private async Task ReplyAsync(string replyToken, object[] messages, CancellationToken ct)

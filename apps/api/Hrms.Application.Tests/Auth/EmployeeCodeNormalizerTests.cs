@@ -17,7 +17,12 @@ public sealed class EmployeeCodeNormalizerTests
     [InlineData("7644", "07644")]
     [InlineData("07644", "07644")]
     [InlineData("9905", "09905")]
-    public void Normalize_ShouldPadThreeAndFourDigitCodesToFive(string typed, string expected)
+    [InlineData("17", "00017")]
+    [InlineData("00017", "00017")]
+    [InlineData("7", "00007")]
+    [InlineData("0", "00000")]
+    [InlineData("0000", "00000")]
+    public void Normalize_ShouldPadOneToFourDigitCodesToFive(string typed, string expected)
     {
         EmployeeCodeNormalizer.Normalize(typed).Should().Be(expected);
     }
@@ -33,13 +38,9 @@ public sealed class EmployeeCodeNormalizerTests
     }
 
     [Theory]
-    [InlineData("12", "12")]
-    [InlineData("0012", "12")]
     [InlineData("123456", "123456")]
     [InlineData("0123456", "123456")]
-    [InlineData("0", "0")]
-    [InlineData("0000", "0")]
-    public void Normalize_ShouldStripZerosWithoutPaddingOutsideThreeToFourDigits(
+    public void Normalize_ShouldStripZerosWithoutPaddingFiveDigitsOrMore(
         string typed,
         string expected)
     {

@@ -5,14 +5,14 @@ namespace Hrms.Application.Common.Helpers;
 ///
 /// เป็นคู่แฝดฝั่ง C# ของ <c>scripts/pad-employee-code-to-5.sql</c>:
 /// <c>LPAD(TRIM(LEADING '0' FROM employee_code), 5, '0')</c> สำหรับรหัสตัวเลขล้วน
-/// ที่ตัด 0 นำหน้าแล้วเหลือ 3-4 หลัก และตัด 0 นำหน้าอย่างเดียวสำหรับรหัสตัวเลขอื่น
+/// ที่ตัด 0 นำหน้าแล้วเหลือ 1-4 หลัก และตัด 0 นำหน้าอย่างเดียวสำหรับรหัสตัวเลข 5 หลักขึ้นไป
 ///
 /// ถ้าสองที่นี้ไม่ตรงกัน พนักงานจะล็อกอินไม่ได้โดยไม่มี error ให้เห็น — แก้ต้องแก้คู่กัน
 /// </summary>
 public static class EmployeeCodeNormalizer
 {
     private const int PaddedLength = 5;
-    private const int MinPaddableDigits = 3;
+    private const int MinPaddableDigits = 1;
     private const int MaxPaddableDigits = 4;
 
     public static string Normalize(string employeeCode)

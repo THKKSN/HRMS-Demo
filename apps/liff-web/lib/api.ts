@@ -47,10 +47,14 @@ api.interceptors.response.use(
         const token = getAuthStore().getState().accessToken
         original.headers.Authorization = `Bearer ${token}`
         return api(original)
-      } catch {
-        getAuthStore().getState().clearAuth()
-        if (typeof window !== 'undefined') {
-          window.location.href = '/auth/link'
+      } catch (refreshErr) {
+        // เด้งออกเฉพาะเมื่อ refresh token ใช้ไม่ได้จริง (401) —
+        // 429/network error เป็นอาการชั่วคราว ห้าม logout ไม่งั้นผู้ใช้หลุดทั้งที่ token ยังดี
+        if (axios.isAxiosError(refreshErr) && refreshErr.response?.status === 401) {
+          getAuthStore().getState().clearAuth()
+          if (typeof window !== 'undefined') {
+            window.location.href = '/auth/link'
+          }
         }
       }
     }

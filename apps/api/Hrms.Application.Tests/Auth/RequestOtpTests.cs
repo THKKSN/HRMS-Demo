@@ -34,10 +34,9 @@ public sealed class RequestOtpTests
 
         result.Hint.Should().Be("OTP ส่งแล้ว กรุณาตรวจสอบ LINE ของคุณ");
         otp.VerifyAll();
-        messaging.Verify(service => service.PushFlexMessageAsync(
+        messaging.Verify(service => service.PushMessageAsync(
             "U-LINE-123",
             It.Is<string>(message => message.Contains("123456")),
-            It.IsAny<object>(),
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

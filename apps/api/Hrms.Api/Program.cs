@@ -12,6 +12,7 @@ using Hrms.Infrastructure;
 using Hrms.Infrastructure.Jobs;
 using Hrms.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -26,6 +27,9 @@ using System.Text.Json;
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
+
+// ใช้ Community license — ฟรีสำหรับองค์กรที่รายได้ต่อปีไม่เกิน $1M ตามเงื่อนไข QuestPDF
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 try
 {
@@ -118,6 +122,7 @@ try
     builder.Services.AddInfrastructureServices(builder.Configuration);
 
     builder.Services.AddHttpContextAccessor();
+    builder.Services.AddMemoryCache(); // ใช้เก็บ print token อายุสั้นของ Memo PDF
     builder.Services.AddScoped<ICurrentUser, CurrentUser>();
     builder.Services.AddScoped<IExternalCurrentUser, ExternalCurrentUser>();
     builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -247,6 +252,8 @@ try
             .RequireClaim("actor_type", "external")
             .RequireClaim("external_reporter_id"));
     });
+    builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+    builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
     builder.Services.AddCors(opt =>
     {
@@ -287,16 +294,17 @@ try
             {
                 return RateLimitPartition.GetFixedWindowLimiter($"user:{userId}", _ => new FixedWindowRateLimiterOptions
                 {
-                    PermitLimit = 100,
+                    PermitLimit = 300,
                     Window      = TimeSpan.FromMinutes(1),
                     QueueLimit  = 0
                 });
             }
 
             var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            // IP เดียวกันอาจมีผู้ใช้หลายคน (NAT ออฟฟิศ) — ครอบคลุมเฉพาะ request ก่อนล็อกอิน เช่น /auth/refresh
             return RateLimitPartition.GetFixedWindowLimiter($"ip:{ip}", _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 30,
+                PermitLimit = 120,
                 Window      = TimeSpan.FromMinutes(1),
                 QueueLimit  = 0
             });
@@ -305,9 +313,10 @@ try
         options.AddPolicy("auth_strict", context =>
         {
             var ip = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            // 5/นาที ต่อ IP ไม่พอเมื่อพนักงานทั้งออฟฟิศแชร์ IP เดียว (ล็อกอินพร้อมกันตอนเช้า)
             return RateLimitPartition.GetFixedWindowLimiter($"auth:{ip}", _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 5,
+                PermitLimit = 20,
                 Window      = TimeSpan.FromMinutes(1),
                 QueueLimit  = 0
             });
@@ -387,8 +396,10 @@ try
     app.UseMiddleware<CorrelationIdMiddleware>();
     app.UseMiddleware<GlobalExceptionMiddleware>();
     app.UseCors();
-    app.UseRateLimiter();
     app.UseAuthentication();
+    // ต้องอยู่หลัง UseAuthentication ไม่งั้น context.User ว่างเสมอ →
+    // ทุกคนตกลง partition ตาม IP ร่วมกัน (โดน 429 ทั้งออฟฟิศหลัง NAT เดียวกัน)
+    app.UseRateLimiter();
     app.UseAuthorization();
 
     // Health check endpoints (ไม่ผ่าน rate limiter / auth)

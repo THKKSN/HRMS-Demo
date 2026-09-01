@@ -5,6 +5,9 @@ import { persist } from 'zustand/middleware'
 import type { EmployeeSummaryDto } from '@hrms/shared-types'
 import { api } from '@/lib/api'
 
+// promise ของการ refresh ที่กำลังทำอยู่ — แชร์ให้ทุก caller ที่มาพร้อมกัน
+let refreshInFlight: Promise<void> | null = null
+
 type AuthState = {
   accessToken: string | null
   refreshToken: string | null
@@ -35,11 +38,21 @@ export const useAuthStore = create<AuthState>()(
       },
 
       refreshTokens: async () => {
-        const { refreshToken } = get()
-        if (!refreshToken) throw new Error('No refresh token')
-        const res = await api.post('/auth/refresh', { refreshToken })
-        const { accessToken, refreshToken: newRefresh, employee } = res.data
-        set({ accessToken, refreshToken: newRefresh, employee, isAuthenticated: true })
+        // single-flight: หลาย request โดน 401 พร้อมกันต้องแชร์การ refresh เดียว —
+        // refresh token เป็นแบบ rotation ถ้ายิงคู่ขนาน ตัวหลังจะส่ง token ที่ถูก rotate ไปแล้ว → 401 → หลุดออกจากระบบ
+        refreshInFlight ??= (async () => {
+          const { refreshToken } = get()
+          if (!refreshToken) throw new Error('No refresh token')
+          const res = await api.post('/auth/refresh', { refreshToken })
+          const { accessToken, refreshToken: newRefresh, employee } = res.data
+          document.cookie = `hrms-access-token=${accessToken}; path=/; SameSite=Lax`
+          set({ accessToken, refreshToken: newRefresh, employee, isAuthenticated: true })
+        })()
+        try {
+          await refreshInFlight
+        } finally {
+          refreshInFlight = null
+        }
       },
     }),
     {

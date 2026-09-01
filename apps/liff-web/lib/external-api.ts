@@ -47,8 +47,11 @@ externalApi.interceptors.response.use(
         const token = getExternalAuthStore().getState().accessToken
         original.headers.Authorization = `Bearer ${token}`
         return externalApi(original)
-      } catch {
-        getExternalAuthStore().getState().clearAuth()
+      } catch (loginErr) {
+        // ล้าง auth เฉพาะเมื่อ login ใหม่โดนปฏิเสธจริง (401) — 429/network เป็นอาการชั่วคราว
+        if (axios.isAxiosError(loginErr) && loginErr.response?.status === 401) {
+          getExternalAuthStore().getState().clearAuth()
+        }
       }
     }
     return Promise.reject(err)
