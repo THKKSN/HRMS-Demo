@@ -1,6 +1,6 @@
 # แผนงาน LINE Notification หลายภาษา (i18n Phase 4)
 
-> **สถานะเอกสาร:** ✅ อนุมัติแล้ว — **D8–D11 เคาะครบ 2026-09-16** · **N0–N3 เสร็จ (13/18)** · ผู้รับที่ตั้งภาษาอังกฤษได้ข้อความบน LINE เป็นอังกฤษครบทุกเส้นทางแล้ว เหลือแต่ N4 ตรวจรับ + deploy
+> **สถานะเอกสาร:** ✅ อนุมัติแล้ว — **D8–D11 เคาะครบ 2026-09-16** · **N0–N4 เสร็จ (17.5/18)** · โค้ดพร้อม deploy · ค้างอย่างเดียวคือ **ยิง push จริงบน LINE (N4.3b)** ซึ่งติดโควตาเต็ม ไม่ใช่ปัญหาของโค้ด
 > **ภาษาเป้าหมายของ notification:** `th` / `en` เท่านั้น (`id` อาจไม่ทำ — ดู D9)
 > **ขยายจาก:** [`docs/i18n-multilanguage-plan.md`](i18n-multilanguage-plan.md) ข้อ 4 (Phase 4 · 3 งานย่อย) — ของจริงใหญ่กว่าที่เขียนไว้ จึงแยกเอกสาร
 > **วันที่สำรวจโค้ดจริง:** 2026-09-16 (หลังปิด Phase 3)
@@ -17,9 +17,12 @@
 | N1 | ✅ payload เป็น `{ templateKey, params }` | 3 | **3** | ไม่เปลี่ยน (ยังไทย) | 1–1.5 วัน |
 | N2 | ✅ ภาษา + คำแปล (รวม `PreferredLanguage` + `X-Locale`) | 4 | **4** | **เปลี่ยน** — ticket/memo เป็นอังกฤษตาม D9 | 1.5–2 วัน |
 | N3 | ✅ job + LINE webhook ที่เหลือ | 3 | **3** | **เปลี่ยน** — ลา/ลงเวลา/ตอบแชท เป็นอังกฤษตาม D9 | 1 วัน |
-| N4 | ตรวจรับ + deploy | 5 | 0 | — | 0.5 วัน |
-| | **รวม** | **18** | **13** | | **4.5–5.5 วัน** |
+| N4 | 🔶 ตรวจรับ + deploy | 5 | **4.5** | — | 0.5 วัน |
+| | **รวม** | **18** | **17.5** | | **4.5–5.5 วัน** |
 
+> 🔴 **ค้างอยู่ 0.5 งาน = N4.3b (ยิง push จริง)** — โควตา LINE เต็ม 300/300 ไม่เกี่ยวกับงาน i18n
+> ดู [`line-push-quota-plan.md`](line-push-quota-plan.md)
+>
 > ⚠️ แผนหลักประเมิน Phase 4 ไว้ **2–3 วัน** ซึ่งต่ำไป เพราะนับแค่ "แปลข้อความ" ไม่ได้นับงานรื้อโครงที่ข้อ 2 ว่าไว้
 
 ---
@@ -233,13 +236,57 @@ master data ที่โผล่ในข้อความพร้อมแ�
 
 **ข้อความไทยในเส้นทาง LINE เหลือ 7 จุด** — เป็นคำสั่งของปุ่มใน `WebhookKeywords` ทั้งหมด **ไม่มีข้อความที่ผู้ใช้อ่านเหลืออยู่แล้ว**
 
-### ⬜ N4 — ตรวจรับ + deploy · 0/5
+### 🔶 N4 — ตรวจรับ + deploy · 4.5/5
 
-- [ ] **N4.1** `pnpm test:api` ผ่าน (ระวัง `NotificationDispatchSignalTests`, `TicketNotificationDedupTests`)
-- [ ] **N4.2** **เคลียร์คิว notification ให้หมดก่อน deploy** แล้วทดสอบว่า payload รูปเก่ายังส่งออกได้
-- [ ] **N4.3** ยิงจริงบน LINE: ผู้รับแต่ละกลุ่มได้ภาษาตาม D9 · สีการ์ดถูกทุกชนิด · `altText` อ่านรู้เรื่อง
-- [ ] **N4.4** migration `AddPreferredLanguage` (สร้างแล้วใน N2.1 — เพิ่ม 2 คอลัมน์ ไม่มีอย่างอื่นติดมา) generate เป็น SQL ด้วย `dotnet ef --idempotent` จาก baseline `AddTicketTeamTemplates` และไปพร้อม `migration-v1-1-2.sql` ที่ยังไม่ขึ้น prod
-- [ ] **N4.5** ยืนยันว่า `notifications.*.json` ติดไปกับ publish output จริง (D10) — ตอนนี้ต้องมี **ทั้ง `th` และ `en`** (dev build ยืนยันแล้ว เหลือยืนยันที่ `dotnet publish`)
+> 🔴 **โควตา LINE push เต็ม 300/300 ตั้งแต่ก่อนเริ่ม N4** (2026-09-16) — push ทุกตัวได้ 429
+> **reply ไม่กินโควตา** งาน N3 ส่วนใหญ่จึงยังตรวจได้ตามปกติ ส่วน push ต้องรอโควตารีเซ็ต
+> ปัญหานี้มีอยู่ก่อน deploy และไม่เกี่ยวกับงาน i18n — แผนแก้อยู่ที่ [`line-push-quota-plan.md`](line-push-quota-plan.md)
+
+- [x] **N4.1** `dotnet test Hrms.slnx` → **441 passed / 1 skipped** · `NotificationDispatchSignalTests` กับ `TicketNotificationDedupTests` ผ่านทั้งคู่
+- [x] **N4.2** payload รูปเก่าตรึงด้วย [`LegacyPayloadDeliveryTests`](../apps/api/Hrms.Application.Tests/Notifications/LegacyPayloadDeliveryTests.cs) แทนการยิงจริง (ยิงไม่ได้ ติดโควตา)
+      — ข้อความรูปเก่าออกไปตามที่เก็บไว้ไม่ว่าผู้รับตั้งภาษาอะไร · ป้ายหัวการ์ดยังถูกใบเพราะอ่าน `EventType` ไม่ใช่คำในข้อความ · payload ว่างไม่ทำให้ batch ล้ม
+      ⬜ **เหลือขั้นตอนบน server:** เคลียร์คิวก่อน deploy ด้วย SQL ข้างล่าง
+- [ ] **N4.3** ยิงจริงบน LINE — **แบ่งเป็น 2 รอบ** (ดูตารางข้างล่าง)
+- [x] **N4.4** รวมเข้า [`docs/sql/migration-v1-1-2.sql`](sql/migration-v1-1-2.sql) แล้ว — generate ใหม่จาก baseline `AddTicketTeamTemplates` ครอบ **4 migration** ยืนยันว่าเนื้อเดิม 3 ตัวไม่หาย
+      **รันจริงกับ DB แล้ว** (`db_hrms_phase1_rehearsal` · MySQL client 8.0 รุ่นเดียวกับ prod) ไม่ใช่แค่ generate ทิ้งไว้:
+      · รอบแรกข้าม 3 migration ที่ DB มีอยู่แล้ว แล้วลง `AddPreferredLanguage` ตัวเดียว
+      · ได้ `varchar(5) NOT NULL DEFAULT 'th'` ทั้ง `employees` และ `external_reporters` ตรงสเปก
+      · **รันซ้ำรอบสอง exit 0 ไม่มี error** — idempotent ใช้ได้จริง (คุณสมบัติที่ต้องพึ่งถ้า deploy รอบแรกค้างกลางทาง)
+      · พนักงานเดิม **116 คนได้ `th` จาก DEFAULT ทั้งหมด** ไม่ต้อง backfill · `__EFMigrationsHistory` ไม่ซ้ำแถว
+      · `dotnet ef migrations has-pending-model-changes` → ไม่มี model drift
+- [x] **N4.5** `dotnet publish -c Release` → มี `i18n/th/notifications.json` และ `i18n/en/notifications.json` **141 คีย์เท่ากัน**
+      ตรงกับที่ [`NotificationTemplateCatalog`](../apps/api/Hrms.Infrastructure/Services/NotificationTemplateCatalog.cs#L30-L31) มองหา (`AppContext.BaseDirectory/i18n`)
+      กฎ `Content Include` ใช้ glob `**\notifications.json` → เติมภาษาใหม่ในอนาคตติดไปเอง ไม่ต้องแก้ csproj
+
+#### N4.2 — เคลียร์คิวก่อน deploy (รันบน production)
+
+```sql
+-- 1) ดูก่อนว่าค้างอะไรอยู่ (อ่านอย่างเดียว)
+SELECT status, COUNT(*), MIN(created_at), MAX(created_at)
+FROM notification_outboxes
+WHERE status IN (0, 1, 3)   -- Pending / Processing / Failed
+GROUP BY status;
+
+-- 2) ปิดคิวเก่าทิ้ง — ของที่ค้างเป็นข้อความไทยที่ประกอบไว้แล้ว ส่งไปตอนนี้ก็ไม่ตรงภาษาผู้รับ
+--    ไม่ลบแถว (Soft Delete) เพื่อให้ยังสอบย้อนได้ว่าตอน deploy มีอะไรค้าง
+UPDATE notification_outboxes
+SET status = 4,              -- DeadLetter
+    last_error = 'Cleared before v1.1.2 deploy (notification i18n)',
+    next_attempt_at = NULL
+WHERE status IN (0, 1, 3);
+```
+
+เลขตรงกับ [`NotificationDeliveryStatus`](../apps/api/Hrms.Domain/Enums/NotificationDeliveryStatus.cs) (Pending=0 · Processing=1 · Sent=2 · Failed=3 · DeadLetter=4)
+และ `notification_outboxes.status` เก็บเป็น `int` จริง — **ตรวจแล้ว ไม่ใช่เดา** เพราะ entity อื่นหลายตัว (`tickets`, `ot_requests`) เก็บ status เป็น `varchar`
+
+#### N4.3 — แบ่งตามชนิดข้อความ
+
+| รอบ | ครอบอะไร | ทำได้เมื่อไหร่ |
+|---|---|---|
+| **N4.3a** — reply (ฟรี ไม่กินโควตา) | เมนู rich menu · `ลงเวลา` → การ์ดขอตำแหน่ง · เช็คอิน/เช็คเอาต์ · สถานะวันนี้ · `ตรวจสอบสิทธิ์` · ข้อความตอบตอนอนุมัติ/ปฏิเสธใบลา | **ทันทีหลัง deploy** |
+| **N4.3b** — push (กินโควตา) | การ์ด ticket/memo · การ์ดใบลาถึงผู้อนุมัติ · ผลอนุมัติถึงผู้ยื่น · OTP | รอโควตารีเซ็ต **หรือ** ใช้ LINE OA ตัวทดสอบซึ่งมีโควตา 300 ของตัวเอง |
+
+ทั้งสองรอบดูสามอย่างเหมือนกัน: **ผู้รับแต่ละกลุ่มได้ภาษาตาม D9 · สีการ์ดถูกทุกชนิด · `altText` อ่านรู้เรื่อง**
 
 ---
 
@@ -270,6 +317,7 @@ master data ที่โผล่ในข้อความพร้อมแ�
 
 | วันที่ | งาน | สิ่งที่ทำ | commit | ผู้ทำ | หมายเหตุ |
 |---|---|---|---|---|---|
+| 2026-09-16 | **N4 เสร็จ 4.5/5** | **N4.1** `dotnet test` **441 pass/1 skip** · **N4.2** ยิงจริงไม่ได้เพราะโควตาเต็ม จึงตรึงด้วย [`LegacyPayloadDeliveryTests`](../apps/api/Hrms.Application.Tests/Notifications/LegacyPayloadDeliveryTests.cs) แทน (payload รูปเก่าออกไปตามที่เก็บไว้ไม่ว่าผู้รับตั้งภาษาอะไร · ป้ายการ์ดยังถูกเพราะอ่าน `EventType` · payload ว่างไม่ล้ม batch) พร้อม SQL เคลียร์คิวไว้รันบน server · **N4.4** generate `migration-v1-1-2.sql` ใหม่จาก baseline `AddTicketTeamTemplates` ครอบ **4 migration** (เทียบแล้วเนื้อเดิม 3 ตัวไม่หาย) · **N4.5** `dotnet publish -c Release` มี `i18n/{th,en}/notifications.json` 141 คีย์เท่ากัน ตรงพาธที่ catalog หา | `0b1a45c` (N0–N3) | | 🔴 **N4.3b ค้าง — ยิง push จริงไม่ได้ โควตาเต็ม 300/300** ไม่ใช่ปัญหาของโค้ดและมีอยู่ก่อน deploy · **reply ไม่กินโควตา** N4.3a จึงตรวจได้ทันที · 🔎 **เจอเพิ่ม:** `.gitignore` ไม่มีกฎครอบ `.venv-ocr` (872 MB) `.tmp-build` (111 MB) `dump-*.sql` (ข้อมูลพนักงานจริง) `tmp-receipts/` `*.zip` — `git add -A` ครั้งเดียวจะเขียนเข้า history ถาวร เติมกฎแล้วก่อน commit แรก · 🔎 `notification_outboxes.status` เก็บเป็น `int` (entity อื่นเช่น `tickets` เก็บเป็น `varchar`) ตรวจแล้วก่อนเขียน SQL |
 | 2026-09-16 | **N3 เสร็จ** | เพิ่ม `MessageText` (ตัวแปลที่ผูกภาษาผู้รับไว้แล้ว) + `ILineMessageTextFactory` เป็นทางเข้าเดียวของทุกเส้นทางที่ส่งออก LINE · `LeaveNotificationJob` + `DailyAttendanceReportJob` ดึง `PreferredLanguage` มาพร้อมผู้รับแล้วประกอบการ์ดต่อคน · `LeaveType.NameTh` → `LocalizedName.For` · ชื่อเดือน/วันย้ายไป `AppDateFormat` (CultureInfo) · การ์ดเตือนเช็คอิน/ผลเช็คอิน/เช็คเอาต์/สรุปวันนี้ แปลครบ · webhook 7 ไฟล์แปลครบ · แคตตาล็อก **141 คีย์** เท่ากันทั้ง th/en · **ตรวจแล้ว:** `dotnet test` **437 pass/1 skip** (N2 412 + ใหม่ 25) · `i18n:scan` / `i18n:scan-api` เท่าเดิม · ยืนยันไฟล์ทั้ง 2 ภาษาไปโผล่ใน build output | (ยังไม่ commit) | | 🗑️ **`BuildOtpCard` ที่แผนสั่งให้แปล ไม่มีใครเรียก** — OTP ส่งเป็นข้อความธรรมดาจาก `RequestOtpHandler` · ลบทิ้งพร้อม `ReplyWithLocationRequestAsync` ที่ตายเหมือนกัน · ⚠️ **7 คำใน webhook ห้ามแปล** เพราะเป็นคำสั่งที่ปุ่ม rich menu ส่งเข้ามา ย้ายไปรวมที่ `WebhookKeywords` พร้อมเหตุผล · 🐞 **แก้บั๊กเดิม** altText คำขอลาเคยได้ "ขอ**ลาลา**พักร้อน" เพราะต่อคำว่า "ลา" ทับชื่อประเภทที่ขึ้นต้นด้วย "ลา" อยู่แล้ว · 🔎 **เจอเพิ่ม (ยังไม่แก้):** ข้อความ OTP ใน `RequestOtpHandler` เป็นไทยตายตัว และอยู่ในขั้นก่อนล็อกอินที่ยังไม่รู้ภาษาผู้ใช้ — ต้องเคาะก่อนว่าจะอ่านภาษาจาก header `X-Locale` ของ request นั้นไหม |
 | 2026-09-16 | **N2 เสร็จ** | เพิ่มคอลัมน์ `preferred_language` ที่ `employees` + `external_reporters` (migration `AddPreferredLanguage`) · frontend แนบ header `X-Locale` ครบ **3 axios instance** (อ่านจาก cookie ตรง ๆ ไม่ใช่ `getCurrentLocale()`) · `PreferredLanguageMiddleware` วางหลัง `UseAuthorization()` แล้วเขียน DB เฉพาะตอนค่าเปลี่ยน (guard ในหน่วยความจำ 30 นาที + `WHERE preferred_language <> @locale`) · `NotificationDeliveryJob` เลือกภาษาตามผู้รับผ่าน `RecipientLocaleResolver` (พนักงานดูจาก id · ผู้แจ้งภายนอกดูจาก LINE user id) · แปลแคตตาล็อกเป็นอังกฤษ **45 คีย์** · ชื่อ master data (`department`, `taxonomy`) เก็บครบทุกภาษาใน `LocalizedParams` แล้วเลือกตอนส่ง · ป้าย enum ย้ายเป็นคีย์ `#enum.priority.*` / `#enum.routing.*` · **ดึงตัวการ์ด ticket/memo มาจาก N3.2 ทำด้วย** (ป้ายสถานะ 13 ตัว + ปุ่ม + บรรทัดเวลา → คีย์ `card.*`) เพราะทิ้งไว้จะได้เนื้อความอังกฤษบนกรอบการ์ดไทย · **ตรวจแล้ว:** `dotnet test` **412 pass/1 skip** (N1 360 + ใหม่ 52) · `tsc --noEmit` ผ่านทั้ง 2 แอป · `i18n:scan` / `i18n:scan-api` เท่าเดิม · ยืนยัน `bin/…/i18n/en/notifications.json` มีจริง | (ยังไม่ commit) | | 🔀 **ต่างจากแผน 1 ข้อ:** คอลัมน์เก็บภาษาที่ผู้ใช้เลือกจริง (รวม `id`) แล้วแปลง `id → en` **ตอน render** ไม่ใช่ตอนเขียน — คอลัมน์จะได้ไม่โกหก และวันที่มีไฟล์ `id` แค่เติมชื่อภาษาใน `AppLocale.NotificationLocales` ก็จบ · 🔴 **เจอเพิ่ม:** `PriorityLabel`/`RoutingOutcomeLabel` ใน `CreateTicketHandler` เป็น label map ภาษาไทยฝังใน C# ซึ่งผิดกติกา CLAUDE.md — ย้ายเข้าแคตตาล็อกแล้ว พร้อมเทสต์ที่ล็อกว่าคำอังกฤษต้องตรงกับ `status.ticketPriority` บนหน้าจอ · คำแปลอังกฤษยังเป็น**ร่างจาก AI** รอคนตรวจบน Excel |
 | 2026-09-16 | **N1 เสร็จ** | `PayloadJson` เปลี่ยนจากข้อความสำเร็จรูปเป็น `{ templateKey, params }` (อ่านรูปเก่า `{ Message }` ได้ด้วย) · เพิ่ม `NotificationTemplate` (ประกอบข้อความ + **กติกาตัวแปรว่าง = ตัดทั้งบรรทัดทิ้ง**) และ `NotificationTemplateCatalog` (อ่าน `notifications.json` จาก output) · **ย้าย 42 จุดที่ queue (ticket 35 / memo 7)** จากต่อสตริง `$"…"` เป็น templateKey + params · แคตตาล็อก th **37 คีย์** ที่ `packages/i18n/messages/th/notifications.json` ลิงก์เข้า `Hrms.Api.csproj` เป็น Content · **ตรวจแล้ว:** build ผ่าน · `dotnet test` **360 pass/1 skip** (N0 344 + ใหม่ 16) · ยืนยันไฟล์ไปโผล่ที่ `bin/…/i18n/th/notifications.json` จริง · จุด queue ที่ยังมีข้อความไทยเหลือ **0** · `i18n:scan-api` ยัง 93 จุดเท่าเดิม | (ยังไม่ commit) | | 💡 **กติกาตัดบรรทัด** แทนของเดิมที่เขียน `reason is null ? "" : $"\nเหตุผล: {reason}"` ที่จุดเรียก — แบบเดิมคำว่า "เหตุผล:" ค้างในโค้ด C# แล้วแปลไม่ได้ · ✅ **`notifications` เข้า pipeline แปลเดิมได้เลย** `loadLocaleMessages('th')` เห็นเป็น namespace ใหม่ 37 คีย์ N2.3 สั่ง `pnpm i18n:export` ได้ทันทีโดยไม่ต้องแก้สคริปต์ · เทสต์ที่สำคัญที่สุดคือตัวที่**สแกน source จริงแล้วยืนยันว่าทุก templateKey มีอยู่ในแคตตาล็อก** และตัวที่**เทียบข้อความที่ประกอบได้กับข้อความไทยตัวเดิมเป๊ะ ๆ** |
