@@ -23,7 +23,7 @@ public class GetExternalTicketFormHandler(IApplicationDbContext db)
 
         var subjects = await db.ExternalTicketSubjects
             .Where(s => s.IsActive)
-            .Select(s => new { s.Id, s.ExternalTicketTopicId, s.Name, s.Description, s.Template, s.SuggestionsJson, s.SortOrder })
+            .Select(s => new { s.Id, s.ExternalTicketTopicId, s.Name, s.Description, s.Template, s.SuggestionsJson, s.SortOrder, s.NameEn, s.NameId })
             .ToListAsync(ct);
 
         var visibleSubjectsByTopic = subjects
@@ -34,7 +34,7 @@ public class GetExternalTicketFormHandler(IApplicationDbContext db)
         var visibleTopicIds = visibleSubjectsByTopic.Keys.ToList();
         var topics = await db.ExternalTicketTopics
             .Where(t => t.IsActive && visibleTopicIds.Contains(t.Id))
-            .Select(t => new { t.Id, t.ExternalTicketCategoryId, t.Name, t.Description, t.SortOrder })
+            .Select(t => new { t.Id, t.ExternalTicketCategoryId, t.Name, t.Description, t.SortOrder, t.NameEn, t.NameId })
             .ToListAsync(ct);
 
         var visibleTopicsByCategory = topics
@@ -45,17 +45,21 @@ public class GetExternalTicketFormHandler(IApplicationDbContext db)
         var categories = await db.ExternalTicketCategories
             .Where(c => c.IsActive && visibleCategoryIds.Contains(c.Id))
             .OrderBy(c => c.SortOrder).ThenBy(c => c.Name)
-            .Select(c => new { c.Id, c.Name, c.Description })
+            .Select(c => new { c.Id, c.Name, c.Description, c.NameEn, c.NameId })
             .ToListAsync(ct);
 
+        // ส่งชื่อทั้ง 3 ภาษาให้ฟอร์มผู้แจ้งภายนอกเลือกแสดงตามภาษาที่ตั้งไว้ (fallback ฝั่ง client: locale → en → th)
         var categoryDtos = categories.Select(c => new ExternalTicketFormCategoryDto(
             c.Id, c.Name, c.Description,
             visibleTopicsByCategory[c.Id].Select(t => new ExternalTicketFormTopicDto(
                 t.Id, t.Name, t.Description,
                 visibleSubjectsByTopic[t.Id].Select(s => new ExternalTicketFormSubjectDto(
                     s.Id, s.Name, s.Description, s.Template,
-                    Commands.ExternalSubjectGuidance.DeserializeSuggestions(s.SuggestionsJson))).ToList()))
-                .ToList()))
+                    Commands.ExternalSubjectGuidance.DeserializeSuggestions(s.SuggestionsJson),
+                    s.NameEn, s.NameId)).ToList(),
+                t.NameEn, t.NameId))
+                .ToList(),
+            c.NameEn, c.NameId))
             .ToList();
 
         return new ExternalTicketFormDto(true, config.RequireOaFriendship, categoryDtos);

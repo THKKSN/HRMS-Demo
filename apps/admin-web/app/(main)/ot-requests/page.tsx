@@ -1,27 +1,24 @@
 'use client'
 
-import { useState } from 'react'
-import { Check, X, Clock, ChevronDown } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
+import { Check, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { localizedName, type Locale } from '@hrms/i18n'
+import * as fmt from '@hrms/i18n/format'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
 import { useAllOtRequests, useTeamOtRequests, useApproveOtRequest, useRejectOtRequest } from '@/hooks/use-ot-requests'
 import { useCompanies } from '@/hooks/use-companies'
-import { useAuthStore } from '@/stores/auth.store'
+import { usePermissionGate } from '@/hooks/use-permission-gate'
 import type { OtRequestDto, OtStatus } from '@hrms/shared-types'
 
-const MONTH_TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']
 const CURRENT_YEAR = new Date().getFullYear()
 const CURRENT_MONTH = new Date().getMonth() + 1
 
-const STATUS_LABEL: Record<OtStatus, string> = {
-  PendingSupervisor: 'รออนุมัติ (Sup.)',
-  PendingHr: 'รออนุมัติ (HR)',
-  Approved: 'อนุมัติแล้ว',
-  Rejected: 'ปฏิเสธ',
-  Cancelled: 'ยกเลิก',
-}
+// ป้ายสถานะ/อัตราค่าล่วงเวลาอยู่ที่ @hrms/i18n/labels (status.ot, status.otRate) — ที่นี่เหลือแค่โทนสี
+const OT_STATUSES: OtStatus[] = ['PendingSupervisor', 'PendingHr', 'Approved', 'Rejected', 'Cancelled']
 
 const STATUS_VARIANT: Record<OtStatus, 'warning' | 'info' | 'success' | 'destructive' | 'secondary'> = {
   PendingSupervisor: 'warning',
@@ -31,15 +28,10 @@ const STATUS_VARIANT: Record<OtStatus, 'warning' | 'info' | 'success' | 'destruc
   Cancelled: 'secondary',
 }
 
-const RATE_LABEL: Record<string, string> = {
-  Weekday: 'วันทำงาน (1.5×)',
-  Weekend: 'วันหยุดสัปดาห์ (2×)',
-  Holiday: 'วันหยุดนักขัตฤกษ์ (3×)',
-}
-
-function thaiDate(dateStr: string) {
+/** วันที่จาก API เป็น `yyyy-MM-dd` ล้วน — สร้าง Date แบบ local ตรง ๆ กันเลื่อนวันจาก timezone */
+function otDate(dateStr: string) {
   const [y, m, d] = dateStr.split('-').map(Number)
-  return `${d} ${MONTH_TH[m - 1]} ${y + 543}`
+  return fmt.formatDate(new Date(y, m - 1, d), { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function ActionModal({
@@ -51,6 +43,9 @@ function ActionModal({
   action: 'approve' | 'reject'
   onClose: () => void
 }) {
+  const t = useTranslations('admin.approval.ot')
+  const tRate = useTranslations('status.otRate')
+  const tCommon = useTranslations('common')
   const [comment, setComment] = useState('')
   const approve = useApproveOtRequest()
   const reject  = useRejectOtRequest()
@@ -59,15 +54,15 @@ function ActionModal({
     try {
       if (action === 'approve') {
         await approve.mutateAsync({ id: item.id, comment: comment || undefined })
-        toast.success('อนุมัติ OT สำเร็จ')
+        toast.success(t('approved'))
       } else {
-        if (!comment.trim()) { toast.error('กรุณาระบุเหตุผลการปฏิเสธ'); return }
+        if (!comment.trim()) { toast.error(t('reasonRequired')); return }
         await reject.mutateAsync({ id: item.id, comment })
-        toast.success('ปฏิเสธ OT แล้ว')
+        toast.success(t('rejected'))
       }
       onClose()
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      toast.error(tCommon('state.error'))
     }
   }
 
@@ -77,37 +72,41 @@ function ActionModal({
     <Modal
       open
       onClose={onClose}
-      title={action === 'approve' ? 'อนุมัติคำขอ OT' : 'ปฏิเสธคำขอ OT'}
+      title={action === 'approve' ? t('approveTitle') : t('rejectTitle')}
       size="sm"
     >
       <div className="space-y-3">
         <div className="rounded-lg bg-muted/40 px-4 py-3 text-sm space-y-1">
           <p className="font-medium">{item.employeeName}</p>
           <p className="text-muted-foreground">
-            {thaiDate(item.date)} · {item.startTime.slice(0,5)}–{item.endTime.slice(0,5)} ({item.totalHours} ชม.)
+            {t('summary', {
+              date: otDate(item.date),
+              range: tCommon('time.range', { from: item.startTime.slice(0, 5), to: item.endTime.slice(0, 5) }),
+              hours: tCommon('duration.hoursShort', { count: item.totalHours }),
+            })}
           </p>
-          <p className="text-muted-foreground">{RATE_LABEL[item.rateType]}</p>
+          <p className="text-muted-foreground">{tRate(item.rateType)}</p>
         </div>
         <div className="space-y-1">
           <label className="text-sm font-medium">
-            {action === 'approve' ? 'ความคิดเห็น (ไม่จำเป็น)' : 'เหตุผลการปฏิเสธ *'}
+            {action === 'approve' ? t('commentOptional') : t('rejectReason')}
           </label>
           <textarea
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none"
             rows={3}
-            placeholder={action === 'approve' ? 'ระบุความคิดเห็น...' : 'ระบุเหตุผล...'}
+            placeholder={action === 'approve' ? t('commentPlaceholder') : t('reasonPlaceholder')}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />
         </div>
         <div className="flex justify-end gap-2 pt-1">
-          <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
+          <Button variant="outline" onClick={onClose}>{tCommon('action.cancel')}</Button>
           <Button
             variant={action === 'approve' ? 'default' : 'destructive'}
             loading={isPending}
             onClick={handleSubmit}
           >
-            {action === 'approve' ? 'อนุมัติ' : 'ปฏิเสธ'}
+            {action === 'approve' ? t('approve') : t('reject')}
           </Button>
         </div>
       </div>
@@ -116,12 +115,14 @@ function ActionModal({
 }
 
 export default function OtRequestsPage() {
-  const employee = useAuthStore((s) => s.employee)
-  const isAdmin     = employee?.roles.some((r) => r.role === 'Admin') ?? false
-  const isHr        = employee?.roles.some((r) => r.role === 'Hr') ?? false
-  const isSupervisor = employee?.roles.some((r) => r.role === 'Supervisor') ?? false
-  const canApprove  = isAdmin || isHr || isSupervisor
-  const canSeeAll   = isAdmin || isHr
+  const t = useTranslations('admin.approval.ot')
+  const tStatus = useTranslations('status.ot')
+  const tRate = useTranslations('status.otRate')
+  const tCommon = useTranslations('common')
+  const locale = useLocale() as Locale
+  const { has, hasAny } = usePermissionGate()
+  const canApprove = hasAny(['ot:approve-supervisor', 'ot:approve-hr'], ['Admin', 'Hr', 'Supervisor'])
+  const canSeeAll  = has('ot:view-all', ['Admin', 'Hr'])
 
   const [year, setYear]           = useState(CURRENT_YEAR)
   const [month, setMonth]         = useState<number | undefined>(CURRENT_MONTH)
@@ -132,6 +133,13 @@ export default function OtRequestsPage() {
   const { data: tree = [] } = useCompanies()
   const flatCompanies = tree.flatMap((c) => [c, ...c.children])
 
+  // ชื่อเดือนตามภาษาที่เลือก — เดิม hardcode ตัวย่อภาษาไทยไว้ในไฟล์
+  const monthNames = useMemo(
+    () => Array.from({ length: 12 }, (_, index) =>
+      fmt.formatDate(new Date(CURRENT_YEAR, index, 1), { month: 'short' })),
+    [locale],
+  )
+
   const allQuery  = useAllOtRequests({ companyId, status: statusFilter, year, month })
   const teamQuery = useTeamOtRequests({ status: statusFilter, year, month })
 
@@ -141,7 +149,7 @@ export default function OtRequestsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">คำขอ OT</h1>
+        <h1 className="text-xl font-semibold">{t('title')}</h1>
       </div>
 
       {/* Filters */}
@@ -152,8 +160,9 @@ export default function OtRequestsPage() {
           value={year}
           onChange={(e) => setYear(Number(e.target.value))}
         >
+          {/* ปีแสดงตามปฏิทินของภาษา (ไทยเป็น พ.ศ. อัตโนมัติ) — เดิมบวก 543 เองในโค้ด */}
           {[CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1].map((y) => (
-            <option key={y} value={y}>{y + 543}</option>
+            <option key={y} value={y}>{fmt.formatYear(y)}</option>
           ))}
         </select>
 
@@ -163,9 +172,9 @@ export default function OtRequestsPage() {
           value={month ?? ''}
           onChange={(e) => setMonth(e.target.value ? Number(e.target.value) : undefined)}
         >
-          <option value="">ทุกเดือน</option>
-          {MONTH_TH.map((m, i) => (
-            <option key={i + 1} value={i + 1}>{m}</option>
+          <option value="">{t('allMonths')}</option>
+          {monthNames.map((name, i) => (
+            <option key={i + 1} value={i + 1}>{name}</option>
           ))}
         </select>
 
@@ -175,9 +184,9 @@ export default function OtRequestsPage() {
           value={statusFilter ?? ''}
           onChange={(e) => setStatus((e.target.value || undefined) as OtStatus | undefined)}
         >
-          <option value="">ทุกสถานะ</option>
-          {(Object.keys(STATUS_LABEL) as OtStatus[]).map((s) => (
-            <option key={s} value={s}>{STATUS_LABEL[s]}</option>
+          <option value="">{t('allStatuses')}</option>
+          {OT_STATUSES.map((s) => (
+            <option key={s} value={s}>{tStatus(s)}</option>
           ))}
         </select>
 
@@ -188,9 +197,9 @@ export default function OtRequestsPage() {
             value={companyId ?? ''}
             onChange={(e) => setCompanyId(e.target.value || undefined)}
           >
-            <option value="">ทุกบริษัท</option>
+            <option value="">{t('allCompanies')}</option>
             {flatCompanies.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+              <option key={c.id} value={c.id}>{localizedName(c, locale)}</option>
             ))}
           </select>
         )}
@@ -201,12 +210,12 @@ export default function OtRequestsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/30">
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">พนักงาน</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">วันที่</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ช่วงเวลา</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชั่วโมง</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ประเภท</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">สถานะ</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colEmployee')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colDate')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colTimeRange')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colHours')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colRate')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colStatus')}</th>
               {canApprove && <th className="px-4 py-3 w-28" />}
             </tr>
           </thead>
@@ -224,7 +233,7 @@ export default function OtRequestsPage() {
             {!queryResult.isLoading && items.length === 0 && (
               <tr>
                 <td colSpan={canApprove ? 7 : 6} className="px-4 py-12 text-center text-muted-foreground">
-                  ไม่พบคำขอ OT ในเงื่อนไขที่เลือก
+                  {t('empty')}
                 </td>
               </tr>
             )}
@@ -237,14 +246,16 @@ export default function OtRequestsPage() {
                     <div className="font-medium">{ot.employeeName}</div>
                     {ot.departmentName && <div className="text-xs text-muted-foreground">{ot.departmentName}</div>}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{thaiDate(ot.date)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{otDate(ot.date)}</td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {ot.startTime.slice(0, 5)} – {ot.endTime.slice(0, 5)}
                   </td>
-                  <td className="px-4 py-3 font-medium">{ot.totalHours} ชม.</td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">{RATE_LABEL[ot.rateType]}</td>
+                  <td className="px-4 py-3 font-medium">
+                    {tCommon('duration.hoursShort', { count: ot.totalHours })}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{tRate(ot.rateType)}</td>
                   <td className="px-4 py-3">
-                    <Badge variant={STATUS_VARIANT[ot.status]}>{STATUS_LABEL[ot.status]}</Badge>
+                    <Badge variant={STATUS_VARIANT[ot.status]}>{tStatus(ot.status)}</Badge>
                   </td>
                   {canApprove && (
                     <td className="px-4 py-3">
@@ -254,7 +265,7 @@ export default function OtRequestsPage() {
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7 text-green-600 hover:bg-green-50"
-                            title="อนุมัติ"
+                            title={t('approve')}
                             onClick={() => setAction({ item: ot, type: 'approve' })}
                           >
                             <Check className="h-3.5 w-3.5" />
@@ -263,7 +274,7 @@ export default function OtRequestsPage() {
                             size="icon"
                             variant="ghost"
                             className="h-7 w-7 text-red-500 hover:bg-red-50"
-                            title="ปฏิเสธ"
+                            title={t('reject')}
                             onClick={() => setAction({ item: ot, type: 'reject' })}
                           >
                             <X className="h-3.5 w-3.5" />
@@ -280,7 +291,7 @@ export default function OtRequestsPage() {
       </div>
 
       {!queryResult.isLoading && items.length > 0 && (
-        <p className="text-xs text-muted-foreground">{items.length} รายการ</p>
+        <p className="text-xs text-muted-foreground">{t('count', { count: items.length })}</p>
       )}
 
       {action && (

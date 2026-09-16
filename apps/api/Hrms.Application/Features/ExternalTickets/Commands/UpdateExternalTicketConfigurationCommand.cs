@@ -26,13 +26,13 @@ public class UpdateExternalTicketConfigurationHandler(
         var config = await ExternalTicketConfigAccess.LoadConfigurationAsync(db, ct);
 
         if (config.UpdatedAt != request.ExpectedUpdatedAt)
-            throw new ConflictException("CONFIG_CHANGED", "การตั้งค่านี้ถูกแก้ไขไปแล้วโดยผู้อื่น กรุณาโหลดข้อมูลใหม่แล้วลองอีกครั้ง");
+            throw new ConflictException("CONFIG_CHANGED", "This configuration was changed by someone else. Reload and try again.");
 
         if (request.IsEnabled)
         {
             var hasActiveSubject = await db.ExternalTicketSubjects.AnyAsync(s => s.IsActive, ct);
             if (!hasActiveSubject)
-                throw new ConflictException("EXTERNAL_CONFIG_NOT_READY", "ต้องมีหัวข้อแจ้งเรื่องที่ active อย่างน้อย 1 รายการ ก่อนเปิดใช้งานช่องทาง");
+                throw new ConflictException("EXTERNAL_CONFIG_NOT_READY", "At least one active subject is required before enabling the channel.");
         }
 
         var oldValues = new { config.IsEnabled, config.RequireOaFriendship };

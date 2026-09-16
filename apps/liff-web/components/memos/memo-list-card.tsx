@@ -3,6 +3,7 @@
 import Link from 'next/link'
 
 // การ์ดรายการ memo ใช้ร่วมทั้ง 3 หน้า (ของฉัน / เข้าแผนก / รออนุมัติ) — ต้นแบบจากหน้า memos/my
+// ข้อความทุกช่องผู้เรียกแปล/format มาให้แล้ว (taxonomy เป็น snapshot ไทยจาก API — ดูแผน Phase 1)
 export function MemoListCard({
   id,
   memoNo,
@@ -41,8 +42,4 @@ export function MemoListCard({
       </div>
     </Link>
   )
-}
-
-export function memoThaiDate(value: string) {
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
 }

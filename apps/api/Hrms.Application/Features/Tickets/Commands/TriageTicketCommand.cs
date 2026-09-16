@@ -44,27 +44,27 @@ public class TriageTicketHandler(
     public async Task<TicketActionResultDto> Handle(TriageTicketCommand request, CancellationToken ct)
     {
         var ticket = await db.Tickets.FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketSupervisorAccess.EnsureTicketAsync(
             db, currentUser, permissionService, "ticket:triage", ticket, ct);
         // Triage เปลี่ยนหมวด internal taxonomy เท่านั้น — external ticket ใช้ external taxonomy คนละชุด ไม่มี triage
         if (ticket.RequestType == TicketRequestType.External)
-            throw new ConflictException("EXTERNAL_TICKET_NO_TRIAGE", "ใบแจ้งเรื่องจากบุคคลภายนอกไม่รองรับการแก้การจัดประเภท");
+            throw new ConflictException("EXTERNAL_TICKET_NO_TRIAGE", "Tickets opened by external reporters cannot be re-triaged.");
         if (ticket.Status is not (TicketStatus.Open or TicketStatus.Assigned))
-            throw new ConflictException("INVALID_TICKET_STATUS", "แก้การจัดประเภทได้เฉพาะสถานะ Open หรือ Assigned");
+            throw new ConflictException("TICKET_TRIAGE_NOT_ALLOWED", "Triage is allowed only while the ticket is Open or Assigned.");
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
 
         var category = await db.TicketCategories.FirstOrDefaultAsync(c =>
             c.Id == request.CategoryId &&
             c.CompanyId == ticket.TargetCompanyId &&
             c.DepartmentId == ticket.TargetDepartmentId &&
-            c.IsActive, ct) ?? throw new FluentValidation.ValidationException("ไม่พบหมวดที่เปิดใช้งานในแผนกปลายทาง");
+            c.IsActive, ct) ?? throw new BadRequestException("TICKET_CATEGORY_INVALID", "Ticket category not found or inactive.");
         var topic = await db.TicketTopics.FirstOrDefaultAsync(t =>
             t.Id == request.TopicId &&
             t.CategoryId == category.Id &&
             t.CompanyId == ticket.TargetCompanyId &&
             t.DepartmentId == ticket.TargetDepartmentId &&
-            t.IsActive, ct) ?? throw new FluentValidation.ValidationException("ไม่พบหัวข้อย่อยที่เปิดใช้งานในหมวดนี้");
+            t.IsActive, ct) ?? throw new BadRequestException("TICKET_TOPIC_INVALID", "Ticket topic not found or inactive.");
 
         var otherTopicText = TrimOrNull(request.OtherTopicText);
 
@@ -75,7 +75,7 @@ public class TriageTicketHandler(
             var subject = await db.TicketSubjects.FirstOrDefaultAsync(s =>
                 s.Id == request.SubjectId.Value &&
                 s.TopicId == topic.Id &&
-                s.IsActive, ct) ?? throw new FluentValidation.ValidationException("ไม่พบหัวข้อที่เปิดใช้งานในหมวดย่อยนี้");
+                s.IsActive, ct) ?? throw new BadRequestException("TICKET_SUBJECT_INVALID", "Ticket subject not found or inactive.");
             subjectId = subject.Id;
             subjectName = subject.Name;
         }
@@ -84,7 +84,7 @@ public class TriageTicketHandler(
         var requiresOtherTopicText = topic.Name.Trim() == "อื่น ๆ"
             || (subjectName is not null && subjectName.Trim().Equals("อื่น ๆ", StringComparison.OrdinalIgnoreCase));
         if (requiresOtherTopicText && otherTopicText is null)
-            throw new FluentValidation.ValidationException("กรุณาระบุหัวข้ออื่น ๆ");
+            throw new BadRequestException("TICKET_OTHER_TOPIC_REQUIRED", "Other topic text is required when \"Other\" is selected.");
 
         var oldValues = new
         {

@@ -1,26 +1,28 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Building2, LayoutDashboard, Users, UserCheck } from 'lucide-react'
 import { useAdminDashboard } from '@/hooks/use-dashboard'
 import { AuditLogTable } from './widgets/AuditLogTable'
-import { MemoPendingCard } from './MemoPendingCard'
+import { PendingWorkChips } from './PendingWorkChips'
 import { TicketOverviewSection } from './TicketOverviewSection'
 
 export function AdminDashboard() {
+  const t = useTranslations('admin.dashboard')
   const { data, isLoading, isError } = useAdminDashboard()
 
   if (isLoading) return <DashboardSkeleton />
   if (isError || !data) return (
     <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-600">
-      โหลดข้อมูล dashboard ไม่สำเร็จ กรุณาลองใหม่
+      {t('loadFailed')}
     </div>
   )
 
   const stats = [
-    { icon: Building2,       label: 'บริษัท',           value: data.totalCompanies,   color: 'text-blue-600',   bg: 'bg-blue-50'   },
-    { icon: LayoutDashboard, label: 'แผนก',             value: data.totalDepartments, color: 'text-purple-600', bg: 'bg-purple-50' },
-    { icon: Users,           label: 'พนักงานทั้งหมด',   value: data.totalEmployees,   color: 'text-gray-700',   bg: 'bg-gray-100'  },
-    { icon: UserCheck,       label: 'พนักงานที่ active', value: data.activeEmployees,  color: 'text-green-600',  bg: 'bg-green-50'  },
+    { icon: Building2,       label: t('admin.companies'),        value: data.totalCompanies,   color: 'text-blue-600',   bg: 'bg-blue-50'   },
+    { icon: LayoutDashboard, label: t('admin.departments'),      value: data.totalDepartments, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { icon: Users,           label: t('admin.employees'),        value: data.totalEmployees,   color: 'text-gray-700',   bg: 'bg-gray-100'  },
+    { icon: UserCheck,       label: t('admin.activeEmployees'),  value: data.activeEmployees,  color: 'text-green-600',  bg: 'bg-green-50'  },
   ]
 
   return (
@@ -37,7 +39,7 @@ export function AdminDashboard() {
         ))}
       </div>
 
-      <MemoPendingCard variant="approval" />
+      <PendingWorkChips />
 
       {/* ภาพรวมการแจ้งเรื่อง */}
       <TicketOverviewSection showCompanyFilter showSlowClosers />

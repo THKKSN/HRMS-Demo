@@ -1,3 +1,5 @@
+using Hrms.Application.Common.Options;
+using Microsoft.Extensions.Options;
 using FluentAssertions;
 using Hrms.Application.Features.Tickets.Commands;
 using Hrms.Application.Tests.Support;
@@ -28,7 +30,7 @@ public class TicketAssignmentIntegrationTests
             fixture.Db,
             supervisor,
             new TestPermissionService("ticket:assign"),
-            new TestAuditLogService());
+            new TestAuditLogService(), Options.Create(new TicketOptions()));
         await assign.Handle(
             new AssignTicketCommand(
                 ticket.Id, fixture.AssigneeId, "Please inspect", accepted.UpdatedAt),
@@ -91,7 +93,7 @@ public class TicketAssignmentIntegrationTests
             fixture.Db,
             Supervisor(fixture),
             new TestPermissionService("ticket:assign"),
-            new TestAuditLogService());
+            new TestAuditLogService(), Options.Create(new TicketOptions()));
 
         var result = await handler.Handle(
             new AssignTicketCommand(

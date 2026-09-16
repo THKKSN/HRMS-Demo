@@ -24,7 +24,7 @@ public class GetTicketManagementScopeHandler(
         var canManageCategories = await permissionService.HasPermissionAsync(currentUser, "ticket:manage-categories", ct);
         var canManageTopics = await permissionService.HasPermissionAsync(currentUser, "ticket:manage-topics", ct);
         if (!canManageCategories && !canManageTopics)
-            throw new AppForbiddenException("ไม่มีสิทธิ์จัดการหมวดหรือหัวข้อแจ้งเรื่อง");
+            throw new AppForbiddenException("TICKET_TAXONOMY_FORBIDDEN", "You are not allowed to manage ticket categories or topics.");
 
         var departmentsQuery = db.Departments
             .Where(d => d.IsActive && d.Company.IsActive);
@@ -54,14 +54,14 @@ public class GetTicketManagementScopeHandler(
         var departments = await departmentsQuery
             .OrderBy(d => d.Company.Name)
             .ThenBy(d => d.Name)
-            .Select(d => new TicketLookupDepartmentDto(d.Id, d.CompanyId, d.Name))
+            .Select(d => new TicketLookupDepartmentDto(d.Id, d.CompanyId, d.Name, d.NameEn, d.NameId))
             .ToListAsync(ct);
 
         var companyIds = departments.Select(d => d.CompanyId).Distinct().ToList();
         var companies = await db.Companies
             .Where(c => companyIds.Contains(c.Id))
             .OrderBy(c => c.Name)
-            .Select(c => new TicketLookupCompanyDto(c.Id, c.Name))
+            .Select(c => new TicketLookupCompanyDto(c.Id, c.Name, c.NameEn, c.NameId))
             .ToListAsync(ct);
 
         return new TicketManagementScopeDto(companies, departments);

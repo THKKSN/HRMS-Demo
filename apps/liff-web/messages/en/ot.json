@@ -1,0 +1,86 @@
+{
+  "list": {
+    "title": "OT requests",
+    "request": "Request OT",
+    "mine": "Mine",
+    "team": "Team",
+    "tabs": {
+      "all": "All",
+      "pending": "Pending",
+      "pendingHr": "Awaiting HR",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "done": "Completed"
+    },
+    "empty": "No OT requests yet",
+    "requestNow": "Request OT"
+  },
+  "rate": {
+    "short": {
+      "Weekday": "1.5×",
+      "Weekend": "2×",
+      "Holiday": "3×"
+    }
+  },
+  "new": {
+    "title": "Request overtime (OT)",
+    "subtitle": "Choose the date and time range",
+    "amount": "Duration",
+    "date": "OT date",
+    "timeRange": "OT time",
+    "shiftEnds": "Shift ends {time}",
+    "start": "Start",
+    "end": "End",
+    "reason": "Reason",
+    "reasonPlaceholder": "Why is OT needed?...",
+    "submitting": "Submitting...",
+    "submit": "Submit OT request",
+    "validation": {
+      "dateRequired": "Please choose a date",
+      "startRequired": "Please enter a start time",
+      "endRequired": "Please enter an end time",
+      "timeOrder": "End time must be after start time"
+    }
+  },
+  "detail": {
+    "title": "OT details",
+    "notFound": "OT request not found",
+    "timeline": {
+      "submitted": "Submitted",
+      "supervisorApproved": "Supervisor approved",
+      "hrApproved": "HR approved"
+    },
+    "status": "Status",
+    "requester": "Requester",
+    "date": "Date",
+    "timeRange": "Time",
+    "timeRangeWithHours": "{range} ({hours})",
+    "type": "OT type",
+    "reason": "Reason",
+    "supervisor": "Approving supervisor",
+    "supervisorComment": "Supervisor comment",
+    "approvedAt": "Approved on",
+    "hr": "Approving HR",
+    "hrComment": "HR comment",
+    "hrAcknowledgedAt": "Recorded by HR on",
+    "submittedAt": "Submitted on",
+    "actions": "Actions",
+    "commentPlaceholder": "Comment (optional)...",
+    "reject": "Reject",
+    "approve": "Approve",
+    "approving": "Approving...",
+    "confirmRejectTitle": "Reject this OT request?",
+    "confirmReject": "Confirm rejection",
+    "cancelRequest": "Cancel OT request",
+    "confirmCancelTitle": "Cancel this OT request?",
+    "irreversible": "This cannot be undone.",
+    "keep": "Keep it",
+    "cancelling": "Cancelling...",
+    "confirmCancel": "Confirm cancellation",
+    "errors": {
+      "cancelFailed": "Could not cancel. Please try again.",
+      "approveFailed": "Could not approve. Please try again.",
+      "rejectFailed": "Could not reject. Please try again."
+    }
+  }
+}

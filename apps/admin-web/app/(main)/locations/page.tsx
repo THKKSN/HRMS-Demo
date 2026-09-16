@@ -22,6 +22,7 @@ import { addressKeys } from '@/hooks/use-address'
 import { addressApi } from '@/lib/address.api'
 import type { LocationDto, ProvinceDto, DistrictDto, SubDistrictDto } from '@hrms/shared-types'
 import type { ResolvedAddress } from '@/components/shared/map-picker'
+import { useApiError } from '@/hooks/use-api-error'
 
 const MapPicker = dynamic(
   () => import('@/components/shared/map-picker').then((m) => m.MapPicker),
@@ -122,6 +123,8 @@ function flattenActiveCompanies(tree: { id: string; name: string; isActive: bool
 const locationSchema = z.object({
   companyId:    z.string().min(1, 'กรุณาเลือกบริษัท'),
   name:         z.string().min(1, 'กรุณากรอกชื่อสถานที่').max(200),
+  nameEn:       z.string().max(200).optional().or(z.literal('')),
+  nameId:       z.string().max(200).optional().or(z.literal('')),
   latitude:     z.number().min(-90, 'ต้องอยู่ระหว่าง -90 ถึง 90').max(90, 'ต้องอยู่ระหว่าง -90 ถึง 90'),
   longitude:    z.number().min(-180, 'ต้องอยู่ระหว่าง -180 ถึง 180').max(180, 'ต้องอยู่ระหว่าง -180 ถึง 180'),
   radiusMeters: z.number().min(10, 'ขั้นต่ำ 10 เมตร').max(5000, 'สูงสุด 5,000 เมตร'),
@@ -146,6 +149,7 @@ function CreateLocationModal({
   defaultCompanyId?: string
   companies: { id: string; name: string }[]
 }) {
+  const apiError = useApiError()
   const create = useCreateLocation()
   const [showMap, setShowMap] = useState(true)
   const { register, handleSubmit, setError, reset, control, setValue, watch, formState: { errors, isSubmitting } } =
@@ -178,6 +182,8 @@ function CreateLocationModal({
       await create.mutateAsync({
         companyId:     values.companyId,
         name:          values.name,
+        nameEn:        values.nameEn ?? '',
+        nameId:        values.nameId ?? '',
         latitude:      values.latitude,
         longitude:     values.longitude,
         radiusMeters:  values.radiusMeters,
@@ -193,7 +199,7 @@ function CreateLocationModal({
       const e = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
       if (e === 'DUPLICATE_LOCATION') setError('name', { message: 'มีสถานที่ชื่อนี้อยู่แล้วในบริษัทนี้' })
       else if (e === 'COMPANY_NOT_FOUND') setError('companyId', { message: 'ไม่พบบริษัทที่ระบุ' })
-      else { setError('root', { message: 'เกิดข้อผิดพลาด กรุณาลองใหม่' }); toast.error('เกิดข้อผิดพลาด') }
+      else { setError('root', { message: apiError(err, 'เกิดข้อผิดพลาด กรุณาลองใหม่') }); toast.error(apiError(err, 'เกิดข้อผิดพลาด')) }
     }
   }
 
@@ -217,6 +223,20 @@ function CreateLocationModal({
           <Label htmlFor="cl-name">ชื่อสถานที่ *</Label>
           <Input id="cl-name" {...register('name')} placeholder="สำนักงานใหญ่" />
           <FieldError message={errors.name?.message} />
+        </div>
+
+        {/* ชื่อภาษาอื่นสำหรับหน้าจอที่สลับภาษา — ว่างได้ ระบบจะแสดงชื่อไทยแทน */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="cl-name-en">ชื่อ (English)</Label>
+            <Input id="cl-name-en" {...register('nameEn')} />
+            <FieldError message={errors.nameEn?.message} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cl-name-id">ชื่อ (Bahasa Indonesia)</Label>
+            <Input id="cl-name-id" {...register('nameId')} />
+            <FieldError message={errors.nameId?.message} />
+          </div>
         </div>
 
 
@@ -306,6 +326,7 @@ function EditLocationModal({
   location: LocationDto
   onClose: () => void
 }) {
+  const apiError = useApiError()
   const update = useUpdateLocation()
   const [deactivateConfirm, setDeactivateConfirm] = useState(false)
   const [showMap, setShowMap] = useState(false)
@@ -316,6 +337,8 @@ function EditLocationModal({
       resolver: zodResolver(editLocationSchema),
       defaultValues: {
         name:          location.name,
+        nameEn:        location.nameEn ?? '',
+        nameId:        location.nameId ?? '',
         latitude:      location.latitude,
         longitude:     location.longitude,
         radiusMeters:  location.radiusMeters,
@@ -348,6 +371,8 @@ function EditLocationModal({
       await update.mutateAsync({
         id:            location.id,
         name:          values.name,
+        nameEn:        values.nameEn ?? '',
+        nameId:        values.nameId ?? '',
         latitude:      values.latitude,
         longitude:     values.longitude,
         radiusMeters:  values.radiusMeters,
@@ -363,7 +388,7 @@ function EditLocationModal({
     } catch (err: unknown) {
       const e = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
       if (e === 'DUPLICATE_LOCATION') setError('name', { message: 'มีสถานที่ชื่อนี้อยู่แล้วในบริษัทนี้' })
-      else { setError('root', { message: 'เกิดข้อผิดพลาด' }); toast.error('เกิดข้อผิดพลาด') }
+      else { setError('root', { message: apiError(err, 'เกิดข้อผิดพลาด') }); toast.error(apiError(err, 'เกิดข้อผิดพลาด')) }
     }
   }
 
@@ -375,6 +400,19 @@ function EditLocationModal({
             <Label htmlFor="el-name">ชื่อสถานที่ *</Label>
             <Input id="el-name" {...register('name')} />
             <FieldError message={errors.name?.message} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="el-name-en">ชื่อ (English)</Label>
+              <Input id="el-name-en" {...register('nameEn')} />
+              <FieldError message={errors.nameEn?.message} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="el-name-id">ชื่อ (Bahasa Indonesia)</Label>
+              <Input id="el-name-id" {...register('nameId')} />
+              <FieldError message={errors.nameId?.message} />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

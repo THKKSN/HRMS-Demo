@@ -25,7 +25,7 @@ public class GetTicketLookupDepartmentsHandler(IApplicationDbContext db, ICurren
 
         return await query
             .OrderBy(d => d.Name)
-            .Select(d => new TicketLookupDepartmentDto(d.Id, d.CompanyId, d.Name))
+            .Select(d => new TicketLookupDepartmentDto(d.Id, d.CompanyId, d.Name, d.NameEn, d.NameId))
             .ToListAsync(ct);
     }
 }

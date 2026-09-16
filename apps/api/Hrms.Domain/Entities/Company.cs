@@ -7,6 +7,7 @@ public class Company : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
     public string? NameEn { get; set; }
+    public string? NameId { get; set; }
     public string? TaxId { get; set; }
     public OrgType OrgType { get; set; }
     public Guid? ParentId { get; set; }

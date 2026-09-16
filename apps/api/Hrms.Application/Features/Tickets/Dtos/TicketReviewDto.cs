@@ -15,6 +15,7 @@ public record TicketReviewDto(
     string? ResolvedByEmployeeName,
     DateTime? ResolvedAt,
     TicketProblemType? ProblemTypeSnapshot,
+    string? CloseoutReasonSnapshot,
     string? InitialInspectionSnapshot,
     string? ResolutionSnapshot,
     IReadOnlyList<Guid> ResolvedAttachmentIds);

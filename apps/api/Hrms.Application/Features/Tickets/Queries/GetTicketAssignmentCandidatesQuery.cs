@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Tickets.Dtos;
@@ -25,9 +26,17 @@ public class GetTicketAssignmentCandidatesHandler(
         GetTicketAssignmentCandidatesQuery request, CancellationToken ct)
     {
         var ticket = await db.Tickets.AsNoTracking().FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
-        await TicketSupervisorAccess.EnsureTicketAsync(
-            db, currentUser, permissionService, "ticket:assign", ticket, ct);
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
+        // ผู้รับผิดชอบหลักที่มีสิทธิ์จัดทีมต้องเห็นรายชื่อเพื่อดึงผู้ร่วมงานด้วย ไม่ใช่แค่ Supervisor ที่จ่ายงาน
+        if (await permissionService.HasPermissionAsync(currentUser, "ticket:assign", ct))
+        {
+            await TicketSupervisorAccess.EnsureTicketAsync(
+                db, currentUser, permissionService, "ticket:assign", ticket, ct);
+        }
+        else
+        {
+            await Commands.TicketTeamAccess.EnsureCanManageAsync(db, currentUser, permissionService, ticket, ct);
+        }
 
         List<CandidateEmployee> employees;
         List<Guid> recommendedIds;
@@ -81,11 +90,20 @@ public class GetTicketAssignmentCandidatesHandler(
         }
 
         var employeeIds = employees.Select(e => e.Id).ToList();
-        var activeCounts = await db.TicketAssignments.AsNoTracking()
+        var openAssignments = db.TicketAssignments.AsNoTracking()
             .Where(a => employeeIds.Contains(a.AssignedToEmployeeId) && a.IsActive &&
                         a.Ticket.Status != TicketStatus.Closed &&
                         a.Ticket.Status != TicketStatus.Rejected &&
-                        a.Ticket.Status != TicketStatus.Cancelled)
+                        a.Ticket.Status != TicketStatus.Cancelled);
+        // "งานค้าง" ที่โชว์ในตัวเลือกคือภาระที่ตัวเองเป็นผู้รับผิดชอบหลัก
+        var activeCounts = await openAssignments
+            .Where(a => a.IsPrimary)
+            .GroupBy(a => a.AssignedToEmployeeId)
+            .Select(group => new { EmployeeId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.EmployeeId, item => item.Count, ct);
+        // งานที่ร่วมทีมกับคนอื่นแยกนับ ให้ผู้จ่ายงานเห็นภาระจริงก่อนเลือก
+        var teamCounts = await openAssignments
+            .Where(a => !a.IsPrimary)
             .GroupBy(a => a.AssignedToEmployeeId)
             .Select(group => new { EmployeeId = group.Key, Count = group.Count() })
             .ToDictionaryAsync(item => item.EmployeeId, item => item.Count, ct);
@@ -101,7 +119,8 @@ public class GetTicketAssignmentCandidatesHandler(
                     employee.Id, employee.EmployeeCode, employee.EmployeeName, employee.RoleLabelName,
                     activeCounts.GetValueOrDefault(employee.Id), recommended,
                     recommended ? level : TicketRoutingLevel.None,
-                    employee.DepartmentName, inTargetDepartment);
+                    employee.DepartmentName, inTargetDepartment,
+                    teamCounts.GetValueOrDefault(employee.Id));
             })
             .OrderByDescending(candidate => candidate.IsRecommended)
             .ThenByDescending(candidate => candidate.IsInTargetDepartment)

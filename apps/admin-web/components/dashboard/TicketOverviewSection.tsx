@@ -6,10 +6,12 @@ import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, Legend, CartesianGrid,
 } from 'recharts'
 import {
-  CheckCircle2, ClipboardCheck, Inbox, TicketCheck, Timer, TriangleAlert, UserRoundSearch, Wrench,
-  type LucideIcon,
+  Building2, CheckCircle2, ClipboardCheck, Globe, Inbox, TicketCheck, Timer,
+  TriangleAlert, UserRoundSearch, Wrench,
 } from 'lucide-react'
 import type { TicketRequestType } from '@hrms/shared-types'
+import { KpiCard, MetricCell, MiniBar, SegmentGroup, duration, rankBarClass, RANK_BADGE } from '@/components/tickets/ticket-report-ui'
+import { MemoOverviewCards } from './MemoOverviewCards'
 import {
   useTicketCategoryReport,
   useTicketReportScope,
@@ -17,97 +19,46 @@ import {
   useTicketTrend,
   useTicketWorkloadReport,
 } from '@/hooks/use-ticket-reports'
+import { useLocale, useTranslations } from 'next-intl'
+import { localizedName, type Locale } from '@hrms/i18n'
 import type { TicketReportParams } from '@/lib/ticket-reports.api'
+import * as fmt from '@hrms/i18n/format'
 
-const RANGE_OPTIONS = [7, 30, 90] as const
-const SEGMENTS: { value: TicketRequestType | ''; label: string }[] = [
-  { value: '', label: 'ทั้งหมด' },
-  { value: 'Internal', label: 'ภายใน' },
-  { value: 'External', label: 'ภายนอก' },
-]
-const RANK_BADGE = ['🥇', '🥈', '🥉']
-const MIN_CLOSED_SAMPLE = 3
+const RANGE_OPTIONS = ['today', '7d', '30d', 'custom'] as const
+type RangeKey = (typeof RANGE_OPTIONS)[number]
+
+// ค่าใน segment ตรงกับ TicketRequestType ของ API ('' = ทุกช่องทาง) ส่วนป้ายมาจาก messages
+const SEGMENT_VALUES = ['', 'Internal', 'External'] as const
+const SEGMENT_LABEL_KEYS: Record<string, string> = {
+  '': 'channel.all',
+  Internal: 'channel.internal',
+  External: 'channel.external',
+}
+const MIN_CLOSED_SAMPLE = 1
 
 function isoDate(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-function duration(minutes?: number | null) {
-  if (minutes === null || minutes === undefined) return '—'
-  if (minutes < 60) return `${Math.round(minutes)} นาที`
-  if (minutes < 1440) return `${(minutes / 60).toFixed(1)} ชม.`
-  return `${(minutes / 1440).toFixed(1)} วัน`
+// วันที่ย้อนหลัง n วันในรูปแบบ YYYY-MM-DD ตามเวลาเครื่อง (ไทย)
+function daysAgo(count: number) {
+  const date = new Date()
+  date.setDate(date.getDate() - count)
+  return isoDate(date)
 }
 
-// โทนสีตามความหมายข้อมูล — ชุดเดียวกับ quick-link เดิมของแอป
-type Tone = 'sky' | 'amber' | 'violet' | 'cyan' | 'emerald' | 'rose' | 'teal' | 'indigo'
-const TONE: Record<Tone, { chip: string; value: string }> = {
-  sky:     { chip: 'bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400',             value: 'text-sky-700 dark:text-sky-300' },
-  amber:   { chip: 'bg-amber-100 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400',     value: 'text-amber-700 dark:text-amber-300' },
-  violet:  { chip: 'bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400', value: 'text-violet-700 dark:text-violet-300' },
-  cyan:    { chip: 'bg-cyan-100 text-cyan-600 dark:bg-cyan-500/15 dark:text-cyan-400',         value: 'text-cyan-700 dark:text-cyan-300' },
-  emerald: { chip: 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400', value: 'text-emerald-700 dark:text-emerald-300' },
-  rose:    { chip: 'bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400',         value: 'text-rose-700 dark:text-rose-300' },
-  teal:    { chip: 'bg-teal-100 text-teal-600 dark:bg-teal-500/15 dark:text-teal-400',         value: 'text-teal-700 dark:text-teal-300' },
-  indigo:  { chip: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400', value: 'text-indigo-700 dark:text-indigo-300' },
+// 'YYYY-MM-DD' → '7 ส.ค.' — แยก parse เองเพราะ new Date('2026-08-07') ถูกอ่านเป็น UTC แล้วเลื่อนวันใน +07
+function thaiShortDate(iso: string) {
+  const [year, month, day] = iso.split('-').map(Number)
+  return fmt.formatDate(new Date(year, month - 1, day), { day: 'numeric', month: 'short' })
 }
 
-function KpiCard({
-  label, value, hint, icon: Icon, tone,
-}: {
-  label: string
-  value: string | number
-  hint?: string
-  icon: LucideIcon
-  tone: Tone
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-      <div className={`inline-flex rounded-xl p-2 ${TONE[tone].chip}`}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <p className={`mt-2 text-2xl font-bold tabular-nums ${TONE[tone].value}`}>{value}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
-      {hint && <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p>}
-    </div>
-  )
-}
-
-function MiniBar({ value, max, className }: { value: number; max: number; className: string }) {
-  const width = max > 0 ? Math.max(2, (value / max) * 100) : 0
-  return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-      <div className={`h-full rounded-full ${className}`} style={{ width: `${width}%` }} />
-    </div>
-  )
-}
-
-function SegmentGroup<T extends string | number>({
-  options, value, onChange, render,
-}: {
-  options: readonly T[]
-  value: T
-  onChange: (option: T) => void
-  render: (option: T) => string
-}) {
-  return (
-    <div className="flex gap-0.5 rounded-full bg-muted p-0.5 text-xs">
-      {options.map(option => (
-        <button
-          key={String(option)}
-          type="button"
-          onClick={() => onChange(option)}
-          className={`rounded-full px-3 py-1.5 font-medium transition-colors ${
-            value === option
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          {render(option)}
-        </button>
-      ))}
-    </div>
-  )
+// แปลงตัวเลือกช่วงเวลาเป็นวันที่จริง — custom สลับให้เสมอถ้าผู้ใช้เลือกวันเริ่มหลังวันสิ้นสุด (API จะ 400)
+function resolveRange(key: RangeKey, customFrom: string, customTo: string): [string, string] {
+  if (key === 'custom') return customFrom <= customTo ? [customFrom, customTo] : [customTo, customFrom]
+  const today = daysAgo(0)
+  if (key === 'today') return [today, today]
+  return [daysAgo(key === '7d' ? 6 : 29), today]
 }
 
 export function TicketOverviewSection({
@@ -117,16 +68,23 @@ export function TicketOverviewSection({
   showCompanyFilter?: boolean
   showSlowClosers?: boolean
 }) {
-  const [days, setDays] = useState<(typeof RANGE_OPTIONS)[number]>(30)
+  const t = useTranslations('admin.dashboard.ticketOverview')
+  const locale = useLocale() as Locale
+  const [rangeKey, setRangeKey] = useState<RangeKey>('30d')
+  const [customFrom, setCustomFrom] = useState(() => daysAgo(29))
+  const [customTo, setCustomTo] = useState(() => daysAgo(0))
   const [requestType, setRequestType] = useState<TicketRequestType | ''>('')
   const [companyId, setCompanyId] = useState('')
 
-  const to = new Date()
-  const from = new Date()
-  from.setDate(to.getDate() - (days - 1))
+  const [dateFrom, dateTo] = resolveRange(rangeKey, customFrom, customTo)
+  // ป้ายกำกับช่วงเวลาที่เอาไปใช้ซ้ำในหัวการ์ดต่างๆ — ช่วงที่เลือกเองแสดงเป็นวันที่จริง
+  const rangeLabel = rangeKey === 'custom'
+    ? `${thaiShortDate(dateFrom)} – ${thaiShortDate(dateTo)}`
+    : t(`range.${rangeKey}`)
+
   const params: TicketReportParams = {
-    dateFrom: isoDate(from),
-    dateTo: isoDate(to),
+    dateFrom,
+    dateTo,
     companyId: companyId || undefined,
     requestType: requestType || undefined,
   }
@@ -146,7 +104,7 @@ export function TicketOverviewSection({
   const companies = scopeQuery.data?.companies ?? []
   const trend = (trendQuery.data ?? []).map(item => ({
     ...item,
-    label: new Date(item.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }),
+    label: fmt.formatDate(new Date(item.date), { day: 'numeric', month: 'short' }),
   }))
 
   const topTopics = (categoriesQuery.data ?? [])
@@ -173,20 +131,39 @@ export function TicketOverviewSection({
           <span className="inline-flex rounded-xl bg-emerald-100 p-2 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
             <TicketCheck className="h-4 w-4" />
           </span>
-          <p className="text-sm font-semibold">ภาพรวมการแจ้งเรื่อง</p>
+          <p className="text-sm font-semibold">{t('title')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <SegmentGroup
             options={RANGE_OPTIONS}
-            value={days}
-            onChange={setDays}
-            render={option => `${option} วัน`}
+            value={rangeKey}
+            onChange={setRangeKey}
+            render={option => t(`range.${option}`)}
           />
+          {rangeKey === 'custom' && (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={customFrom}
+                max={daysAgo(0)}
+                onChange={event => setCustomFrom(event.target.value)}
+                className="h-8 rounded-full border border-border bg-background px-3 text-xs outline-none focus:border-primary"
+              />
+              <span className="text-xs text-muted-foreground">{t('range.to')}</span>
+              <input
+                type="date"
+                value={customTo}
+                max={daysAgo(0)}
+                onChange={event => setCustomTo(event.target.value)}
+                className="h-8 rounded-full border border-border bg-background px-3 text-xs outline-none focus:border-primary"
+              />
+            </div>
+          )}
           <SegmentGroup
-            options={SEGMENTS.map(segment => segment.value) as readonly (TicketRequestType | '')[]}
+            options={SEGMENT_VALUES as readonly (TicketRequestType | '')[]}
             value={requestType}
             onChange={setRequestType}
-            render={option => SEGMENTS.find(segment => segment.value === option)?.label ?? ''}
+            render={option => t(SEGMENT_LABEL_KEYS[option] ?? 'channel.all')}
           />
           {showCompanyFilter && companies.length > 1 && (
             <select
@@ -194,7 +171,7 @@ export function TicketOverviewSection({
               onChange={event => setCompanyId(event.target.value)}
               className="h-8 rounded-full border border-border bg-background px-3 text-xs outline-none focus:border-primary"
             >
-              <option value="">ทุกบริษัท</option>
+              <option value="">{t('allCompanies')}</option>
               {companies.map(company => (
                 <option key={company.id} value={company.id}>{company.name}</option>
               ))}
@@ -204,7 +181,7 @@ export function TicketOverviewSection({
       </div>
 
       {summaryQuery.isLoading || !summary ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {[...Array(6)].map((_, index) => (
             <div key={index} className="h-24 animate-pulse rounded-2xl bg-muted" />
           ))}
@@ -212,68 +189,82 @@ export function TicketOverviewSection({
       ) : (
         <>
           {/* ① KPI cards */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <KpiCard label="เปิดใหม่" value={summary.openCount} icon={Inbox} tone="sky" />
-            <KpiCard label="ยังไม่มีผู้รับ" value={summary.unassignedCount} icon={UserRoundSearch} tone="amber" />
-            <KpiCard label="กำลังดำเนินการ" value={summary.activeCount} icon={Wrench} tone="violet" />
-            <KpiCard label="รอตรวจรับ" value={summary.waitingReviewCount} icon={ClipboardCheck} tone="cyan" />
-            <KpiCard label="ปิดแล้ว" value={summary.closedCount} icon={CheckCircle2} tone="emerald" />
-            <KpiCard label="งานค้าง" value={summary.backlogCount} icon={TriangleAlert} tone="rose" />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <KpiCard label={t('kpi.open')} value={summary.openCount} icon={Inbox} tone="sky" />
+            <KpiCard label={t('kpi.unassigned')} value={summary.unassignedCount} icon={UserRoundSearch} tone="amber" />
+            <KpiCard label={t('kpi.active')} value={summary.activeCount} icon={Wrench} tone="violet" />
+            <KpiCard label={t('kpi.waitingReview')} value={summary.waitingReviewCount} icon={ClipboardCheck} tone="cyan" />
+            <KpiCard label={t('kpi.closed')} value={summary.closedCount} icon={CheckCircle2} tone="emerald" />
+            <KpiCard label={t('kpi.backlog')} value={summary.backlogCount} icon={TriangleAlert} tone="rose" />
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <KpiCard
-              label="เวลารับงานเฉลี่ย"
-              value={duration(summary.timeToAccept.averageMinutes)}
-              hint={`median ${duration(summary.timeToAccept.medianMinutes)} · ${summary.timeToAccept.sampleCount} งาน`}
-              icon={Timer}
-              tone="teal"
-            />
-            <KpiCard
-              label="เวลาจบงานเฉลี่ย"
-              value={duration(summary.totalLeadTime.averageMinutes)}
-              hint={`median ${duration(summary.totalLeadTime.medianMinutes)} · ${summary.totalLeadTime.sampleCount} งาน`}
-              icon={Timer}
-              tone="indigo"
-            />
-            <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-              <p className="text-xs text-muted-foreground">ภายใน vs ภายนอก (เปิดใหม่ / ค้าง)</p>
-              <div className="mt-2 flex items-center gap-3 text-sm">
-                <span className="flex-1 rounded-xl bg-teal-50 px-3 py-2 dark:bg-teal-500/10">
-                  <span className="block text-[11px] text-teal-700 dark:text-teal-300">ภายใน</span>
-                  <b className="tabular-nums text-teal-700 dark:text-teal-300">{internalSummary.data?.openCount ?? '—'}</b>
-                  <span className="text-muted-foreground"> / {internalSummary.data?.backlogCount ?? '—'}</span>
-                </span>
-                <span className="flex-1 rounded-xl bg-rose-50 px-3 py-2 dark:bg-rose-500/10">
-                  <span className="block text-[11px] text-rose-700 dark:text-rose-300">ภายนอก</span>
-                  <b className="tabular-nums text-rose-700 dark:text-rose-300">{externalSummary.data?.openCount ?? '—'}</b>
-                  <span className="text-muted-foreground"> / {externalSummary.data?.backlogCount ?? '—'}</span>
-                </span>
+          {/* ② เวลา/สัดส่วน (2×2) คู่กับกราฟแนวโน้ม — จับคู่ในแถวเดียวกันแทนที่จะกินเต็มแถวคนละแถว */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="overflow-hidden rounded-2xl border border-border shadow-sm">
+              <div className="grid h-full grid-cols-2 grid-rows-2 gap-px bg-border">
+                <MetricCell
+                  label={t('timeToAccept')}
+                  value={duration(summary.timeToAccept.averageMinutes)}
+                  hint={t('medianHint', {
+                    median: duration(summary.timeToAccept.medianMinutes),
+                    count: summary.timeToAccept.sampleCount,
+                  })}
+                  icon={Timer}
+                  tone="teal"
+                />
+                <MetricCell
+                  label={t('totalLeadTime')}
+                  value={duration(summary.totalLeadTime.averageMinutes)}
+                  hint={t('medianHint', {
+                    median: duration(summary.totalLeadTime.medianMinutes),
+                    count: summary.totalLeadTime.sampleCount,
+                  })}
+                  icon={Timer}
+                  tone="indigo"
+                />
+                <MetricCell
+                  label={t('channel.internal')}
+                  value={`${internalSummary.data?.openCount ?? '—'} / ${internalSummary.data?.backlogCount ?? '—'}`}
+                  hint={t('channelSplitHint')}
+                  icon={Building2}
+                  tone="blue"
+                />
+                <MetricCell
+                  label={t('channel.external')}
+                  value={`${externalSummary.data?.openCount ?? '—'} / ${externalSummary.data?.backlogCount ?? '—'}`}
+                  hint={t('channelSplitHint')}
+                  icon={Globe}
+                  tone="rose"
+                />
               </div>
             </div>
-          </div>
 
-          {/* ② Trend */}
-          <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-            <p className="mb-4 text-sm font-semibold">ความถี่การแจ้งเรื่อง {days} วัน</p>
-            <ResponsiveContainer width="100%" height={200}>
+            <div className="rounded-2xl border border-border bg-background p-4 shadow-sm lg:col-span-2">
+              <p className="mb-4 text-sm font-semibold">{t('trendTitle', { range: rangeLabel })}</p>
+              <ResponsiveContainer width="100%" height={188}>
               <AreaChart data={trend} margin={{ top: 4, right: 12, left: -24, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.5} />
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} interval="preserveStartEnd" tickLine={false} />
                 <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 12, border: '1px solid #e5e7eb' }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Area type="monotone" dataKey="openedCount" name="เปิดใหม่" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.12} strokeWidth={2} />
-                <Area type="monotone" dataKey="closedCount" name="ปิดแล้ว" stroke="#10b981" fill="#10b981" fillOpacity={0.12} strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
+                <Area type="monotone" dataKey="openedCount" name={t('seriesOpened')} stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.12} strokeWidth={2} />
+                <Area type="monotone" dataKey="closedCount" name={t('seriesClosed')} stroke="#10b981" fill="#10b981" fillOpacity={0.12} strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
+          <div className="flex items-center justify-end text-xs text-muted-foreground">
+            <Link href="/tickets/reports" className="rounded-full bg-emerald-50 px-3 py-1.5 font-medium text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20">
+              {t('fullReport')}
+            </Link>
+          </div>
           {/* ③+④ Tier lists */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-              <p className="mb-3 text-sm font-semibold">หัวข้อที่ถูกแจ้งมากที่สุด</p>
+              <p className="mb-3 text-sm font-semibold">{t('topSubjects')}</p>
               {topTopics.length === 0 ? (
-                <p className="text-sm text-muted-foreground">ไม่มีข้อมูลในช่วงที่เลือก</p>
+                <p className="text-sm text-muted-foreground">{t('emptyRange')}</p>
               ) : (
                 <ul className="space-y-2.5">
                   {topTopics.map((item, index) => (
@@ -281,24 +272,25 @@ export function TicketOverviewSection({
                       <div className="mb-1 flex items-center justify-between gap-2 text-sm">
                         <span className="min-w-0 truncate">
                           {RANK_BADGE[index] ?? `${index + 1}.`}{' '}
-                          {[item.categoryName, item.topicName, item.subjectName].filter(Boolean).join(' / ') || '—'}
+                          {/* ชื่อ master data มาครบ 3 ภาษาจาก API — เลือกตามภาษาที่ผู้ใช้ตั้ง (fallback: locale → en → th) */}
+                          {[
+                            localizedName({ name: item.categoryName, nameEn: item.categoryNameEn, nameId: item.categoryNameId }, locale),
+                            localizedName({ name: item.topicName, nameEn: item.topicNameEn, nameId: item.topicNameId }, locale),
+                            localizedName({ name: item.subjectName, nameEn: item.subjectNameEn, nameId: item.subjectNameId }, locale),
+                          ].filter(Boolean).join(' / ') || '—'}
                         </span>
                         <span className="shrink-0 font-semibold tabular-nums text-violet-700 dark:text-violet-300">{item.totalCount}</span>
                       </div>
-                      <MiniBar
-                        value={item.totalCount}
-                        max={maxTopicCount}
-                        className={index === 0 ? 'bg-violet-500' : index === 1 ? 'bg-violet-400' : index === 2 ? 'bg-violet-300' : 'bg-violet-200 dark:bg-violet-500/30'}
-                      />
+                      <MiniBar value={item.totalCount} max={maxTopicCount} className={rankBarClass(index, 'violet')} />
                     </li>
                   ))}
                 </ul>
               )}
             </div>
             <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-              <p className="mb-3 text-sm font-semibold">การมอบหมายงาน</p>
+              <p className="mb-3 text-sm font-semibold">{t('staff')}</p>
               {workload.length === 0 ? (
-                <p className="text-sm text-muted-foreground">ไม่มีข้อมูลในช่วงที่เลือก</p>
+                <p className="text-sm text-muted-foreground">{t('emptyRange')}</p>
               ) : (
                 <ul className="space-y-2.5">
                   {workload.map((item, index) => (
@@ -308,37 +300,36 @@ export function TicketOverviewSection({
                           {RANK_BADGE[index] ?? `${index + 1}.`} {item.employeeName}
                         </span>
                         <span className="shrink-0 text-xs text-muted-foreground">
-                          รับ <b className="tabular-nums text-teal-700 dark:text-teal-300">{item.assignedCount}</b> · ทำอยู่ {item.inProgressCount} · ปิด {item.closedCount}
+                          {t.rich('staffCounts', {
+                            assigned: () => <b className="tabular-nums text-teal-700 dark:text-teal-300">{item.assignedCount}</b>,
+                            inProgress: item.inProgressCount,
+                            closed: item.closedCount,
+                          })}
                         </span>
                       </div>
-                      <MiniBar
-                        value={item.assignedCount}
-                        max={maxAssigned}
-                        className={index === 0 ? 'bg-teal-500' : index === 1 ? 'bg-teal-400' : index === 2 ? 'bg-teal-300' : 'bg-teal-200 dark:bg-teal-500/30'}
-                      />
+                      <MiniBar value={item.assignedCount} max={maxAssigned} className={rankBarClass(index, 'teal')} />
                     </li>
                   ))}
                 </ul>
               )}
             </div>
-          </div>
 
-          {/* ⑤ Slow closers — Executive/Admin เท่านั้น */}
+            {/* ⑤ Slow closers — Executive/Admin เท่านั้น */}
           {showSlowClosers && slowClosers.length > 0 && (
             <div className="rounded-2xl border border-border bg-background p-4 shadow-sm">
-              <p className="text-sm font-semibold">เวลาจบงานเฉลี่ยรายคน (ช้า → เร็ว)</p>
+              <p className="text-sm font-semibold">{t('slowClosers.title')}</p>
               <p className="mb-3 text-xs text-muted-foreground">
-                เฉพาะคนที่ปิดงานตั้งแต่ {MIN_CLOSED_SAMPLE} งานขึ้นไปในช่วงที่เลือก
+                {t('slowClosers.hint', { min: MIN_CLOSED_SAMPLE })}
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                      <th className="py-2 pr-3 font-medium">พนักงาน</th>
-                      <th className="py-2 pr-3 text-right font-medium">ปิดแล้ว</th>
-                      <th className="py-2 pr-3 text-right font-medium">เฉลี่ย</th>
-                      <th className="py-2 pr-3 text-right font-medium">Median</th>
-                      <th className="py-2 text-right font-medium">เวลาทำจริงเฉลี่ย</th>
+                      <th className="py-2 pr-3 font-medium">{t('slowClosers.colEmployee')}</th>
+                      <th className="py-2 pr-3 text-right font-medium">{t('slowClosers.colClosed')}</th>
+                      <th className="py-2 pr-3 text-right font-medium">{t('slowClosers.colAverage')}</th>
+                      <th className="py-2 pr-3 text-right font-medium">{t('slowClosers.colMedian')}</th>
+                      <th className="py-2 text-right font-medium">{t('slowClosers.colWorkingTime')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -367,12 +358,19 @@ export function TicketOverviewSection({
               </div>
             </div>
           )}
+          </div>
+
+          {/* ⑥ ภาพรวม Memo — วางท้ายสุดให้เนื้อหา ticket จบเป็นก้อนก่อน ใช้ตัวกรองช่วงเวลา/บริษัทร่วมกัน */}
+          <div className="h-px bg-border" />
+          <MemoOverviewCards
+            params={{ dateFrom: params.dateFrom, dateTo: params.dateTo, companyId: params.companyId }}
+            rangeLabel={rangeLabel}
+          />
 
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>ข้อมูลระยะเวลาเชื่อถือได้ตั้งแต่ {new Date(summary.meta.dataCompleteFrom).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-            <Link href="/tickets/reports" className="rounded-full bg-emerald-50 px-3 py-1.5 font-medium text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/20">
-              ดูรายงานเต็ม →
-            </Link>
+            <span>{t('dataCompleteFrom', {
+              date: fmt.formatDate(new Date(summary.meta.dataCompleteFrom), { day: 'numeric', month: 'short', year: 'numeric' }),
+            })}</span>
           </div>
         </>
       )}

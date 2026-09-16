@@ -25,11 +25,14 @@ public class TicketProgressEntryConfiguration : IEntityTypeConfiguration<TicketP
         builder.Property(x => x.CreatedByEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.CreatedByExternalReporterId).HasColumnType("char(36)");
         builder.Property(x => x.DueAt).HasColumnType("datetime");
+        builder.Property(x => x.PinnedAt).HasColumnType("datetime");
+        builder.Property(x => x.PinnedByEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.CreatedAt).HasColumnType("datetime");
         builder.Property(x => x.UpdatedAt).HasColumnType("datetime");
 
         builder.HasIndex(x => new { x.TicketId, x.CreatedAt });
         builder.HasIndex(x => new { x.TicketId, x.WorkflowStepKey, x.CreatedAt });
+        builder.HasIndex(x => new { x.TicketId, x.PinnedAt });
         builder.HasIndex(x => x.CreatedByExternalReporterId);
 
         builder.HasOne(x => x.Ticket)
@@ -46,6 +49,10 @@ public class TicketProgressEntryConfiguration : IEntityTypeConfiguration<TicketP
             .WithMany()
             .HasForeignKey(x => x.CreatedByEmployeeId)
             .OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne(x => x.PinnedByEmployee)
+            .WithMany()
+            .HasForeignKey(x => x.PinnedByEmployeeId)
+            .OnDelete(DeleteBehavior.SetNull);
         builder.HasOne(x => x.CreatedByExternalReporter)
             .WithMany()
             .HasForeignKey(x => x.CreatedByExternalReporterId)

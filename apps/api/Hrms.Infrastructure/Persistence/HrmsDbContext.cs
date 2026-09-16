@@ -58,6 +58,10 @@ public class HrmsDbContext(
     public DbSet<TicketProgressEntry> TicketProgressEntries => Set<TicketProgressEntry>();
     public DbSet<TicketWorkflowDefinition> TicketWorkflowDefinitions => Set<TicketWorkflowDefinition>();
     public DbSet<TicketSubjectGuidanceConfig> TicketSubjectGuidanceConfigs => Set<TicketSubjectGuidanceConfig>();
+    public DbSet<TicketCloseoutReason> TicketCloseoutReasons => Set<TicketCloseoutReason>();
+    public DbSet<TicketCloseoutReasonCategory> TicketCloseoutReasonCategories => Set<TicketCloseoutReasonCategory>();
+    public DbSet<TicketTeamTemplate> TicketTeamTemplates => Set<TicketTeamTemplate>();
+    public DbSet<TicketTeamTemplateMember> TicketTeamTemplateMembers => Set<TicketTeamTemplateMember>();
     public DbSet<EmployeeResponsibility> EmployeeResponsibilities => Set<EmployeeResponsibility>();
     public DbSet<NotificationOutbox> NotificationOutboxes => Set<NotificationOutbox>();
     public DbSet<ExternalRepairSyncOutbox> ExternalRepairSyncOutboxes => Set<ExternalRepairSyncOutbox>();
@@ -71,6 +75,10 @@ public class HrmsDbContext(
     public DbSet<MemoSubCategory> MemoSubCategories => Set<MemoSubCategory>();
     public DbSet<Memo> Memos => Set<Memo>();
     public DbSet<MemoMonthlySequence> MemoMonthlySequences => Set<MemoMonthlySequence>();
+    public DbSet<MemoWorkflowStep> MemoWorkflowSteps => Set<MemoWorkflowStep>();
+    public DbSet<MemoStepInstance> MemoStepInstances => Set<MemoStepInstance>();
+    public DbSet<MemoAttachment> MemoAttachments => Set<MemoAttachment>();
+    public DbSet<MemoActivity> MemoActivities => Set<MemoActivity>();
 
     // Address reference data — read-only, imported directly to DB (no migrations)
     public DbSet<Province>    Provinces    => Set<Province>();
@@ -88,10 +96,24 @@ public class HrmsDbContext(
     {
         await ValidateTicketActorInvariantsAsync(cancellationToken);
 
+        // column created_at/updated_at เป็น MySQL `datetime` (ความละเอียดวินาที) แต่ DateTime.UtcNow มี tick 100ns
+        // ถ้าปล่อยไว้ ค่าใน entity ที่ handler คืนให้ client จะไม่เท่ากับค่าที่ DB เก็บจริง (MySQL ปัดเศษวินาทีทิ้ง)
+        // → client ส่ง expectedUpdatedAt นั้นกลับมาใน action ถัดไปแล้วเช็คไม่ผ่าน (TICKET_CHANGED) ทั้งที่ไม่มีใครแก้
+        // จึงปัดเป็นวินาทีตั้งแต่ตอนเขียน ให้ค่าในหน่วยความจำกับใน DB ตรงกันเสมอ
+        var writeNow = TruncateToSeconds(DateTime.UtcNow.AddHours(7));
         foreach (var entry in ChangeTracker.Entries<Domain.Common.BaseEntity>())
         {
             if (entry.State == EntityState.Modified)
-                entry.Entity.UpdatedAt = DateTime.UtcNow.AddHours(7);
+            {
+                entry.Entity.UpdatedAt = writeNow;
+            }
+            else if (entry.State == EntityState.Added)
+            {
+                entry.Entity.UpdatedAt = TruncateToSeconds(entry.Entity.UpdatedAt);
+                var createdAt = entry.Property(nameof(Domain.Common.BaseEntity.CreatedAt));
+                if (createdAt.CurrentValue is DateTime createdValue)
+                    createdAt.CurrentValue = TruncateToSeconds(createdValue);
+            }
         }
 
         foreach (var entry in ChangeTracker.Entries<Ticket>())
@@ -115,6 +137,9 @@ public class HrmsDbContext(
 
         return affected;
     }
+
+    private static DateTime TruncateToSeconds(DateTime value)
+        => new(value.Ticks - value.Ticks % TimeSpan.TicksPerSecond, value.Kind);
 
     private async Task ValidateTicketActorInvariantsAsync(CancellationToken cancellationToken)
     {

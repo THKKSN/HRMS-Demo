@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { useMyDashboard, useCompanyDashboard, useAccessibleCompanies } from '@/hooks/use-dashboard'
 import { AttendanceTodayCard } from './widgets/AttendanceTodayCard'
 import { LeaveBalanceCards } from './widgets/LeaveBalanceCards'
@@ -10,6 +11,7 @@ import { AttendanceTrendChart } from './widgets/AttendanceTrendChart'
 import { CompanySelector } from './CompanySelector'
 
 export function HrDashboard() {
+  const t = useTranslations('admin.dashboard')
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | undefined>(undefined)
 
   const myQuery        = useMyDashboard()
@@ -43,7 +45,7 @@ export function HrDashboard() {
           {/* Header + selector */}
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              ภาพรวมองค์กร
+              {t('company.overview')}
             </p>
             {showSelector && (
               <CompanySelector

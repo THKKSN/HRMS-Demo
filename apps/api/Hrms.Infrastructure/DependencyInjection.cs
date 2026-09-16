@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Hrms.Infrastructure;
 
@@ -37,6 +38,7 @@ public static class DependencyInjection
             cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
 
         services.AddDistributedMemoryCache();
+        services.AddMemoryCache();
 
         // Options
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
@@ -45,6 +47,8 @@ public static class DependencyInjection
         services.Configure<ExpenseOcrOptions>(configuration.GetSection(ExpenseOcrOptions.SectionName));
         services.Configure<PiswinOptions>(configuration.GetSection(PiswinOptions.SectionName));
         services.Configure<ExternalRepairSyncOptions>(configuration.GetSection(ExternalRepairSyncOptions.SectionName));
+        services.Configure<AuditLogRetentionOptions>(configuration.GetSection(AuditLogRetentionOptions.SectionName));
+        services.Configure<TicketOptions>(configuration.GetSection(TicketOptions.SectionName));
 
         // Seeder
         services.AddScoped<DataSeeder>();
@@ -68,6 +72,14 @@ public static class DependencyInjection
         services.AddScoped<ILineWebhookService, LineWebhookService>();
         services.AddScoped<ILeaveNotificationService, HangfireLeaveNotificationService>();
         services.AddScoped<INotificationDispatchSignal, HangfireNotificationDispatchSignal>();
+        // singleton เพราะอ่านไฟล์ครั้งเดียวแล้วแคชไว้ตลอดอายุโปรเซส
+        services.AddSingleton<INotificationTemplateCatalog>(provider =>
+            new NotificationTemplateCatalog(
+                provider.GetRequiredService<ILogger<NotificationTemplateCatalog>>()));
+        // ตัวกันการเขียนซ้ำเป็น singleton (แคชร่วมทั้งโปรเซส) ส่วนตัวเขียนเป็น scoped ตาม DbContext
+        services.AddSingleton<PreferredLanguageWriteGuard>();
+        services.AddScoped<IPreferredLanguageStore, PreferredLanguageStore>();
+        services.AddScoped<ILineMessageTextFactory, LineMessageTextFactory>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddScoped<IMemoPdfGenerator, QuestPdfMemoGenerator>();
         services.AddScoped<IExpenseOcrQueue, HangfireExpenseOcrQueue>();
@@ -84,6 +96,10 @@ public static class DependencyInjection
         });
         services.AddScoped<ITicketNumberGenerator, TicketNumberGenerator>();
         services.AddScoped<IMemoNumberGenerator, MemoNumberGenerator>();
+        services.AddScoped<Hrms.Application.Features.Memos.Services.IMemoStepAuthorizer,
+            Hrms.Application.Features.Memos.Services.MemoStepAuthorizer>();
+        services.AddScoped<Hrms.Application.Features.Memos.Services.IMemoStepTaskResolver,
+            Hrms.Application.Features.Memos.Services.MemoStepTaskResolver>();
         services.AddScoped<IShiftResolver, ShiftResolverService>();
         services.AddScoped<DailyAttendanceReportJob>();
         services.AddScoped<TicketUploadCleanupJob>();
@@ -91,6 +107,7 @@ public static class DependencyInjection
         services.AddScoped<ExternalRepairSyncDeliveryJob>();
         services.AddScoped<ExpenseOcrJob>();
         services.AddScoped<TicketAutoConfirmationJob>();
+        services.AddScoped<AuditLogRetentionJob>();
         services.AddSingleton<RecurringJobRegistrar>();
         services.AddSingleton<IGeofenceService, GeofenceService>();
 

@@ -15,4 +15,8 @@ public record TicketProgressEntryDto(
     Guid? CreatedByExternalReporterId,
     string CreatedByEmployeeName,
     DateTime CreatedAt,
-    IReadOnlyList<TicketAttachmentDto> Attachments);
+    IReadOnlyList<TicketAttachmentDto> Attachments,
+    bool CanEdit,
+    DateTime? PinnedAt,
+    string? PinnedByEmployeeName,
+    bool CanPin);

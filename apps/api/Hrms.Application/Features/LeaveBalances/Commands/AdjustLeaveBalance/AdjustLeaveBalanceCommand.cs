@@ -26,13 +26,13 @@ public class AdjustLeaveBalanceHandler(IApplicationDbContext db, IScopeGuard sco
             .Include(b => b.Employee).ThenInclude(e => e.Department)
             .Include(b => b.LeaveType)
             .FirstOrDefaultAsync(b => b.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลสิทธิ์วันลา");
+            ?? throw new NotFoundException("LeaveBalance", request.Id, "LEAVE_BALANCE_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(balance.Employee.CompanyId);
 
         if (request.TotalDays < balance.UsedDays + balance.PendingDays)
             throw new ConflictException("QUOTA_BELOW_USED",
-                $"สิทธิ์ใหม่ ({request.TotalDays}) ต้องไม่น้อยกว่าวันที่ใช้ไปแล้ว ({balance.UsedDays + balance.PendingDays})");
+                $"The new quota ({request.TotalDays}) cannot be lower than the days already used ({balance.UsedDays + balance.PendingDays}).");
 
         balance.TotalDays = request.TotalDays;
         balance.UpdatedAt = DateTime.UtcNow;

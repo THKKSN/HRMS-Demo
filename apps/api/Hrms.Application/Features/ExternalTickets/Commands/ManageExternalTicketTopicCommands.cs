@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.ExternalTickets.Commands;
 
-public record CreateExternalTicketTopicCommand(Guid ExternalTicketCategoryId, string Name, string? Description, int SortOrder)
+public record CreateExternalTicketTopicCommand(Guid ExternalTicketCategoryId, string Name, string? Description, int SortOrder, string? NameEn = null, string? NameId = null)
     : IRequest<ExternalTicketTopicDto>;
 
 public class CreateExternalTicketTopicValidator : AbstractValidator<CreateExternalTicketTopicCommand>
@@ -17,6 +17,8 @@ public class CreateExternalTicketTopicValidator : AbstractValidator<CreateExtern
     {
         RuleFor(x => x.ExternalTicketCategoryId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.NameEn).MaximumLength(100).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(100).When(x => x.NameId is not null);
         RuleFor(x => x.Description).MaximumLength(500);
         RuleFor(x => x.SortOrder).InclusiveBetween(0, 9999);
     }
@@ -31,17 +33,19 @@ public class CreateExternalTicketTopicHandler(
         await ExternalTicketConfigAccess.EnsureManagePermissionAsync(currentUser, permissionService, ct);
 
         var categoryExists = await db.ExternalTicketCategories.AnyAsync(c => c.Id == request.ExternalTicketCategoryId, ct);
-        if (!categoryExists) throw new KeyNotFoundException("ไม่พบหมวดที่ระบุ");
+        if (!categoryExists) throw new NotFoundException("ExternalTicketCategory", request.ExternalTicketCategoryId, "TICKET_CATEGORY_NOT_FOUND");
 
         var name = request.Name.Trim();
         if (await db.ExternalTicketTopics.AnyAsync(t => t.ExternalTicketCategoryId == request.ExternalTicketCategoryId && t.Name == name, ct))
             throw new ConflictException("EXTERNAL_TAXONOMY_NAME_DUPLICATE",
-                $"มีหัวข้อ '{name}' อยู่แล้วในหมวดนี้ (อาจถูกปิดใช้งานอยู่) — ให้เปิดใช้งานรายการเดิมแทนการสร้างใหม่");
+                $"Topic '{name}' already exists in this category (it may be inactive). Reactivate the existing one instead of creating a new one.");
 
         var topic = new ExternalTicketTopic
         {
             ExternalTicketCategoryId = request.ExternalTicketCategoryId,
             Name = name,
+            NameEn = Common.Helpers.NameText.Normalize(request.NameEn),
+            NameId = Common.Helpers.NameText.Normalize(request.NameId),
             Description = TrimOrNull(request.Description),
             SortOrder = request.SortOrder,
             IsActive = true,
@@ -59,10 +63,10 @@ public class CreateExternalTicketTopicHandler(
 
     private static string? TrimOrNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     private static ExternalTicketTopicDto ToDto(ExternalTicketTopic t) =>
-        new(t.Id, t.ExternalTicketCategoryId, t.Name, t.Description, t.SortOrder, t.IsActive);
+        new(t.Id, t.ExternalTicketCategoryId, t.Name, t.Description, t.SortOrder, t.IsActive, t.NameEn, t.NameId);
 }
 
-public record UpdateExternalTicketTopicCommand(Guid Id, string Name, string? Description, int SortOrder, bool IsActive)
+public record UpdateExternalTicketTopicCommand(Guid Id, string Name, string? Description, int SortOrder, bool IsActive, string? NameEn = null, string? NameId = null)
     : IRequest<ExternalTicketTopicDto>;
 
 public class UpdateExternalTicketTopicValidator : AbstractValidator<UpdateExternalTicketTopicCommand>
@@ -71,6 +75,8 @@ public class UpdateExternalTicketTopicValidator : AbstractValidator<UpdateExtern
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.NameEn).MaximumLength(100).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(100).When(x => x.NameId is not null);
         RuleFor(x => x.Description).MaximumLength(500);
         RuleFor(x => x.SortOrder).InclusiveBetween(0, 9999);
     }
@@ -85,16 +91,18 @@ public class UpdateExternalTicketTopicHandler(
         await ExternalTicketConfigAccess.EnsureManagePermissionAsync(currentUser, permissionService, ct);
 
         var topic = await db.ExternalTicketTopics.FirstOrDefaultAsync(t => t.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบหัวข้อที่ระบุ");
+            ?? throw new NotFoundException("ExternalTicketTopic", request.Id, "TICKET_TOPIC_NOT_FOUND");
 
         var name = request.Name.Trim();
         if (await db.ExternalTicketTopics.AnyAsync(t =>
             t.ExternalTicketCategoryId == topic.ExternalTicketCategoryId && t.Name == name && t.Id != topic.Id, ct))
             throw new ConflictException("EXTERNAL_TAXONOMY_NAME_DUPLICATE",
-                $"มีหัวข้อ '{name}' อยู่แล้วในหมวดนี้ (อาจถูกปิดใช้งานอยู่) — ให้เปิดใช้งานรายการเดิมแทนการสร้างใหม่");
+                $"Topic '{name}' already exists in this category (it may be inactive). Reactivate the existing one instead of creating a new one.");
 
         var oldValues = new { topic.Name, topic.Description, topic.SortOrder, topic.IsActive };
         topic.Name = name;
+        topic.NameEn = Common.Helpers.NameText.Apply(topic.NameEn, request.NameEn);
+        topic.NameId = Common.Helpers.NameText.Apply(topic.NameId, request.NameId);
         topic.Description = TrimOrNull(request.Description);
         topic.SortOrder = request.SortOrder;
         topic.IsActive = request.IsActive;
@@ -106,7 +114,8 @@ public class UpdateExternalTicketTopicHandler(
             $"แก้ไขหัวข้อแจ้งเรื่องบุคคลภายนอก '{topic.Name}'", oldValues,
             new { topic.Name, topic.Description, topic.SortOrder, topic.IsActive }, ct);
 
-        return new ExternalTicketTopicDto(topic.Id, topic.ExternalTicketCategoryId, topic.Name, topic.Description, topic.SortOrder, topic.IsActive);
+        return new ExternalTicketTopicDto(topic.Id, topic.ExternalTicketCategoryId, topic.Name, topic.Description, topic.SortOrder, topic.IsActive,
+            topic.NameEn, topic.NameId);
     }
 
     private static string? TrimOrNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

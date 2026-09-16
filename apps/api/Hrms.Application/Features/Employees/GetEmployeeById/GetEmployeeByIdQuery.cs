@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Employees.Common;
 using Hrms.Application.Features.Employees.Dtos;
@@ -18,7 +19,7 @@ public class GetEmployeeByIdHandler(IApplicationDbContext db, IScopeGuard scope,
             .Include(e => e.Roles).ThenInclude(r => r.Role)
             .Include(e => e.RoleLabel)
             .FirstOrDefaultAsync(e => e.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลพนักงาน");
+            ?? throw new NotFoundException("Employee", request.Id, "EMPLOYEE_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(employee.CompanyId);
 

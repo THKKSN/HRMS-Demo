@@ -23,22 +23,19 @@ public class ResolveTicketHandler(
             .Include(t => t.ExternalReporter)
             .Include(t => t.TargetDepartment).ThenInclude(d => d!.ManagerEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
-        await TicketAccess.EnsureActiveAssigneeAsync(db, currentUser, permissions, "ticket:resolve", ticket, ct);
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
+        // ส่งตรวจจบงานเป็นของผู้รับผิดชอบหลักคนเดียว ผู้ร่วมงานในทีมทำแทนไม่ได้
+        await TicketTeam.EnsureOwnerAsync(db, currentUser, permissions, "ticket:resolve", ticket.Id, ct);
         if (ticket.Status == TicketStatus.Resolved)
             return new TicketActionResultDto(ticket.Id, ticket.Status, ticket.UpdatedAt);
         if (ticket.Status != TicketStatus.InProgress)
-            throw new ConflictException("INVALID_TICKET_STATUS", "ส่งงานได้เฉพาะ Ticket ที่กำลังดำเนินการ");
+            throw new ConflictException("TICKET_NOT_IN_PROGRESS", "Only tickets that are in progress can be submitted for review.");
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
-        if (!ticket.ProblemType.HasValue)
-            throw new FluentValidation.ValidationException("กรุณาระบุประเภทปัญหา");
-        if (string.IsNullOrWhiteSpace(ticket.ResolutionNote))
-            throw new FluentValidation.ValidationException("กรุณาระบุรายละเอียดการแก้ไข");
         var hasEvidence = await db.TicketAttachments.AnyAsync(a =>
             a.TicketId == ticket.Id &&
             a.Stage == TicketAttachmentStage.Resolved, ct);
-        if (!hasEvidence)
-            throw new FluentValidation.ValidationException("กรุณาแนบหลักฐานหลังแก้ไขอย่างน้อย 1 ไฟล์");
+        // รายละเอียด/รูปบังคับหรือไม่ขึ้นกับ flag ของเหตุผลปิดงานที่เลือก (default บังคับทั้งคู่)
+        await TicketCloseoutPolicy.EnsureReadyForReviewAsync(db, ticket, hasEvidence, ct);
 
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
         var actor = await db.Employees.FirstAsync(e => e.Id == actorId, ct);
@@ -59,14 +56,16 @@ public class ResolveTicketHandler(
         TicketStatusTransition.Record(
             db, ticket, TicketStatus.InProgress, TicketStatus.Resolved, actorId, now, "SubmittedForReview");
         var occurrenceId = Guid.NewGuid();
-        var message = $"งาน {ticket.TicketNo} ดำเนินการเสร็จแล้วและรอตรวจรับ\nเรื่อง: {ticket.Title}";
+        var templateParams = new { ticketNo = ticket.TicketNo, title = ticket.Title };
         TicketCommandSupport.QueueNotification(
-            db, "TicketResolved", occurrenceId, TicketCommandSupport.Requester(ticket), message, ticket);
+            db, "TicketResolved", occurrenceId, TicketCommandSupport.Requester(ticket),
+            "ticket.resolved.toReviewer", templateParams, ticket);
         if (ticket.TargetDepartment is not null)
         {
             TicketCommandSupport.QueueNotification(
                 db, "TicketResolved", occurrenceId, ticket.TargetDepartment.ManagerEmployeeId,
-                ticket.TargetDepartment.ManagerEmployee?.LineUserId, message, ticket);
+                ticket.TargetDepartment.ManagerEmployee?.LineUserId,
+                "ticket.resolved.toReviewer", templateParams, ticket);
         }
         await db.SaveChangesAsync(ct);
 

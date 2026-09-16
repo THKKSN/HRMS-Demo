@@ -1,9 +1,12 @@
 using FluentAssertions;
+using Hrms.Application.Common.Exceptions;
+using Hrms.Application.Common.Options;
 using Hrms.Application.Features.Tickets.Commands;
 using Hrms.Application.Tests.Support;
 using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Hrms.Application.Tests.Tickets;
 
@@ -19,7 +22,7 @@ public class TicketLifecycleIntegrationTests
             fixture.Db,
             Worker(fixture),
             new TestPermissionService("ticket:update-status"),
-            new TestAuditLogService());
+            new TestAuditLogService(), Options.Create(new TicketOptions()));
 
         await handler.Handle(new StartTicketWorkCommand(ticket.Id, ticket.UpdatedAt), default);
 
@@ -63,7 +66,9 @@ public class TicketLifecycleIntegrationTests
         await using var fixture = new TicketTestFixture();
         await fixture.SeedOrganizationAsync();
         var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
-        ticket.ProblemType = TicketProblemType.SystemDefect;
+        var closeoutReason = await fixture.AddCloseoutReasonAsync();
+        ticket.CloseoutReasonId = closeoutReason.Id;
+        ticket.CloseoutReasonNameSnapshot = closeoutReason.Name;
         ticket.ResolutionNote = "Reattached the camera";
         await fixture.Db.SaveChangesAsync();
         var handler = new ResolveTicketHandler(
@@ -75,8 +80,8 @@ public class TicketLifecycleIntegrationTests
         var act = () => handler.Handle(
             new ResolveTicketCommand(ticket.Id, ticket.UpdatedAt), default);
 
-        await act.Should().ThrowAsync<FluentValidation.ValidationException>()
-            .WithMessage("*หลักฐาน*");
+        await act.Should().ThrowAsync<BadRequestException>()
+            .Where(e => e.Code == "TICKET_RESOLUTION_ATTACHMENT_REQUIRED");
         (await fixture.Db.Tickets.SingleAsync(x => x.Id == ticket.Id))
             .Status.Should().Be(TicketStatus.InProgress);
         (await fixture.Db.NotificationOutboxes.CountAsync()).Should().Be(0);
@@ -88,7 +93,9 @@ public class TicketLifecycleIntegrationTests
         await using var fixture = new TicketTestFixture();
         await fixture.SeedOrganizationAsync();
         var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
-        ticket.ProblemType = TicketProblemType.SystemDefect;
+        var closeoutReason = await fixture.AddCloseoutReasonAsync();
+        ticket.CloseoutReasonId = closeoutReason.Id;
+        ticket.CloseoutReasonNameSnapshot = closeoutReason.Name;
         ticket.ResolutionNote = "Reattached the camera";
         fixture.Db.TicketAttachments.Add(new TicketAttachment
         {
@@ -247,7 +254,9 @@ public class TicketLifecycleIntegrationTests
         await using var fixture = new TicketTestFixture();
         await fixture.SeedOrganizationAsync();
         var ticket = await fixture.AddTicketAsync(TicketStatus.Resolved, true);
-        ticket.ProblemType = TicketProblemType.SystemDefect;
+        var closeoutReason = await fixture.AddCloseoutReasonAsync();
+        ticket.CloseoutReasonId = closeoutReason.Id;
+        ticket.CloseoutReasonNameSnapshot = closeoutReason.Name;
         ticket.ResolutionNote = "Reattached the camera";
         ticket.ResolvedByEmployeeId = fixture.AssigneeId;
         ticket.ResolvedAt = DateTime.UtcNow.AddHours(7);
@@ -271,7 +280,7 @@ public class TicketLifecycleIntegrationTests
                 fixture.TargetDepartmentId,
                 RoleType.Supervisor),
             new TestPermissionService("ticket:close"),
-            new TestAuditLogService());
+            new TestAuditLogService(), Options.Create(new TicketOptions()));
 
         var result = await handler.Handle(
             new CloseTicketCommand(ticket.Id, "Verified", ticket.UpdatedAt), default);
@@ -301,7 +310,7 @@ public class TicketLifecycleIntegrationTests
                 fixture.SourceDepartmentId,
                 RoleType.Employee),
             new TestPermissionService("ticket:view-own"),
-            new TestAuditLogService());
+            new TestAuditLogService(), Options.Create(new TicketOptions()));
 
         var result = await handler.Handle(
             new ConfirmTicketCompletionCommand(ticket.Id, ticket.UpdatedAt), default);
@@ -311,6 +320,262 @@ public class TicketLifecycleIntegrationTests
         assignment.IsActive.Should().BeFalse();
         assignment.EndedAt.Should().NotBeNull();
         (await fixture.Db.NotificationOutboxes.CountAsync()).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task UpdateProgressEntry_ShouldEditOwnCardAndSyncBoardState()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
+        // สร้างการ์ดใช้ update-status ส่วนแก้ไขใช้ permission ใหม่ (เฉพาะการ์ดตัวเอง)
+        var permissions = new TestPermissionService("ticket:update-status", "ticket:edit-progress-entry");
+        var createHandler = new UpdateTicketProgressHandler(
+            fixture.Db, Worker(fixture), permissions, new TestAuditLogService());
+        var created = await createHandler.Handle(
+            new UpdateTicketProgressCommand(
+                ticket.Id, "ตรวจสอบหน้างาน", null, null, false, "รอบแรก", ticket.UpdatedAt),
+            default);
+        fixture.Db.ChangeTracker.Clear();
+
+        var editHandler = new UpdateTicketProgressEntryHandler(
+            fixture.Db, Worker(fixture), permissions, new TestAuditLogService());
+        var result = await editHandler.Handle(
+            new UpdateTicketProgressEntryCommand(
+                ticket.Id, created.ProgressEntryId!.Value, null, "รออะไหล่", null, "แก้ไขรายละเอียด", created.UpdatedAt),
+            default);
+
+        result.ProgressEntryId.Should().Be(created.ProgressEntryId);
+        var entry = await fixture.Db.TicketProgressEntries.SingleAsync(x => x.Id == created.ProgressEntryId);
+        entry.WorkState.Should().BeNull();
+        entry.BlockerReason.Should().Be("รออะไหล่");
+        entry.Note.Should().Be("แก้ไขรายละเอียด");
+        (await fixture.Db.TicketProgressEntries.CountAsync(x => x.TicketId == ticket.Id)).Should().Be(1);
+        var saved = await fixture.Db.Tickets.SingleAsync(x => x.Id == ticket.Id);
+        saved.Status.Should().Be(TicketStatus.InProgress);
+        saved.CurrentWorkState.Should().BeNull();
+        saved.CurrentBlockerReason.Should().Be("รออะไหล่");
+    }
+
+    [Fact]
+    public async Task UpdateProgressEntry_ShouldRejectWorkerEditingSomeoneElsesCard()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
+        var supervisor = new TestCurrentUser(
+            fixture.SupervisorId,
+            fixture.CompanyId,
+            fixture.TargetDepartmentId,
+            RoleType.Supervisor);
+        var permissions = new TestPermissionService("ticket:update-status");
+        var created = await new UpdateTicketProgressHandler(
+                fixture.Db, supervisor, permissions, new TestAuditLogService())
+            .Handle(
+                new UpdateTicketProgressCommand(
+                    ticket.Id, null, "รอข้อมูลเพิ่มเติม", null, false, null, ticket.UpdatedAt),
+                default);
+        fixture.Db.ChangeTracker.Clear();
+
+        // worker มีแค่ edit-progress-entry (ของตัวเอง) ไม่มี edit-any → แก้การ์ดของ supervisor ไม่ได้
+        var editHandler = new UpdateTicketProgressEntryHandler(
+            fixture.Db,
+            Worker(fixture),
+            new TestPermissionService("ticket:update-status", "ticket:edit-progress-entry"),
+            new TestAuditLogService());
+        var act = () => editHandler.Handle(
+            new UpdateTicketProgressEntryCommand(
+                ticket.Id, created.ProgressEntryId!.Value, "แก้ของคนอื่น", null, null, null, created.UpdatedAt),
+            default);
+
+        await act.Should().ThrowAsync<AppForbiddenException>();
+        (await fixture.Db.TicketProgressEntries.SingleAsync(x => x.Id == created.ProgressEntryId))
+            .BlockerReason.Should().Be("รอข้อมูลเพิ่มเติม");
+    }
+
+    [Fact]
+    public async Task UpdateProgressEntry_ShouldAllowEditAnyPermissionOnOthersCard()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
+        var created = await new UpdateTicketProgressHandler(
+                fixture.Db, Worker(fixture), new TestPermissionService("ticket:update-status"), new TestAuditLogService())
+            .Handle(
+                new UpdateTicketProgressCommand(ticket.Id, "ตรวจสอบหน้างาน", null, null, false, null, ticket.UpdatedAt),
+                default);
+        fixture.Db.ChangeTracker.Clear();
+
+        // supervisor ปลายทางที่มี edit-any แก้การ์ดของ worker ได้ (ไม่ต้องมี update-status)
+        var supervisor = new TestCurrentUser(
+            fixture.SupervisorId,
+            fixture.CompanyId,
+            fixture.TargetDepartmentId,
+            RoleType.Supervisor);
+        var editHandler = new UpdateTicketProgressEntryHandler(
+            fixture.Db,
+            supervisor,
+            new TestPermissionService("ticket:edit-any-progress-entry"),
+            new TestAuditLogService());
+
+        await editHandler.Handle(
+            new UpdateTicketProgressEntryCommand(
+                ticket.Id, created.ProgressEntryId!.Value, "หัวหน้าแก้ให้", null, null, "เพิ่มรายละเอียด", created.UpdatedAt),
+            default);
+
+        var entry = await fixture.Db.TicketProgressEntries.AsNoTracking().SingleAsync(x => x.Id == created.ProgressEntryId);
+        entry.WorkState.Should().Be("หัวหน้าแก้ให้");
+        entry.Note.Should().Be("เพิ่มรายละเอียด");
+        entry.CreatedByEmployeeId.Should().Be(fixture.AssigneeId);
+    }
+
+    [Fact]
+    public async Task UpdateProgressEntry_ShouldRejectWithoutEditPermission()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
+        var created = await new UpdateTicketProgressHandler(
+                fixture.Db, Worker(fixture), new TestPermissionService("ticket:update-status"), new TestAuditLogService())
+            .Handle(
+                new UpdateTicketProgressCommand(ticket.Id, "ตรวจสอบหน้างาน", null, null, false, null, ticket.UpdatedAt),
+                default);
+        fixture.Db.ChangeTracker.Clear();
+
+        // เจ้าของการ์ดเอง แต่ role ถูกถอด edit-progress-entry ออก → ต้องแก้ไม่ได้ (permission เป็นสวิตช์จริง)
+        var editHandler = new UpdateTicketProgressEntryHandler(
+            fixture.Db, Worker(fixture), new TestPermissionService("ticket:update-status"), new TestAuditLogService());
+        var act = () => editHandler.Handle(
+            new UpdateTicketProgressEntryCommand(
+                ticket.Id, created.ProgressEntryId!.Value, "แก้ไม่ได้", null, null, null, created.UpdatedAt),
+            default);
+
+        await act.Should().ThrowAsync<AppForbiddenException>();
+    }
+
+    [Fact]
+    public async Task PinProgressEntry_ShouldPinAndUnpinAsWorker()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
+        var permissions = new TestPermissionService("ticket:update-status", "ticket:pin-progress-entry");
+        var created = await new UpdateTicketProgressHandler(
+                fixture.Db, Worker(fixture), permissions, new TestAuditLogService())
+            .Handle(
+                new UpdateTicketProgressCommand(ticket.Id, "ตรวจสอบหน้างาน", null, null, false, null, ticket.UpdatedAt),
+                default);
+        fixture.Db.ChangeTracker.Clear();
+        var handler = new PinTicketProgressEntryHandler(
+            fixture.Db, Worker(fixture), permissions, new TestAuditLogService(), Options.Create(new TicketOptions()));
+
+        var pinned = await handler.Handle(
+            new PinTicketProgressEntryCommand(ticket.Id, created.ProgressEntryId!.Value, true, created.UpdatedAt),
+            default);
+        var afterPin = await fixture.Db.TicketProgressEntries.AsNoTracking().SingleAsync(x => x.Id == created.ProgressEntryId);
+        afterPin.PinnedAt.Should().NotBeNull();
+        afterPin.PinnedByEmployeeId.Should().Be(fixture.AssigneeId);
+
+        await handler.Handle(
+            new PinTicketProgressEntryCommand(ticket.Id, created.ProgressEntryId.Value, false, pinned.UpdatedAt),
+            default);
+        var afterUnpin = await fixture.Db.TicketProgressEntries.AsNoTracking().SingleAsync(x => x.Id == created.ProgressEntryId);
+        afterUnpin.PinnedAt.Should().BeNull();
+        afterUnpin.PinnedByEmployeeId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task PinProgressEntry_ShouldRejectWhenLimitReached()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
+        // ตั้งเพดานผ่าน options เป็น 2 (ต่างจาก default 3) เพื่อพิสูจน์ว่า handler อ่านค่าจาก config จริง
+        const int maxPinned = 2;
+        var permissions = new TestPermissionService("ticket:update-status", "ticket:pin-progress-entry");
+        var createHandler = new UpdateTicketProgressHandler(
+            fixture.Db, Worker(fixture), permissions, new TestAuditLogService());
+        var pinHandler = new PinTicketProgressEntryHandler(
+            fixture.Db,
+            Worker(fixture),
+            permissions,
+            new TestAuditLogService(),
+            Options.Create(new TicketOptions { MaxPinnedProgressEntries = maxPinned }));
+
+        var entryIds = new List<Guid>();
+        for (var index = 0; index <= maxPinned; index++)
+        {
+            var latest = await fixture.Db.Tickets.AsNoTracking().SingleAsync(x => x.Id == ticket.Id);
+            var created = await createHandler.Handle(
+                new UpdateTicketProgressCommand(ticket.Id, $"การ์ดที่ {index + 1}", null, null, false, null, latest.UpdatedAt),
+                default);
+            entryIds.Add(created.ProgressEntryId!.Value);
+        }
+        foreach (var entryId in entryIds.Take(maxPinned))
+            await pinHandler.Handle(new PinTicketProgressEntryCommand(ticket.Id, entryId, true, null), default);
+
+        var act = () => pinHandler.Handle(
+            new PinTicketProgressEntryCommand(ticket.Id, entryIds[^1], true, null), default);
+
+        await act.Should().ThrowAsync<ConflictException>()
+            .Where(e => e.Code == "PIN_LIMIT_REACHED" && e.Message.Contains("2"));
+        (await fixture.Db.TicketProgressEntries.CountAsync(x => x.TicketId == ticket.Id && x.PinnedAt != null))
+            .Should().Be(maxPinned);
+    }
+
+    [Fact]
+    public async Task PinProgressEntry_ShouldRejectWithoutPinPermission()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.InProgress, true);
+        var created = await new UpdateTicketProgressHandler(
+                fixture.Db, Worker(fixture), new TestPermissionService("ticket:update-status"), new TestAuditLogService())
+            .Handle(
+                new UpdateTicketProgressCommand(ticket.Id, "ตรวจสอบหน้างาน", null, null, false, null, ticket.UpdatedAt),
+                default);
+        fixture.Db.ChangeTracker.Clear();
+
+        // ผู้รับผิดชอบปัจจุบัน แต่ role ไม่มี pin-progress-entry → ปักไม่ได้
+        var pinHandler = new PinTicketProgressEntryHandler(
+            fixture.Db,
+            Worker(fixture),
+            new TestPermissionService("ticket:update-status"),
+            new TestAuditLogService(),
+            Options.Create(new TicketOptions()));
+        var act = () => pinHandler.Handle(
+            new PinTicketProgressEntryCommand(ticket.Id, created.ProgressEntryId!.Value, true, null), default);
+
+        await act.Should().ThrowAsync<AppForbiddenException>();
+        (await fixture.Db.TicketProgressEntries.AsNoTracking().SingleAsync(x => x.Id == created.ProgressEntryId))
+            .PinnedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateWorkDetailThenStart_ShouldChainWithReturnedUpdatedAt()
+    {
+        await using var fixture = new TicketTestFixture();
+        await fixture.SeedOrganizationAsync();
+        var ticket = await fixture.AddTicketAsync(TicketStatus.Assigned, true);
+        var permissions = new TestPermissionService("ticket:update-status");
+        var saveHandler = new UpdateTicketWorkDetailHandler(
+            fixture.Db, Worker(fixture), permissions, new TestAuditLogService());
+        var startHandler = new StartTicketWorkHandler(
+            fixture.Db, Worker(fixture), permissions, new TestAuditLogService(), Options.Create(new TicketOptions()));
+
+        // ปุ่ม "เริ่มงาน" บนหน้า UI = บันทึก work-detail ก่อน แล้ว start ต่อด้วย updatedAt ที่ API คืนมา
+        var saved = await saveHandler.Handle(
+            new UpdateTicketWorkDetailCommand(ticket.Id, null, null, null, null, ticket.UpdatedAt), default);
+        fixture.Db.ChangeTracker.Clear();
+
+        // ค่าที่คืนต้องเป็นวินาทีเต็ม (เท่ากับที่ MySQL `datetime` เก็บจริง) ไม่งั้น request ถัดไปจะโดน TICKET_CHANGED
+        (saved.UpdatedAt.Ticks % TimeSpan.TicksPerSecond).Should().Be(0);
+        var stored = await fixture.Db.Tickets.AsNoTracking().SingleAsync(x => x.Id == ticket.Id);
+        stored.UpdatedAt.Should().Be(saved.UpdatedAt);
+        (stored.CreatedAt.Ticks % TimeSpan.TicksPerSecond).Should().Be(0);
+
+        var started = await startHandler.Handle(new StartTicketWorkCommand(ticket.Id, saved.UpdatedAt), default);
+        started.Status.Should().Be(TicketStatus.InProgress);
     }
 
     private static TestCurrentUser Worker(TicketTestFixture fixture)

@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Tickets.Dtos;
@@ -37,10 +38,9 @@ public class GetTicketTimelineHandler(
     public async Task<IReadOnlyList<TicketTimelineEventDto>> Handle(GetTicketTimelineQuery request, CancellationToken ct)
     {
         var ticket = await db.Tickets.AsNoTracking().FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketAccess.EnsureCanViewAsync(db, currentUser, permissions, ticket, ct);
-        var isRequester = currentUser.EmployeeId == ticket.RequesterEmployeeId;
-        var canSeeInternal = !isRequester &&
+        var canSeeInternal =
             await permissions.HasPermissionAsync(currentUser, "ticket:add-internal-note", ct) &&
             (currentUser.HasRole(RoleType.Admin) ||
                 await TicketAccess.IsDepartmentManagerAsync(db, currentUser, ticket, ct));

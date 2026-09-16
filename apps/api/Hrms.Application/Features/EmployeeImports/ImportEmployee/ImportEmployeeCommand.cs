@@ -34,12 +34,12 @@ public sealed class ImportEmployeeHandler(
     public async Task<EmployeeDetailDto> Handle(ImportEmployeeCommand request, CancellationToken ct)
     {
         if (!currentUser.Roles.Any(role => role.Role == RoleType.Admin.ToString()))
-            throw new AppForbiddenException("ไม่มีสิทธิ์นำเข้าพนักงาน");
+            throw new AppForbiddenException("EMPLOYEE_IMPORT_FORBIDDEN", "You are not allowed to import employees.");
 
         await scope.ThrowIfCannotAccessAsync(request.CompanyId, ct);
         var company = await db.Companies.SingleOrDefaultAsync(
             value => value.Id == request.CompanyId && value.IsActive, ct)
-            ?? throw new NotFoundException("บริษัท", request.CompanyId);
+            ?? throw new NotFoundException("Company", request.CompanyId, "COMPANY_NOT_FOUND");
 
         var sourceEmployee = await piswinClient.FindByNationalIdAsync(request.NationalId, ct);
 
@@ -51,11 +51,11 @@ public sealed class ImportEmployeeHandler(
         var isDuplicate = await db.Employees.AnyAsync(
             employee => employee.EmployeeCode == employeeCode, ct);
         if (isDuplicate)
-            throw new ConflictException("DUPLICATE_EMPLOYEE", "พนักงานนี้มีอยู่ในระบบแล้ว");
+            throw new ConflictException("DUPLICATE_EMPLOYEE", "This employee already exists.");
 
         var employeeRole = await db.SystemRoles.SingleOrDefaultAsync(role =>
             role.Id == SystemRoleIds.Employee && role.Code == RoleType.Employee && role.IsActive, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูล role พนักงาน");
+            ?? throw new NotFoundException("SystemRole", "Employee", "ROLE_NOT_FOUND");
 
         var employee = new Employee
         {

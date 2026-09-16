@@ -11,4 +11,5 @@ public record AuditLogDto(
     string? NewValues,
     Guid? PerformedByEmployeeId,
     string? PerformedByName,
+    string? PerformedByAvatarUrl,
     DateTime PerformedAt);

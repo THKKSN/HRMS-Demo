@@ -33,7 +33,7 @@ public class GetHolidaysHandler(IApplicationDbContext db, IScopeGuard scope)
         {
             // ตรวจสิทธิ์ถ้าระบุ company — แต่ทุก role ดู national ได้เสมอ
             if (accessibleIds != null && !accessibleIds.Contains(request.CompanyId.Value))
-                throw new AppForbiddenException("ไม่มีสิทธิ์เข้าถึงวันหยุดของ company นี้");
+                throw new AppForbiddenException("COMPANY_ACCESS_FORBIDDEN", "You are not allowed to access this company.");
 
             query = query.Where(h => h.CompanyId == null || h.CompanyId == request.CompanyId.Value);
         }

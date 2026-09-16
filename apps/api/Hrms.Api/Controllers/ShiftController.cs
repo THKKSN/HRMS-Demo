@@ -41,7 +41,9 @@ public class ShiftController(IMediator mediator) : ControllerBase
             request.Name,
             request.StartTime,
             request.EndTime,
-            request.GracePeriodMinutes), ct);
+            request.GracePeriodMinutes,
+            request.NameEn,
+            request.NameId), ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -58,7 +60,9 @@ public class ShiftController(IMediator mediator) : ControllerBase
             request.StartTime,
             request.EndTime,
             request.GracePeriodMinutes,
-            request.IsActive), ct);
+            request.IsActive,
+            request.NameEn,
+            request.NameId), ct);
         return Ok(result);
     }
 
@@ -70,29 +74,37 @@ public class ShiftController(IMediator mediator) : ControllerBase
         CancellationToken ct)
     {
         var current = await mediator.Send(new GetShiftByIdQuery(id), ct);
+        // ส่งชื่อหลายภาษาเดิมกลับไปด้วย เพื่อไม่ต้องพึ่งพฤติกรรม "null = คงค่าเดิม" ของ NameText.Apply
         var result = await mediator.Send(new UpdateShiftCommand(
             id,
             current.Name,
             current.StartTime,
             current.EndTime,
             current.GracePeriodMinutes,
-            request.IsActive), ct);
+            request.IsActive,
+            current.NameEn,
+            current.NameId), ct);
         return Ok(result);
     }
 }
 
+// NameEn/NameId = ชื่อหลายภาษาของ master data (i18n Phase M) — ไม่ส่ง = คงค่าเดิม, ส่ง "" = ล้างค่า
 public record CreateShiftRequest(
     Guid CompanyId,
     string Name,
     TimeOnly StartTime,
     TimeOnly EndTime,
-    int GracePeriodMinutes);
+    int GracePeriodMinutes,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record UpdateShiftRequest(
     string Name,
     TimeOnly StartTime,
     TimeOnly EndTime,
     int GracePeriodMinutes,
-    bool IsActive);
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record ToggleShiftStatusRequest(bool IsActive);

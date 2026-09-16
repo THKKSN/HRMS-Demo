@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { memoApi } from '@/lib/memo.api'
-import type { MemoStatus } from '@hrms/shared-types'
+import { memoApi, type FirstApproverInput, type MemoTypeInput, type MemoWorkflowStepInput } from '@/lib/memo.api'
+import type { MemoAttachmentInput, MemoStatus } from '@hrms/shared-types'
 
 export const memoKeys = {
   all: ['memo'] as const,
@@ -9,10 +9,13 @@ export const memoKeys = {
     [...memoKeys.all, 'categories', memoTypeId, includeInactive] as const,
   subCategories: (memoCategoryId: string, includeInactive = false) =>
     [...memoKeys.all, 'sub-categories', memoCategoryId, includeInactive] as const,
+  workflowSteps: (memoTypeId: string, includeInactive = false) =>
+    [...memoKeys.all, 'workflow-steps', memoTypeId, includeInactive] as const,
   forApproval: (status?: MemoStatus) => [...memoKeys.all, 'for-approval', status ?? 'all'] as const,
   byId: (id: string) => [...memoKeys.all, 'detail', id] as const,
   mine: (status?: MemoStatus) => [...memoKeys.all, 'mine', status ?? 'all'] as const,
   inbox: (includeDelivered: boolean) => [...memoKeys.all, 'inbox', includeDelivered] as const,
+  stepTasks: () => [...memoKeys.all, 'step-tasks'] as const,
 }
 
 export function useMemoTypes(includeInactive = false) {
@@ -34,8 +37,16 @@ export function useCreateMemoType() {
 export function useUpdateMemoType() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name: string; companyId: string; departmentId: string }) =>
-      memoApi.updateType(id, body),
+    mutationFn: ({ id, ...body }: { id: string } & MemoTypeInput) => memoApi.updateType(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useSetMemoTypeFirstApprover() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & FirstApproverInput) =>
+      memoApi.setFirstApprover(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
   })
 }
@@ -68,7 +79,8 @@ export function useCreateMemoCategory() {
 export function useUpdateMemoCategory(memoTypeId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) => memoApi.updateCategory(id, { name }),
+    mutationFn: ({ id, ...body }: { id: string } & Parameters<typeof memoApi.updateCategory>[1]) =>
+      memoApi.updateCategory(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.categories(memoTypeId) }),
   })
 }
@@ -101,7 +113,8 @@ export function useCreateMemoSubCategory() {
 export function useUpdateMemoSubCategory(memoCategoryId: string) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) => memoApi.updateSubCategory(id, { name }),
+    mutationFn: ({ id, ...body }: { id: string } & Parameters<typeof memoApi.updateSubCategory>[1]) =>
+      memoApi.updateSubCategory(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.subCategories(memoCategoryId) }),
   })
 }
@@ -143,7 +156,7 @@ export function useApproveMemo() {
 export function useRejectMemo() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) => memoApi.reject(id, reason),
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) => memoApi.reject(id, reason),
     onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
   })
 }
@@ -192,5 +205,120 @@ export function useReceiveMemo() {
   return useMutation({
     mutationFn: (id: string) => memoApi.receive(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+// ─── Workflow steps (config ต่อ MemoType) ────────────────────────────────────
+
+export function useMemoWorkflowSteps(memoTypeId: string, includeInactive = false) {
+  return useQuery({
+    queryKey: memoKeys.workflowSteps(memoTypeId, includeInactive),
+    queryFn: () => memoApi.getWorkflowSteps(memoTypeId, includeInactive),
+    enabled: !!memoTypeId,
+  })
+}
+
+export function useCreateMemoWorkflowStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoTypeId, ...body }: { memoTypeId: string } & MemoWorkflowStepInput) =>
+      memoApi.createWorkflowStep(memoTypeId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useUpdateMemoWorkflowStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & MemoWorkflowStepInput) =>
+      memoApi.updateWorkflowStep(id, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useToggleMemoWorkflowStepStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
+      memoApi.toggleWorkflowStepStatus(id, isActive),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+// ─── Step actions ระหว่างดำเนินการ ───────────────────────────────────────────
+
+export function useMemoStepTasks() {
+  return useQuery({
+    queryKey: memoKeys.stepTasks(),
+    queryFn: () => memoApi.getStepTasks(),
+    staleTime: 10_000,
+  })
+}
+
+export function useCompleteMemoStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, stepId, note, attachments }: {
+      memoId: string; stepId: string; note?: string; attachments?: MemoAttachmentInput[]
+    }) => memoApi.completeStep(memoId, stepId, { note, attachments }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useApproveMemoStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, stepId, comment }: { memoId: string; stepId: string; comment?: string }) =>
+      memoApi.approveStep(memoId, stepId, comment),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useRejectMemoStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, stepId, reason }: { memoId: string; stepId: string; reason: string }) =>
+      memoApi.rejectStep(memoId, stepId, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useReturnMemoStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, stepId, ...body }: {
+      memoId: string; stepId: string; reason: string
+      targetStepInstanceId?: string; toRequester?: boolean
+    }) => memoApi.returnStep(memoId, stepId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useResubmitMemo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, note }: { memoId: string; note?: string }) =>
+      memoApi.resubmit(memoId, note),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useAddMemoActivity() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, message, attachments }: {
+      memoId: string; message: string; attachments?: MemoAttachmentInput[]
+    }) => memoApi.addActivity(memoId, { message, attachments }),
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: memoKeys.byId(vars.memoId) }),
+  })
+}
+
+export function useUpdateMemoActivity() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, activityId, message }: {
+      memoId: string; activityId: string; message: string
+    }) => memoApi.updateActivity(memoId, activityId, message),
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: memoKeys.byId(vars.memoId) }),
   })
 }

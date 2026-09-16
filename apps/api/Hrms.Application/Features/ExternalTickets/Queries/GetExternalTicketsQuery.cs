@@ -81,7 +81,7 @@ public class GetExternalTicketDetailHandler(
                 t.CreatedAt,
                 t.UpdatedAt))
             .FirstOrDefaultAsync(ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
 
         return ticket;
     }

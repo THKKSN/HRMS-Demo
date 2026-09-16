@@ -21,14 +21,14 @@ public class UpsertAttendancePolicyCommandValidator : AbstractValidator<UpsertAt
     {
         RuleFor(x => x.CompanyId).NotEmpty();
         RuleFor(x => x.MaxLateMinutesPerMonth)
-            .GreaterThanOrEqualTo(0).WithMessage("ต้องไม่ติดลบ")
-            .LessThanOrEqualTo(1440).WithMessage("ไม่เกิน 1440 นาที (24 ชั่วโมง)");
+            .GreaterThanOrEqualTo(0).WithErrorCode("VALUE_NEGATIVE").WithMessage("The value must not be negative.")
+            .LessThanOrEqualTo(1440).WithErrorCode("MAX_LATE_MINUTES_RANGE").WithMessage("The value must not exceed 1440 minutes (24 hours).");
         RuleFor(x => x.MaxLateCountPerMonth)
-            .GreaterThanOrEqualTo(0).WithMessage("ต้องไม่ติดลบ")
-            .LessThanOrEqualTo(31).WithMessage("ไม่เกิน 31 ครั้ง");
+            .GreaterThanOrEqualTo(0).WithErrorCode("VALUE_NEGATIVE").WithMessage("The value must not be negative.")
+            .LessThanOrEqualTo(31).WithErrorCode("MAX_COUNT_PER_MONTH_RANGE").WithMessage("The value must not exceed 31 times per month.");
         RuleFor(x => x.MaxAbsenceCountPerMonth)
-            .GreaterThanOrEqualTo(0).WithMessage("ต้องไม่ติดลบ")
-            .LessThanOrEqualTo(31).WithMessage("ไม่เกิน 31 ครั้ง");
+            .GreaterThanOrEqualTo(0).WithErrorCode("VALUE_NEGATIVE").WithMessage("The value must not be negative.")
+            .LessThanOrEqualTo(31).WithErrorCode("MAX_COUNT_PER_MONTH_RANGE").WithMessage("The value must not exceed 31 times per month.");
     }
 }
 

@@ -8,6 +8,9 @@ public class TicketCategory : BaseEntity
     public Guid CompanyId { get; set; }
     public Guid DepartmentId { get; set; }
     public string Name { get; set; } = string.Empty;
+    // ชื่อภาษาอื่นสำหรับ i18n (Phase M) — Name เดิมคือภาษาไทย ว่างได้ ฝั่งแสดงผล fallback เอง
+    public string? NameEn { get; set; }
+    public string? NameId { get; set; }
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }

@@ -31,7 +31,8 @@ public class LeaveTypeController(IMediator mediator) : ControllerBase
             request.NameTh,
             request.NameEn,
             request.DefaultDaysPerYear,
-            request.RequiresAttachment), ct);
+            request.RequiresAttachment,
+            request.NameId), ct);
         return CreatedAtAction(nameof(GetAll), result);
     }
 
@@ -48,7 +49,8 @@ public class LeaveTypeController(IMediator mediator) : ControllerBase
             request.NameTh,
             request.NameEn,
             request.DefaultDaysPerYear,
-            request.RequiresAttachment), ct);
+            request.RequiresAttachment,
+            request.NameId), ct);
         return Ok(result);
     }
 
@@ -65,17 +67,20 @@ public class LeaveTypeController(IMediator mediator) : ControllerBase
     }
 }
 
+// NameId = ชื่อภาษาอินโดนีเซีย (i18n Phase M) — ไม่ส่ง = คงค่าเดิม, ส่ง "" = ล้างค่า
 public record CreateLeaveTypeRequest(
     string Code,
     string NameTh,
     string? NameEn,
     int DefaultDaysPerYear,
-    bool RequiresAttachment);
+    bool RequiresAttachment,
+    string? NameId = null);
 
 public record UpdateLeaveTypeRequest(
     string NameTh,
     string? NameEn,
     int DefaultDaysPerYear,
-    bool RequiresAttachment);
+    bool RequiresAttachment,
+    string? NameId = null);
 
 public record ToggleLeaveTypeStatusRequest(bool IsActive);

@@ -1,3 +1,5 @@
+using Hrms.Application.Common.Options;
+using Microsoft.Extensions.Options;
 using FluentAssertions;
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Features.Tickets.Commands;
@@ -15,7 +17,9 @@ public class TicketReviewAndCancellationIntegrationTests
         await using var fixture = new TicketTestFixture();
         await fixture.SeedOrganizationAsync();
         var ticket = await fixture.AddTicketAsync(TicketStatus.Resolved, true);
-        ticket.ProblemType = TicketProblemType.SystemDefect;
+        var closeoutReason = await fixture.AddCloseoutReasonAsync();
+        ticket.CloseoutReasonId = closeoutReason.Id;
+        ticket.CloseoutReasonNameSnapshot = closeoutReason.Name;
         ticket.ResolutionNote = "First fix";
         ticket.ResolvedByEmployeeId = fixture.AssigneeId;
         ticket.ResolvedAt = DateTime.UtcNow.AddHours(7);
@@ -24,7 +28,7 @@ public class TicketReviewAndCancellationIntegrationTests
             fixture.Db,
             Supervisor(fixture),
             new TestPermissionService("ticket:return"),
-            new TestAuditLogService());
+            new TestAuditLogService(), Options.Create(new TicketOptions()));
 
         var first = await handler.Handle(
             new ReturnTicketForRevisionCommand(

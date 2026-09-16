@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Tickets.Dtos;
 using MediatR;
@@ -23,7 +24,7 @@ public class GetManagedTicketCategoriesHandler(
             .Where(c => c.CompanyId == request.CompanyId && c.DepartmentId == request.DepartmentId)
             .OrderBy(c => c.SortOrder)
             .ThenBy(c => c.Name)
-            .Select(c => new TicketCategoryDto(c.Id, c.CompanyId, c.DepartmentId, c.Name, c.Description, c.SortOrder, c.IsActive, c.EnableResponsibilityFallback, c.RoutingMode))
+            .Select(c => new TicketCategoryDto(c.Id, c.CompanyId, c.DepartmentId, c.Name, c.Description, c.SortOrder, c.IsActive, c.EnableResponsibilityFallback, c.RoutingMode, c.NameEn, c.NameId))
             .ToListAsync(ct);
     }
 }
@@ -44,7 +45,7 @@ public class GetManagedTicketTopicsHandler(
 
         var categoryExists = await db.TicketCategories.AnyAsync(c =>
             c.Id == request.CategoryId && c.CompanyId == request.CompanyId && c.DepartmentId == request.DepartmentId, ct);
-        if (!categoryExists) throw new KeyNotFoundException("ไม่พบหมวดที่ระบุ");
+        if (!categoryExists) throw new NotFoundException("TicketCategory", request.CategoryId, "TICKET_CATEGORY_NOT_FOUND");
 
         return await db.TicketTopics
             .Where(t => t.CompanyId == request.CompanyId &&
@@ -52,7 +53,7 @@ public class GetManagedTicketTopicsHandler(
                         t.CategoryId == request.CategoryId)
             .OrderBy(t => t.SortOrder)
             .ThenBy(t => t.Name)
-            .Select(t => new TicketTopicDto(t.Id, t.CompanyId, t.DepartmentId, t.CategoryId, t.Name, t.Description, t.SortOrder, t.IsActive, t.RoutingMode, t.SyncToExternalRepairSystem))
+            .Select(t => new TicketTopicDto(t.Id, t.CompanyId, t.DepartmentId, t.CategoryId, t.Name, t.Description, t.SortOrder, t.IsActive, t.RoutingMode, t.SyncToExternalRepairSystem, t.NameEn, t.NameId))
             .ToListAsync(ct);
     }
 }
@@ -76,7 +77,7 @@ public class GetManagedTicketSubjectsHandler(
             t.CompanyId == request.CompanyId &&
             t.DepartmentId == request.DepartmentId &&
             t.CategoryId == request.CategoryId, ct);
-        if (!topicExists) throw new KeyNotFoundException("ไม่พบหมวดย่อยที่ระบุ");
+        if (!topicExists) throw new NotFoundException("TicketTopic", request.TopicId, "TICKET_TOPIC_NOT_FOUND");
 
         return await db.TicketSubjects
             .Where(s => s.CompanyId == request.CompanyId &&
@@ -86,7 +87,7 @@ public class GetManagedTicketSubjectsHandler(
             .OrderBy(s => s.SortOrder)
             .ThenBy(s => s.Name)
             .Select(s => new TicketSubjectDto(s.Id, s.CompanyId, s.DepartmentId, s.CategoryId, s.TopicId,
-                s.Name, s.Description, s.SortOrder, s.IsActive))
+                s.Name, s.Description, s.SortOrder, s.IsActive, s.NameEn, s.NameId))
             .ToListAsync(ct);
     }
 }

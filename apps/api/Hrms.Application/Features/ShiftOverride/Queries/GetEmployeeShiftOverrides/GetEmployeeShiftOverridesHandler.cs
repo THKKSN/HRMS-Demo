@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,7 @@ public class GetEmployeeShiftOverridesHandler(IApplicationDbContext db, IScopeGu
     {
         var employee = await db.Employees
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && e.IsActive, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลพนักงาน");
+            ?? throw new NotFoundException("Employee", request.EmployeeId, "EMPLOYEE_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(employee.CompanyId, ct);
 

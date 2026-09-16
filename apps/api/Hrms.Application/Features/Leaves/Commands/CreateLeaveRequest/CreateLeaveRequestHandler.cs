@@ -133,7 +133,9 @@ public class CreateLeaveRequestHandler(
             leaveRequest.SupervisorComment,
             null,
             leaveRequest.HrComment,
-            leaveRequest.CreatedAt);
+            leaveRequest.CreatedAt,
+            LeaveTypeNameEn: leaveType.NameEn,
+            LeaveTypeNameId: leaveType.NameId);
     }
 
     // รองรับ data เก่าที่เป็น single URL string ด้วย fallback

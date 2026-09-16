@@ -13,6 +13,8 @@ export const locationsApi = {
   create: (body: {
     companyId: string
     name: string
+    nameEn?: string
+    nameId?: string
     latitude: number
     longitude: number
     radiusMeters: number
@@ -26,6 +28,8 @@ export const locationsApi = {
     id: string,
     body: {
       name: string
+      nameEn?: string
+      nameId?: string
       latitude: number
       longitude: number
       radiusMeters: number

@@ -31,7 +31,7 @@ public class UpdateHolidayHandler(IApplicationDbContext db, IScopeGuard scope, I
         var holiday = await db.Holidays
             .Include(h => h.Company)
             .FirstOrDefaultAsync(h => h.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException($"ไม่พบ Holiday Id '{request.Id}'");
+            ?? throw new NotFoundException("Holiday", request.Id, "HOLIDAY_NOT_FOUND");
 
         if (holiday.CompanyId.HasValue)
             await scope.ThrowIfCannotAccessAsync(holiday.CompanyId.Value, ct);
@@ -43,7 +43,7 @@ public class UpdateHolidayHandler(IApplicationDbContext db, IScopeGuard scope, I
               && h.Id != request.Id
               && h.IsActive, ct);
         if (duplicate)
-            throw new ConflictException("DUPLICATE_HOLIDAY", $"มีวันหยุดในวันที่ {request.Date:yyyy-MM-dd} ของ scope นี้อยู่แล้ว");
+            throw new ConflictException("DUPLICATE_HOLIDAY", $"A holiday on {request.Date:yyyy-MM-dd} already exists in this scope.");
 
         var oldValues = new { holiday.Name, holiday.Date, holiday.IsActive };
 

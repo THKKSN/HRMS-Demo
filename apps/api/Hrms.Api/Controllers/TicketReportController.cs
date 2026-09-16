@@ -66,9 +66,10 @@ public class TicketReportRequest
     public Guid? ResponsibleEmployeeId { get; init; }
     public TicketRequestType? RequestType { get; init; }
     public TicketProblemType? ProblemType { get; init; }
+    public Guid? CloseoutReasonId { get; init; }
     public string DateBasis { get; init; } = "CreatedAt";
 
     public TicketReportFilter ToFilter() => new(
         DateFrom, DateTo, CompanyId, DepartmentId, CategoryId, TopicId,
-        Priority, Status, ResponsibleEmployeeId, RequestType, ProblemType, DateBasis);
+        Priority, Status, ResponsibleEmployeeId, RequestType, ProblemType, CloseoutReasonId, DateBasis);
 }

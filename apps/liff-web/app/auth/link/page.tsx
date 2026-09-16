@@ -1,8 +1,9 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -11,8 +12,12 @@ import { useLiffContext } from '@/components/providers/liff-provider'
 import { buildLiffUrl, getLiffAccessToken, liff } from '@/lib/liff'
 import { buildLinkPreviewPayload, buildOtpRequestPayload } from '@/lib/auth-link'
 import { api } from '@/lib/api'
-import type { ApiError } from '@hrms/shared-types'
+import { useAuthStore } from '@/stores/auth.store'
+import type { ApiError, AuthResultDto } from '@hrms/shared-types'
 import { isAxiosError } from 'axios'
+
+/** ผลจาก /auth/otp/request — ปกติได้แค่ hint แต่ถ้า LINE push เต็ม backend จะแนบ session มาให้ล็อกอินตรง */
+type OtpRequestResult = { hint: string; session?: AuthResultDto }
 
 const LINE_LOGIN_QUERY_KEYS = [
   'code',
@@ -24,14 +29,19 @@ const LINE_LOGIN_QUERY_KEYS = [
   'error_description',
 ]
 
-const schema = z.object({
-  employeeCode: z
-    .string()
-    .trim()
-    .min(1, 'กรุณากรอกรหัสพนักงาน')
-    .max(50, 'รหัสพนักงานต้องไม่เกิน 50 ตัวอักษร'),
-})
-type FormValues = z.infer<typeof schema>
+type LinkTranslator = ReturnType<typeof useTranslations<'liff.auth.link'>>
+
+// ข้อความ validation มาจากไฟล์ภาษา จึงสร้าง schema ในคอมโพเนนต์ (แผน i18n งาน 1.14)
+function buildSchema(t: LinkTranslator) {
+  return z.object({
+    employeeCode: z
+      .string()
+      .trim()
+      .min(1, t('validation.employeeCodeRequired'))
+      .max(50, t('validation.employeeCodeMax')),
+  })
+}
+type FormValues = z.infer<ReturnType<typeof buildSchema>>
 
 /** ผลจาก /auth/link/preview — เก็บใน React state เท่านั้น ห้ามลง storage หรือ URL */
 type LinkPreview = {
@@ -64,14 +74,18 @@ function openLineLogin() {
 }
 
 function LinkContent() {
+  const t = useTranslations('liff.auth.link')
+  const tCommon = useTranslations('common')
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = searchParams.get('next') ?? ''
   const { isReady, isLoggedIn, error } = useLiffContext()
+  const setAuth = useAuthStore((s) => s.setAuth)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [preview, setPreview] = useState<LinkPreview | null>(null)
   const [isConfirming, setIsConfirming] = useState(false)
 
+  const schema = useMemo(() => buildSchema(t), [t])
   const {
     register,
     handleSubmit,
@@ -84,7 +98,7 @@ function LinkContent() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 py-16">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">กำลังโหลด...</p>
+        <p className="text-sm text-muted-foreground">{tCommon('state.loading')}</p>
       </div>
     )
   }
@@ -93,12 +107,11 @@ function LinkContent() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
         <div className="space-y-2">
-          <p className="font-semibold text-foreground">ไม่สามารถเริ่ม LINE OAuth ได้</p>
+          <p className="font-semibold text-foreground">{t('liffErrorTitle')}</p>
           <p className="text-sm text-muted-foreground">{error}</p>
         </div>
         <p className="max-w-sm rounded-xl bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
-          กรุณาเปิดผ่าน LIFF URL ของระบบ TBG Assistant หรือเช็คว่า LIFF Endpoint URL ใน LINE Developers
-          ตรงกับโดเมนปัจจุบัน
+          {t('liffErrorHint')}
         </p>
       </div>
     )
@@ -109,8 +122,8 @@ function LinkContent() {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-12 text-center">
         <div className="space-y-2">
-          <p className="font-semibold text-foreground">กรุณาเข้าสู่ระบบด้วย LINE</p>
-          <p className="text-sm text-muted-foreground">เพื่อเริ่มต้นผูกบัญชีกับระบบ TBG Assistant</p>
+          <p className="font-semibold text-foreground">{t('loginTitle')}</p>
+          <p className="text-sm text-muted-foreground">{t('loginSubtitle')}</p>
         </div>
         <button
           onClick={openLineLogin}
@@ -119,13 +132,13 @@ function LinkContent() {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
             <path d="M12 2C6.48 2 2 6.02 2 11c0 3.28 1.85 6.16 4.65 7.88l-.65 2.62L8.96 20C9.93 20.32 10.95 20.5 12 20.5c5.52 0 10-4.02 10-9S17.52 2 12 2z"/>
           </svg>
-          เข้าสู่ระบบด้วย LINE
+          {t('loginButton')}
         </button>
         <Link
           href="/external"
           className="text-sm font-semibold text-primary underline underline-offset-4"
         >
-          บุคคลภายนอก แจ้งเรื่องที่นี่
+          {t('externalLink')}
         </Link>
       </div>
     )
@@ -143,7 +156,7 @@ function LinkContent() {
     setErrorMsg(null)
     try {
       const accessToken = getLiffAccessToken()
-      if (!accessToken) throw new Error('ไม่พบ LINE access token กรุณาเปิดในแอป LINE')
+      if (!accessToken) throw new Error(t('errors.noAccessToken'))
 
       const response = await api.post<LinkPreview>(
         '/auth/link/preview',
@@ -158,7 +171,7 @@ function LinkContent() {
           goToAlreadyLinked(getLiffAccessToken() ?? '')
           return
         }
-        setErrorMsg(data?.message ?? 'กรุณาตรวจสอบรหัสพนักงานใหม่อีกครั้ง')
+        setErrorMsg(data?.message ?? t('errors.checkCode'))
       } else if (err instanceof Error) {
         setErrorMsg(err.message)
       }
@@ -172,12 +185,22 @@ function LinkContent() {
     setErrorMsg(null)
     try {
       const accessToken = getLiffAccessToken()
-      if (!accessToken) throw new Error('ไม่พบ LINE access token กรุณาเปิดในแอป LINE')
+      if (!accessToken) throw new Error(t('errors.noAccessToken'))
 
-      await api.post(
+      const res = await api.post<OtpRequestResult>(
         '/auth/otp/request',
         buildOtpRequestPayload(accessToken, preview.previewToken),
       )
+
+      // LINE push เต็ม — backend ผูกบัญชีให้แล้วส่ง session กลับมา เข้าระบบตรง ข้ามหน้า OTP
+      if (res.data.session) {
+        const { accessToken: at, refreshToken, employee } = res.data.session
+        setAuth(at, refreshToken, employee)
+        sessionStorage.removeItem('liff_access_token')
+        sessionStorage.removeItem('liff_preview_token')
+        router.replace(next || '/')
+        return
+      }
 
       sessionStorage.setItem('liff_access_token', accessToken)
       sessionStorage.setItem('liff_preview_token', preview.previewToken)
@@ -191,7 +214,7 @@ function LinkContent() {
           goToAlreadyLinked(getLiffAccessToken() ?? '')
           return
         }
-        setErrorMsg(data?.message ?? 'กรุณาตรวจสอบรหัสพนักงานใหม่อีกครั้ง')
+        setErrorMsg(data?.message ?? t('errors.checkCode'))
       } else if (err instanceof Error) {
         setErrorMsg(err.message)
       }
@@ -209,11 +232,9 @@ function LinkContent() {
   return (
     <div className="flex flex-col px-6 py-8">
       <div className="my-8 flex flex-col items-center text-center">
-        <h2 className="text-xl font-bold text-foreground">ผูกบัญชี LINE</h2>
+        <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          {preview
-            ? 'ตรวจสอบว่าเป็นข้อมูลของคุณก่อนรับรหัส OTP'
-            : 'กรอกรหัสพนักงานเพื่อผูกบัญชีกับระบบ TBG Assistant'}
+          {preview ? t('subtitlePreview') : t('subtitleForm')}
         </p>
       </div>
 
@@ -224,7 +245,7 @@ function LinkContent() {
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
               <User className="h-6 w-6 text-primary" />
             </div>
-            <p className="mt-4 text-xs text-muted-foreground">ชื่อ-นามสกุลของพนักงาน</p>
+            <p className="mt-4 text-xs text-muted-foreground">{t('employeeNameLabel')}</p>
             <p className="mt-1 text-lg font-bold text-foreground">{preview.fullName}</p>
           </div>
 
@@ -243,12 +264,12 @@ function LinkContent() {
             {isConfirming ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                กำลังส่ง OTP...
+                {t('sendingOtp')}
               </>
             ) : (
               <>
                 <Check className="h-4 w-4" />
-                ใช่ นี่คือฉัน
+                {t('confirmIdentity')}
               </>
             )}
           </button>
@@ -260,11 +281,11 @@ function LinkContent() {
             className="flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-60"
           >
             <X className="h-4 w-4" />
-            ไม่ใช่ กลับไปแก้ไข
+            {t('rejectIdentity')}
           </button>
 
           <p className="text-center text-xs text-muted-foreground">
-            ระบบจะส่ง OTP ทาง LINE หลังจากคุณกดยืนยันว่าเป็นข้อมูลของคุณ
+            {t('otpNotice')}
           </p>
         </div>
       ) : (
@@ -272,7 +293,7 @@ function LinkContent() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
             <label htmlFor="employeeCode" className="text-sm font-medium text-foreground">
-              รหัสพนักงาน
+              {t('employeeCode')}
             </label>
             <div className="relative">
               <Hash className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -282,7 +303,7 @@ function LinkContent() {
                 type="text"
                 inputMode="text"
                 autoComplete="off"
-                placeholder="เช่น 00123"
+                placeholder={t('employeeCodePlaceholder')}
                 className={`w-full rounded-xl border bg-whited py-3 pl-10 pr-4 text-sm tracking-wide transition-colors focus:outline-none focus:ring-2 focus:ring-primary ${
                   errors.employeeCode ? 'border-destructive' : 'border-border focus:border-primary'
                 }`}
@@ -293,7 +314,7 @@ function LinkContent() {
               <p className="text-xs text-destructive">{errors.employeeCode.message}</p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                กรอกรหัสพนักงานตามบัตร เช่น 00123 หรือ 123 ก็ได้
+                {t('employeeCodeHint')}
               </p>
             )}
           </div>
@@ -312,29 +333,29 @@ function LinkContent() {
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                กำลังตรวจสอบ...
+                {tCommon('state.checking')}
               </>
             ) : (
-              'ตรวจสอบ'
+              t('check')
             )}
           </button>
         </form>
       )}
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        ข้อมูลของคุณถูกเข้ารหัสและความปลอดภัย
+        {t('securityNote')}
       </p>
 
       {/* ทางเข้าสำหรับบุคคลภายนอก (ผู้ที่ไม่ใช่พนักงาน) — ใช้ external auth คนละชุด ไม่ต้องผูกรหัสพนักงาน */}
-      {/* <div className="mt-8 border-t border-border pt-6 text-center">
-        <p className="text-xs text-muted-foreground">ไม่ใช่พนักงาน?</p>
+      <div className="mt-8 border-t border-border pt-6 text-center">
+        <p className="text-xs text-muted-foreground">{t('notEmployee')}</p>
         <Link
           href="/external"
           className="mt-2 inline-block rounded-xl border border-primary px-6 py-2.5 text-sm font-semibold text-primary"
         >
-          บุคคลภายนอก แจ้งเรื่องที่นี่
+          {t('externalLink')}
         </Link>
-      </div> */}
+      </div>
     </div>
   )
 }

@@ -49,7 +49,10 @@ public class GetPendingApprovalsHandler(IApplicationDbContext db, ICurrentUser c
                 r.DateTo,
                 r.TotalDays,
                 r.Status,
-                r.CreatedAt))
+                r.CreatedAt,
+                // expression tree ใช้ named argument ไม่ได้ (CS0853) — ลำดับต้องตรงกับ PendingLeaveItemDto
+                r.LeaveType.NameEn,
+                r.LeaveType.NameId))
             .ToListAsync(ct);
 
         return new PagedResult<PendingLeaveItemDto>(items, totalCount, page, pageSize);

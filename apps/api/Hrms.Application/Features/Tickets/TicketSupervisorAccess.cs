@@ -23,7 +23,7 @@ internal static class TicketSupervisorAccess
 
         var department = await db.Departments.AsNoTracking().FirstOrDefaultAsync(d =>
             d.Id == departmentId && d.CompanyId == companyId && d.IsActive, ct)
-            ?? throw new KeyNotFoundException("ไม่พบแผนกที่ระบุ");
+            ?? throw new NotFoundException("Department", departmentId, "DEPARTMENT_NOT_FOUND");
 
         var canManage = currentUser.CanManageDepartment(companyId, departmentId, department.ManagerEmployeeId);
         if (!canManage && currentUser.HasRole(RoleType.Supervisor, companyId) && currentUser.EmployeeId.HasValue)
@@ -33,7 +33,7 @@ internal static class TicketSupervisorAccess
                 employee.CompanyId == companyId && employee.DepartmentId == departmentId, ct);
         }
         if (!canManage)
-            throw new AppForbiddenException("ไม่มีสิทธิ์จัดการใบแจ้งเรื่องของแผนกนี้");
+            throw new AppForbiddenException("TICKET_DEPARTMENT_FORBIDDEN", "You are not allowed to manage tickets for this department.");
     }
 
     public static async Task EnsureTicketAsync(
@@ -69,7 +69,7 @@ internal static class TicketSupervisorAccess
         var canManage = currentUser.HasRole(RoleType.Admin) ||
             (currentUser.HasRole(RoleType.Supervisor, companyId) && currentUser.CompanyId == companyId);
         if (!canManage)
-            throw new AppForbiddenException("ไม่มีสิทธิ์จัดการใบแจ้งเรื่องของบริษัทนี้");
+            throw new AppForbiddenException("TICKET_COMPANY_FORBIDDEN", "You are not allowed to manage tickets for this company.");
     }
 
     public static IQueryable<Ticket> ApplyDepartmentScope(

@@ -1,0 +1,57 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\Sermpong\\Desktop\\Document_Benz\\HRMS_LINE_LIFF\\apps\\api\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{14E0AB02-E10C-8BAA-A03F-BDD02BA64DA3}|Hrms.Api\\Hrms.Api.csproj|c:\\users\\sermpong\\desktop\\document_benz\\hrms_line_liff\\apps\\api\\hrms.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{14E0AB02-E10C-8BAA-A03F-BDD02BA64DA3}|Hrms.Api\\Hrms.Api.csproj|solutionrelative:hrms.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{14E0AB02-E10C-8BAA-A03F-BDD02BA64DA3}|Hrms.Api\\Hrms.Api.csproj|c:\\users\\sermpong\\desktop\\document_benz\\hrms_line_liff\\apps\\api\\hrms.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{14E0AB02-E10C-8BAA-A03F-BDD02BA64DA3}|Hrms.Api\\Hrms.Api.csproj|solutionrelative:hrms.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 2,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{cce594b6-0c39-4442-ba28-10c64ac7e89f}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\Sermpong\\Desktop\\Document_Benz\\HRMS_LINE_LIFF\\apps\\api\\Hrms.Api\\Program.cs",
+              "RelativeDocumentMoniker": "Hrms.Api\\Program.cs",
+              "ToolTip": "C:\\Users\\Sermpong\\Desktop\\Document_Benz\\HRMS_LINE_LIFF\\apps\\api\\Hrms.Api\\Program.cs",
+              "RelativeToolTip": "Hrms.Api\\Program.cs",
+              "ViewState": "AgIAAPsAAAAAAAAAAAAAAOgAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-08-13T10:01:33.321Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "appsettings.json",
+              "DocumentMoniker": "C:\\Users\\Sermpong\\Desktop\\Document_Benz\\HRMS_LINE_LIFF\\apps\\api\\Hrms.Api\\appsettings.json",
+              "RelativeDocumentMoniker": "Hrms.Api\\appsettings.json",
+              "ToolTip": "C:\\Users\\Sermpong\\Desktop\\Document_Benz\\HRMS_LINE_LIFF\\apps\\api\\Hrms.Api\\appsettings.json",
+              "RelativeToolTip": "Hrms.Api\\appsettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAB8AAAAXAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-08-13T09:03:51.848Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,7 @@
-import type { MemoCategoryDto, MemoDto, MemoInboxItemDto, MemoListItemDto, MemoStatus, MemoSubCategoryDto, MemoTypeDto, PendingMemoItemDto } from '@hrms/shared-types'
+import type {
+  MemoActivityDto, MemoAttachmentInput, MemoCategoryDto, MemoDto, MemoInboxItemDto, MemoListItemDto,
+  MemoStatus, MemoStepInstanceDto, MemoSubCategoryDto, MemoTypeDto, PendingMemoItemDto,
+} from '@hrms/shared-types'
 import { api } from './api'
 
 export type CreateMemoBody = {
@@ -6,6 +9,7 @@ export type CreateMemoBody = {
   memoCategoryId: string
   memoSubCategoryId: string
   detail: string
+  attachments?: MemoAttachmentInput[]
 }
 
 export const memoApi = {
@@ -27,7 +31,7 @@ export const memoApi = {
   getById: (id: string) =>
     api.get<MemoDto>(`/memos/${id}`).then(r => r.data),
 
-  // ผู้ขอต้นเรื่องยืนยันรับของ/รับงาน หลังแผนกปลายทางส่งมอบ — ปิดจบ memo
+  // ผู้ขอต้นเรื่องยืนยันตรวจรับ หลังแผนกปลายทางส่งมอบ — ปิดจบ memo
   receive: (id: string) =>
     api.post<MemoDto>(`/memos/${id}/receive`).then(r => r.data),
 
@@ -38,7 +42,7 @@ export const memoApi = {
   approve: (id: string, comment?: string) =>
     api.post<MemoDto>(`/memos/${id}/approve`, { comment }).then(r => r.data),
 
-  reject: (id: string, reason: string) =>
+  reject: (id: string, reason?: string) =>
     api.post<MemoDto>(`/memos/${id}/reject`, { reason }).then(r => r.data),
 
   // ฝั่งหัวหน้าแผนกปลายทาง (memo:view-inbox + role Supervisor)
@@ -53,4 +57,32 @@ export const memoApi = {
 
   printBlob: (id: string) =>
     api.get(`/memos/${id}/print`, { responseType: 'blob' }).then(r => r.data as Blob),
+
+  // ── ขั้นตอนที่ตั้งค่าไว้ต่อประเภทเรื่อง (หลังแผนกรับทราบ) ────────────────────
+  // ขั้น Work ปิดด้วย complete · ขั้น Approval ใช้ approve / reject (จบเรื่อง) / return (ตีกลับ)
+  completeStep: (memoId: string, stepId: string, body: { note?: string; attachments?: MemoAttachmentInput[] }) =>
+    api.post<MemoStepInstanceDto>(`/memos/${memoId}/steps/${stepId}/complete`, body).then(r => r.data),
+
+  approveStep: (memoId: string, stepId: string, comment?: string) =>
+    api.post<MemoStepInstanceDto>(`/memos/${memoId}/steps/${stepId}/approve`, { comment }).then(r => r.data),
+
+  rejectStep: (memoId: string, stepId: string, reason: string) =>
+    api.post<MemoStepInstanceDto>(`/memos/${memoId}/steps/${stepId}/reject`, { reason }).then(r => r.data),
+
+  // targetStepInstanceId ว่าง = ขั้นก่อนหน้าติดกัน · toRequester = ย้อนถึงผู้ขอ (ขั้นอนุมัติเท่านั้น)
+  returnStep: (memoId: string, stepId: string, body: {
+    reason: string; targetStepInstanceId?: string; toRequester?: boolean
+  }) => api.post<MemoStepInstanceDto>(`/memos/${memoId}/steps/${stepId}/return`, body).then(r => r.data),
+
+  // ผู้ขอส่งเรื่องที่ถูกตีกลับมาหาตัวเองกลับเข้า workflow
+  resubmit: (memoId: string, note?: string) =>
+    api.post<MemoStepInstanceDto>(`/memos/${memoId}/resubmit`, { note }).then(r => r.data),
+
+  // ── บันทึกความคืบหน้า ────────────────────────────────────────────────────────
+  addActivity: (memoId: string, body: { message: string; attachments?: MemoAttachmentInput[] }) =>
+    api.post<MemoActivityDto>(`/memos/${memoId}/activities`, body).then(r => r.data),
+
+  // แก้ได้เฉพาะข้อความ ไฟล์แนบเดิมคงอยู่
+  updateActivity: (memoId: string, activityId: string, message: string) =>
+    api.put<MemoActivityDto>(`/memos/${memoId}/activities/${activityId}`, { message }).then(r => r.data),
 }

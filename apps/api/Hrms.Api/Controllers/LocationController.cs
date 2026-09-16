@@ -45,7 +45,9 @@ public class LocationController(IMediator mediator) : ControllerBase
             request.ProvinceId,
             request.DistrictId,
             request.SubDistrictId,
-            request.Address), ct);
+            request.Address,
+            request.NameEn,
+            request.NameId), ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -66,7 +68,9 @@ public class LocationController(IMediator mediator) : ControllerBase
             request.DistrictId,
             request.SubDistrictId,
             request.Address,
-            request.IsActive), ct);
+            request.IsActive,
+            request.NameEn,
+            request.NameId), ct);
         return Ok(result);
     }
 
@@ -78,6 +82,7 @@ public class LocationController(IMediator mediator) : ControllerBase
         CancellationToken ct)
     {
         var current = await mediator.Send(new GetLocationByIdQuery(id), ct);
+        // ส่งชื่อหลายภาษาเดิมกลับไปด้วย เพื่อไม่ต้องพึ่งพฤติกรรม "null = คงค่าเดิม" ของ NameText.Apply
         var result = await mediator.Send(new UpdateLocationCommand(
             id,
             current.Name,
@@ -88,11 +93,14 @@ public class LocationController(IMediator mediator) : ControllerBase
             current.DistrictId,
             current.SubDistrictId,
             current.Address,
-            request.IsActive), ct);
+            request.IsActive,
+            current.NameEn,
+            current.NameId), ct);
         return Ok(result);
     }
 }
 
+// NameEn/NameId = ชื่อหลายภาษาของ master data (i18n Phase M) — ไม่ส่ง = คงค่าเดิม, ส่ง "" = ล้างค่า
 public record CreateLocationRequest(
     Guid CompanyId,
     string Name,
@@ -102,7 +110,9 @@ public record CreateLocationRequest(
     int? ProvinceId,
     int? DistrictId,
     int? SubDistrictId,
-    string? Address);
+    string? Address,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record UpdateLocationRequest(
     string Name,
@@ -113,6 +123,8 @@ public record UpdateLocationRequest(
     int? DistrictId,
     int? SubDistrictId,
     string? Address,
-    bool IsActive);
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record ToggleLocationStatusRequest(bool IsActive);

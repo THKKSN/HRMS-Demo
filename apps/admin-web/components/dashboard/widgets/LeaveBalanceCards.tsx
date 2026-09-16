@@ -1,15 +1,17 @@
+import { useTranslations } from 'next-intl'
 import type { MyDashboardDto } from '@hrms/shared-types'
 
 type Props = { balances: MyDashboardDto['leaveBalance'] }
 
 export function LeaveBalanceCards({ balances }: Props) {
+  const t = useTranslations('admin.dashboard.leaveBalance')
   const visible = balances.filter(b => b.totalDays > 0)
   if (visible.length === 0) return null
 
   return (
     <div>
       <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        วันลาคงเหลือ
+        {t('title')}
       </p>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {visible.map(b => {
@@ -20,13 +22,13 @@ export function LeaveBalanceCards({ balances }: Props) {
               <p className="truncate text-xs text-muted-foreground">{b.leaveTypeName}</p>
               <div className="mt-1.5 flex items-end gap-1">
                 <span className="text-2xl font-bold leading-none text-foreground">{b.remainingDays}</span>
-                <span className="mb-0.5 text-xs text-muted-foreground">/ {b.totalDays} วัน</span>
+                <span className="mb-0.5 text-xs text-muted-foreground">{t('ofTotalDays', { total: b.totalDays })}</span>
               </div>
               <div className="mt-2 h-1.5 w-full rounded-full bg-muted">
                 <div className={`h-1.5 rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
               </div>
               {b.pendingDays > 0 && (
-                <p className="mt-1 text-[10px] text-amber-500">รออนุมัติ {b.pendingDays} วัน</p>
+                <p className="mt-1 text-[10px] text-amber-500">{t('pendingDays', { days: b.pendingDays })}</p>
               )}
             </div>
           )

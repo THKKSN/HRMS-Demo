@@ -1,5 +1,7 @@
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Common.Notifications;
+using Hrms.Application.Common.Options;
 using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
 using System.Text.Json;
@@ -8,10 +10,13 @@ namespace Hrms.Application.Features.Tickets;
 
 internal static class TicketCommandSupport
 {
+    /// <summary>step key ของการ์ดที่ผู้ใช้สร้าง/แก้เองระหว่างดำเนินงาน — การ์ดขั้นอื่นเป็นของระบบ ห้ามแก้</summary>
+    public const string InProgressStepKey = "in_progress";
+
     public static void EnsureExpectedVersion(Ticket ticket, DateTime? expectedUpdatedAt)
     {
         if (expectedUpdatedAt.HasValue && ticket.UpdatedAt != expectedUpdatedAt.Value)
-            throw new ConflictException("TICKET_CHANGED", "ใบแจ้งเรื่องถูกแก้ไขโดยผู้ใช้อื่น กรุณาโหลดข้อมูลใหม่");
+            throw new ConflictException("TICKET_CHANGED", "The ticket was changed by another user. Reload and try again.");
     }
 
     public static string FullName(Employee employee)
@@ -70,7 +75,8 @@ internal static class TicketCommandSupport
         string eventType,
         Guid occurrenceId,
         TicketRequesterContext requester,
-        string message,
+        string templateKey,
+        object? parameters,
         Ticket ticket)
         => QueueNotification(
             db,
@@ -78,17 +84,28 @@ internal static class TicketCommandSupport
             occurrenceId,
             requester.EmployeeId,
             requester.LineUserId,
-            message,
+            templateKey,
+            parameters,
             ticket);
 
+    /// <param name="templateKey">คีย์ใน <c>packages/i18n/messages/&lt;locale&gt;/notifications.json</c></param>
+    /// <param name="parameters">
+    /// ตัวแปรของเทมเพลต เช่น <c>new { ticketNo = ticket.TicketNo }</c> — ค่าที่เป็น null/ว่าง
+    /// จะทำให้บรรทัดนั้นในเทมเพลตหายไป (ดู <see cref="NotificationTemplate.Render"/>)
+    /// </param>
+    /// <param name="localizedParameters">
+    /// ตัวแปรที่เป็นชื่อ master data ซึ่งมีหลายภาษา — สร้างด้วย <c>LocalizedName.AllLocales</c>
+    /// </param>
     public static void QueueNotification(
         IApplicationDbContext db,
         string eventType,
         Guid occurrenceId,
         Guid? recipientEmployeeId,
         string? lineUserId,
-        string message,
-        Ticket ticket)
+        string templateKey,
+        object? parameters,
+        Ticket ticket,
+        Dictionary<string, Dictionary<string, string>>? localizedParameters = null)
     {
         if (string.IsNullOrWhiteSpace(lineUserId)) return;
         var recipientKey = recipientEmployeeId?.ToString("N") ?? lineUserId;
@@ -105,13 +122,43 @@ internal static class TicketCommandSupport
             EntityType = "Ticket",
             EntityId = ticket.Id,
             EntityReference = ticket.TicketNo,
-            PayloadJson = JsonSerializer.Serialize(new TicketNotificationPayload(message)),
+            PayloadJson = NotificationPayload
+                .FromTemplate(templateKey, parameters, localizedParameters).ToJson(),
             DeduplicationKey = deduplicationKey,
             Status = NotificationDeliveryStatus.Pending
         });
     }
 
-    private sealed record TicketNotificationPayload(string Message);
+    /// <summary>
+    /// ส่งข้อความเดียวถึงคนทำงานของใบนี้ — ทางเข้าเดียวของ fan-out ฝั่งทีม
+    /// ผู้รับผิดชอบหลักได้ทุก event ส่วนผู้ร่วมงานได้เฉพาะ event ที่อยู่ใน
+    /// <c>Ticket:TeamNotificationEvents</c> (คุมจำนวนข้อความ LINE ไม่ให้บานตามขนาดทีม)
+    /// dedup key มี recipient อยู่แล้วจึงไม่ส่งซ้ำคนเดิมใน occurrence เดียวกัน
+    /// </summary>
+    /// <param name="excludeEmployeeId">ผู้ลงมือเอง ไม่ต้องแจ้งซ้ำ</param>
+    public static async Task QueueForTeamAsync(
+        IApplicationDbContext db,
+        TicketOptions options,
+        string eventType,
+        Guid occurrenceId,
+        Ticket ticket,
+        string templateKey,
+        object? parameters,
+        CancellationToken ct,
+        Guid? excludeEmployeeId = null)
+    {
+        var includeMembers = options.TeamNotificationEvents
+            .Any(item => string.Equals(item, eventType, StringComparison.OrdinalIgnoreCase));
+        var recipients = await TicketTeam.ActiveRecipientsAsync(db, ticket.Id, ct);
+        foreach (var recipient in recipients)
+        {
+            if (!recipient.IsOwner && !includeMembers) continue;
+            if (excludeEmployeeId.HasValue && recipient.EmployeeId == excludeEmployeeId.Value) continue;
+            QueueNotification(
+                db, eventType, occurrenceId, recipient.EmployeeId, recipient.LineUserId,
+                templateKey, parameters, ticket);
+        }
+    }
 
     public static void QueueExternalRepairSync(
         IApplicationDbContext db,

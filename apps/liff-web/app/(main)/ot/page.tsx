@@ -2,22 +2,16 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ClipboardList, Plus, ChevronRight } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
+import { useFmt } from '@/hooks/use-fmt'
 import { useMyOtRequests, useTeamOtRequests } from '@/hooks/use-ot-requests'
-import { isSupervisorOrAbove } from '@/lib/auth-utils'
+import { hasPermission } from '@/lib/auth-utils'
 import { useAuthStore } from '@/stores/auth.store'
 import type { OtStatus } from '@hrms/shared-types'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
-const STATUS_LABEL: Record<OtStatus, string> = {
-  PendingSupervisor: 'รออนุมัติ',
-  PendingHr:        'รอ HR',
-  Approved:         'อนุมัติแล้ว',
-  Rejected:         'ถูกปฏิเสธ',
-  Cancelled:        'ยกเลิกแล้ว',
-}
 
 const STATUS_COLOR: Record<OtStatus, string> = {
   PendingSupervisor: 'bg-amber-100 text-amber-700',
@@ -27,42 +21,33 @@ const STATUS_COLOR: Record<OtStatus, string> = {
   Cancelled:        'bg-gray-100 text-gray-500',
 }
 
-const RATE_LABEL: Record<string, string> = {
-  Weekday: '1.5×',
-  Weekend: '2×',
-  Holiday: '3×',
-}
-
-function formatDateTH(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('th-TH', {
-    day: 'numeric',
-    month: 'short',
-    year: '2-digit',
-  })
-}
-
 type Tab = 'my' | 'team'
 type StatusFilter = OtStatus | undefined
+type TabKey = 'all' | 'pending' | 'pendingHr' | 'approved' | 'rejected' | 'done'
 
-const MY_STATUS_TABS: { label: string; value: StatusFilter }[] = [
-  { label: 'ทั้งหมด',     value: undefined },
-  { label: 'รออนุมัติ',  value: 'PendingSupervisor' },
-  { label: 'อนุมัติแล้ว', value: 'Approved' },
-  { label: 'ถูกปฏิเสธ',  value: 'Rejected' },
+const MY_STATUS_TABS: { key: TabKey; value: StatusFilter }[] = [
+  { key: 'all',      value: undefined },
+  { key: 'pending',  value: 'PendingSupervisor' },
+  { key: 'approved', value: 'Approved' },
+  { key: 'rejected', value: 'Rejected' },
 ]
 
-const TEAM_STATUS_TABS: { label: string; value: StatusFilter }[] = [
-  { label: 'ทั้งหมด',    value: undefined },
-  { label: 'รออนุมัติ', value: 'PendingSupervisor' },
-  { label: 'รอ HR',      value: 'PendingHr' },
-  { label: 'เสร็จสิ้น',  value: 'Approved' },
+const TEAM_STATUS_TABS: { key: TabKey; value: StatusFilter }[] = [
+  { key: 'all',       value: undefined },
+  { key: 'pending',   value: 'PendingSupervisor' },
+  { key: 'pendingHr', value: 'PendingHr' },
+  { key: 'done',      value: 'Approved' },
 ]
 
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function OtPage() {
+  const t = useTranslations('liff.ot')
+  const tCommon = useTranslations('common')
+  const tStatus = useTranslations('status.ot')
+  const fmt = useFmt()
   const employee = useAuthStore((s) => s.employee)
-  const isSup    = !!employee && isSupervisorOrAbove(employee.roles)
+  const isSup    = hasPermission(employee, 'ot:view-team', ['Supervisor', 'Hr', 'Admin'])
 
   const [mainTab,    setMainTab]    = useState<Tab>('my')
   const [myStatus,   setMyStatus]   = useState<StatusFilter>(undefined)
@@ -82,29 +67,29 @@ export default function OtPage() {
     <>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3">
-        <PageHeader title="คำขอ OT" />
+        <PageHeader title={t('list.title')} />
         <Link
           href="/ot/new"
           className="rounded-full bg-primary px-3 py-1.5 text-sm font-medium text-white"
         >
-          ขอ OT
+          {t('list.request')}
         </Link>
       </div>
 
       {/* Main tabs (My / Team) — Supervisor only */}
       {isSup && (
         <div className="flex gap-1 px-4 pb-2">
-          {(['my', 'team'] as Tab[]).map((t) => (
+          {(['my', 'team'] as Tab[]).map((tab) => (
             <button
-              key={t}
-              onClick={() => setMainTab(t)}
+              key={tab}
+              onClick={() => setMainTab(tab)}
               className={`flex-1 rounded-xl py-2 text-sm font-medium transition-colors ${
-                mainTab === t
+                mainTab === tab
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-whited text-muted-foreground'
               }`}
             >
-              {t === 'my' ? 'ของฉัน' : 'ของทีม'}
+              {tab === 'my' ? t('list.mine') : t('list.team')}
             </button>
           ))}
         </div>
@@ -117,7 +102,7 @@ export default function OtPage() {
           const setFn  = mainTab === 'my' ? setMyStatus : setTeamStatus
           return (
             <button
-              key={tab.label}
+              key={tab.key}
               onClick={() => setFn(tab.value)}
               className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
                 active === tab.value
@@ -125,7 +110,7 @@ export default function OtPage() {
                   : 'border border-border bg-background text-muted-foreground'
               }`}
             >
-              {tab.label}
+              {t(`list.tabs.${tab.key}`)}
             </button>
           )
         })}
@@ -140,59 +125,62 @@ export default function OtPage() {
         ) : activeItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <ClipboardList className="h-12 w-12 text-muted-foreground" />
-            <p className="mt-4 font-medium text-foreground">ยังไม่มีคำขอ OT</p>
+            <p className="mt-4 font-medium text-foreground">{t('list.empty')}</p>
             {mainTab === 'my' && (
               <Link
                 href="/ot/new"
                 className="mt-5 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
               >
-                ขอ OT เลย
+                {t('list.requestNow')}
               </Link>
             )}
           </div>
         ) : (
-          activeItems.map((item) => (
-            <Link
-              key={item.id}
-              href={`/ot/${item.id}`}
-              className="flex items-center gap-4 rounded-2xl border border-border bg-background p-4 shadow-sm active:bg-whited/50 transition-colors"
-            >
-              {/* Date block */}
-              <div className="flex w-14 shrink-0 flex-col items-center justify-center rounded-xl py-2 text-center">
-                <span className="text-[10px] font-medium text-orange-500">
-                  {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' })}
-                </span>
-                <span className="text-lg font-bold leading-none text-foreground">
-                  {new Date(item.date + 'T00:00:00').getDate()}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {formatDateTH(item.date).split(' ')[1]}
-                </span>
-              </div>
+          activeItems.map((item) => {
+            const date = new Date(item.date + 'T00:00:00')
+            return (
+              <Link
+                key={item.id}
+                href={`/ot/${item.id}`}
+                className="flex items-center gap-4 rounded-2xl border border-border bg-background p-4 shadow-sm active:bg-whited/50 transition-colors"
+              >
+                {/* Date block — ตัวย่อวันภาษาอังกฤษทุกภาษา (ดีไซน์เดิม) ส่วนเดือนตาม locale */}
+                <div className="flex w-14 shrink-0 flex-col items-center justify-center rounded-xl py-2 text-center">
+                  <span className="text-[10px] font-medium text-orange-500">
+                    {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                  </span>
+                  <span className="text-lg font-bold leading-none text-foreground">
+                    {date.getDate()}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {fmt.formatDate(date, { month: 'short' })}
+                  </span>
+                </div>
 
-              {/* Info */}
-              <div className="flex-1 min-w-0 border-l border-border pl-4">
-                {mainTab === 'team' && (
-                  <p className="text-xs font-medium text-primary truncate">{item.employeeName}</p>
-                )}
-                <p className="font-semibold text-foreground truncate">
-                  {item.startTime.slice(0, 5)} – {item.endTime.slice(0, 5)} น.
-                </p>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  {item.totalHours} ชม. · {RATE_LABEL[item.rateType] ?? item.rateType}
-                  {item.reason && ` · ${item.reason}`}
-                </p>
-              </div>
+                {/* Info */}
+                <div className="flex-1 min-w-0 border-l border-border pl-4">
+                  {mainTab === 'team' && (
+                    <p className="text-xs font-medium text-primary truncate">{item.employeeName}</p>
+                  )}
+                  <p className="font-semibold text-foreground truncate">
+                    {tCommon('time.range', { from: item.startTime.slice(0, 5), to: item.endTime.slice(0, 5) })}
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {tCommon('duration.hoursShort', { count: item.totalHours })} · {t(`rate.short.${item.rateType}`)}
+                    {item.reason && ` · ${item.reason}`}
+                  </p>
+                </div>
 
-              {/* Status badge */}
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLOR[item.status]}`}>
-                  {STATUS_LABEL[item.status]}
-                </span>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </Link>
-          ))
+                {/* Status badge */}
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_COLOR[item.status]}`}>
+                    {tStatus(item.status)}
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+              </Link>
+            )
+          })
         )}
       </div>
 

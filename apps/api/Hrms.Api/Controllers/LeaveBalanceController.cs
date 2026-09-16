@@ -60,7 +60,7 @@ public class LeaveBalanceController(IMediator mediator) : ControllerBase
         CancellationToken ct)
     {
         if (request.Year <= 0)
-            return BadRequest(new { error = "กรุณาระบุปี (year) ที่ถูกต้อง" });
+            return BadRequest(new { error = "INVALID_YEAR", message = "A valid year is required." });
 
         var created = await mediator.Send(new RecalcLeaveBalancesCommand(request.Year, request.CompanyId), ct);
         return Ok(new { created });

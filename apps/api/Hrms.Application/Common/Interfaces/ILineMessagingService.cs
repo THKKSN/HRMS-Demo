@@ -1,3 +1,5 @@
+using Hrms.Application.Common.Localization;
+
 namespace Hrms.Application.Common.Interfaces;
 
 public interface ILineMessagingService
@@ -20,11 +22,10 @@ public interface ILineMessagingService
 
     Task ReplyAsync(string replyToken, string message, CancellationToken ct = default);
 
-    Task ReplyHrMenuAsync(string replyToken, CancellationToken ct = default);
+    Task ReplyHrMenuAsync(string replyToken, MessageText text, CancellationToken ct = default);
 
-    Task ReplyWithLocationRequestAsync(string replyToken, string promptText, CancellationToken ct = default);
 
     Task ReplyFlexMessageAsync(string replyToken, string altText, object flexContainer, CancellationToken ct = default);
 
-    Task ReplyFlexWithLocationRequestAsync(string replyToken, string altText, object flexContainer, CancellationToken ct = default);
+    Task ReplyFlexWithLocationRequestAsync(string replyToken, string altText, object flexContainer, MessageText text, CancellationToken ct = default);
 }

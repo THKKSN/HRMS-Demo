@@ -15,6 +15,8 @@ export const departmentsApi = {
   create: (body: {
     companyId: string
     name: string
+    nameEn?: string
+    nameId?: string
     deptType?: string
     managerEmployeeId?: string
   }) => api.post<DepartmentDto>('/departments', body).then((r) => r.data),
@@ -23,6 +25,8 @@ export const departmentsApi = {
     id: string,
     body: {
       name: string
+      nameEn?: string
+      nameId?: string
       deptType?: string
       managerEmployeeId?: string
       shiftId?: string | null

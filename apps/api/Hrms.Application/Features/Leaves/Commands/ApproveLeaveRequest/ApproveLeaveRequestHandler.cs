@@ -104,6 +104,8 @@ public class ApproveLeaveRequestHandler(
             r.SupervisorComment,
             hrName,
             r.HrComment,
-            r.CreatedAt);
+            r.CreatedAt,
+            LeaveTypeNameEn: r.LeaveType.NameEn,
+            LeaveTypeNameId: r.LeaveType.NameId);
     }
 }

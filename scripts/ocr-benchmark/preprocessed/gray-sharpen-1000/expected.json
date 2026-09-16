@@ -1,0 +1,41 @@
+{
+  "datasetVersion": "2026-08-04-phase-7a-seed-gray-sharpen-1000",
+  "imageRoot": ".",
+  "samples": [
+    {
+      "file": "S__25092104_0.jpg",
+      "sourceFile": "S__25092104_0.jpg",
+      "documentType": "PaymentOrder",
+      "qualityNotes": [
+        "preprocess:gray-sharpen-1000",
+        "new sample"
+      ],
+      "expected": {
+        "billNo": "FB-CM6903-03617",
+        "expenseDate": "2026-03-31",
+        "fuelLiters": 36,
+        "vehicleNo": "102-025",
+        "plateNo": "72-1853",
+        "driverName": "ปรีชา เขจะรานนท์"
+      }
+    },
+    {
+      "file": "S__25092105_0.jpg",
+      "sourceFile": "S__25092105_0.jpg",
+      "documentType": "Receipt",
+      "qualityNotes": [
+        "preprocess:gray-sharpen-1000",
+        "receipt partly covered by finger",
+        "receipt is tilted",
+        "key amount/date/merchant are visible"
+      ],
+      "expected": {
+        "merchantName": "PTTST.D VT GROUP (2013) SARABURI",
+        "expenseDate": "2026-04-01",
+        "amount": 1474.6,
+        "receiptTid": "28257831",
+        "receiptTrace": "002795"
+      }
+    }
+  ]
+}

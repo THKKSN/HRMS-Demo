@@ -17,7 +17,8 @@ public record GetTicketPendingCountsQuery : IRequest<TicketPendingCountsDto>;
 public class GetTicketPendingCountsHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
-    IPermissionService permissions)
+    IPermissionService permissions,
+    Memos.Services.IMemoStepTaskResolver stepTasks)
     : IRequestHandler<GetTicketPendingCountsQuery, TicketPendingCountsDto>
 {
     public async Task<TicketPendingCountsDto> Handle(GetTicketPendingCountsQuery request, CancellationToken ct)
@@ -28,8 +29,9 @@ public class GetTicketPendingCountsHandler(
         int? assignedActive = null, assignedWaitingInfo = null, claimable = null;
         if (await permissions.HasPermissionAsync(currentUser, "ticket:view-assigned", ct))
         {
+            // นับทั้งงานที่เป็นผู้รับผิดชอบหลักและงานที่ร่วมทีม — badge ต้องตรงกับรายการที่กดเข้าไปเห็น
             var myActiveAssignments = db.TicketAssignments.AsNoTracking().Where(a =>
-                a.AssignedToEmployeeId == employeeId && a.IsActive && a.IsPrimary);
+                a.AssignedToEmployeeId == employeeId && a.IsActive);
             assignedActive = await myActiveAssignments.CountAsync(a =>
                 a.Ticket.Status == TicketStatus.Assigned ||
                 a.Ticket.Status == TicketStatus.InProgress, ct);
@@ -89,9 +91,25 @@ public class GetTicketPendingCountsHandler(
         int? memoAwaitingApproval = null;
         if (await permissions.HasPermissionAsync(currentUser, "memo:approve", ct))
         {
-            memoAwaitingApproval = await db.Memos.AsNoTracking()
-                .CountAsync(x => x.Status == MemoStatus.Pending, ct);
+            // ต้องกรองแบบเดียวกับ GetMemosForApprovalQuery — เห็นเฉพาะเรื่องที่ตัวเองเป็นผู้อนุมัติ
+            // ตาม snapshot ของเรื่อง (ระบุคน = ตรงคน, ไม่ระบุ = ถือ role นั้นอยู่) ยกเว้น Admin ที่เห็นทุกเรื่อง
+            var roleCodes = await db.EmployeeRoles.AsNoTracking()
+                .Where(er => er.EmployeeId == employeeId && er.IsActive)
+                .Select(er => er.Role.Code)
+                .Distinct()
+                .ToListAsync(ct);
+
+            var pending = db.Memos.AsNoTracking().Where(x => x.Status == MemoStatus.Pending);
+            if (!roleCodes.Contains(RoleType.Admin))
+                pending = pending.Where(x =>
+                    (x.FirstApproverEmployeeIdSnapshot == null || x.FirstApproverEmployeeIdSnapshot == employeeId) &&
+                    roleCodes.Contains(x.FirstApproverRoleCodeSnapshot));
+
+            memoAwaitingApproval = await pending.CountAsync(ct);
         }
+
+        // ไม่มี permission gate — ผู้รับผิดชอบขั้นตอนถูกปักหมุดข้ามแผนกได้ ใครก็อาจมีงานค้าง
+        var memoStepTasks = (await stepTasks.ResolveAsync(employeeId, ct)).Count;
 
         return new TicketPendingCountsDto(
             assignedActive,
@@ -102,6 +120,7 @@ public class GetTicketPendingCountsHandler(
             inboxUntriaged,
             cancellationPending,
             memoAwaitingAck,
-            memoAwaitingApproval);
+            memoAwaitingApproval,
+            memoStepTasks);
     }
 }

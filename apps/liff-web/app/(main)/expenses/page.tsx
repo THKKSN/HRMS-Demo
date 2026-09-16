@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   Banknote,
   CalendarDays,
@@ -15,33 +16,24 @@ import {
 import type {
   ExpenseClaimDto,
   ExpenseClaimStatus,
-  ExpenseClaimType,
 } from "@hrms/shared-types";
 import { PageHeader } from "@/components/layout/page-header";
+import { useFmt } from "@/hooks/use-fmt";
 import { useMyExpenses } from "@/hooks/use-expenses";
 
 const PAGE_SIZE = 20;
 
-const STATUS_TABS: { label: string; value?: ExpenseClaimStatus }[] = [
-  { label: "ทั้งหมด" },
-  { label: "แบบร่าง", value: "Draft" },
-  { label: "รอตรวจ", value: "Pending" },
-  { label: "อนุมัติแล้ว", value: "Approved" },
-  { label: "เข้ารอบวางบิล", value: "Batched" },
-  { label: "จ่ายแล้ว", value: "Paid" },
-  { label: "ไม่อนุมัติ", value: "Rejected" },
-  { label: "ยกเลิก", value: "Cancelled" },
+// แท็บสถานะใช้ป้ายจาก status.expenseClaim ตรง ๆ (undefined = ทั้งหมด)
+const STATUS_TABS: (ExpenseClaimStatus | undefined)[] = [
+  undefined,
+  "Draft",
+  "Pending",
+  "Approved",
+  "Batched",
+  "Paid",
+  "Rejected",
+  "Cancelled",
 ];
-
-const STATUS_LABEL: Record<ExpenseClaimStatus, string> = {
-  Draft: "แบบร่าง",
-  Pending: "รอตรวจ",
-  Approved: "อนุมัติแล้ว",
-  Rejected: "ไม่อนุมัติ",
-  Cancelled: "ยกเลิก",
-  Batched: "เข้ารอบวางบิล",
-  Paid: "จ่ายแล้ว",
-};
 
 const STATUS_TONE: Record<ExpenseClaimStatus, string> = {
   Draft: "border-slate-200 bg-slate-50 text-slate-700",
@@ -53,28 +45,11 @@ const STATUS_TONE: Record<ExpenseClaimStatus, string> = {
   Paid: "border-emerald-200 bg-emerald-50 text-emerald-700",
 };
 
-const TYPE_LABEL: Record<ExpenseClaimType, string> = {
-  Fuel: "ค่าน้ำมัน",
-  Toll: "ค่าทางด่วน",
-  Parking: "ค่าจอดรถ",
-  Meal: "ค่าอาหาร",
-  Other: "อื่น ๆ",
-};
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("th-TH", { dateStyle: "medium" }).format(
-    new Date(`${value}T00:00:00`),
-  );
-}
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat("th-TH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
 function ExpenseCard({ item }: { item: ExpenseClaimDto }) {
+  const t = useTranslations("liff.expense.list");
+  const tType = useTranslations("status.expenseType");
+  const tStatus = useTranslations("status.expenseClaim");
+  const fmt = useFmt();
   return (
     <Link
       href={`/expenses/${item.id}`}
@@ -84,7 +59,7 @@ function ExpenseCard({ item }: { item: ExpenseClaimDto }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-              {TYPE_LABEL[item.type]}
+              {tType(item.type)}
             </span>
             {item.billNo && (
               <span className="text-xs font-semibold text-muted-foreground">
@@ -96,26 +71,26 @@ function ExpenseCard({ item }: { item: ExpenseClaimDto }) {
             {item.merchantName ||
               item.customerName ||
               item.origin ||
-              "รายการสร้างบิล"}
+              t("untitled")}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
               <CalendarDays className="h-3.5 w-3.5" />
-              {formatDate(item.expenseDate)}
+              {fmt.formatDate(new Date(`${item.expenseDate}T00:00:00`), { dateStyle: "medium" })}
             </span>
-            {item.vehicleNo && <span>รถ {item.vehicleNo}</span>}
-            {item.plateNo && <span>ทะเบียน {item.plateNo}</span>}
+            {item.vehicleNo && <span>{t("vehicle", { no: item.vehicleNo })}</span>}
+            {item.plateNo && <span>{t("plate", { no: item.plateNo })}</span>}
             <span className="flex items-center gap-1">
               <Paperclip className="h-3.5 w-3.5" />
-              {item.attachmentUrls.length} ไฟล์
+              {t("files", { count: item.attachmentUrls.length })}
             </span>
           </div>
         </div>
         <div className="shrink-0 text-right">
           <p className="text-sm font-bold text-foreground">
-            {formatMoney(item.amount)}
+            {fmt.formatMoney(item.amount)}
           </p>
-          <p className="text-[10px] text-muted-foreground">บาท</p>
+          <p className="text-[10px] text-muted-foreground">{t("currency")}</p>
         </div>
       </div>
 
@@ -123,10 +98,10 @@ function ExpenseCard({ item }: { item: ExpenseClaimDto }) {
         <span
           className={`rounded-md border px-2 py-1 text-[10px] font-semibold ${STATUS_TONE[item.status]}`}
         >
-          {STATUS_LABEL[item.status]}
+          {tStatus(item.status)}
         </span>
         <span className="flex items-center gap-1 text-xs font-medium text-primary">
-          รายละเอียด <ChevronRight className="h-3.5 w-3.5" />
+          {t("detail")} <ChevronRight className="h-3.5 w-3.5" />
         </span>
       </div>
     </Link>
@@ -134,6 +109,9 @@ function ExpenseCard({ item }: { item: ExpenseClaimDto }) {
 }
 
 export default function ExpensesPage() {
+  const t = useTranslations("liff.expense.list");
+  const tStatus = useTranslations("status.expenseClaim");
+  const fmt = useFmt();
   const [status, setStatus] = useState<ExpenseClaimStatus | undefined>();
   const { data, isLoading } = useMyExpenses({
     status,
@@ -145,23 +123,23 @@ export default function ExpensesPage() {
   return (
     <div className="min-h-screen bg-muted/30 pb-24">
       <PageHeader
-        title="สร้างบิล"
-        subtitle={`${data?.totalCount ?? 0} รายการ`}
+        title={t("title")}
+        subtitle={t("count", { count: data?.totalCount ?? 0 })}
       />
 
       <div className="flex gap-2 overflow-x-auto border-b border-border bg-background px-4 py-3">
         {STATUS_TABS.map((tab) => (
           <button
-            key={tab.label}
+            key={tab ?? "all"}
             type="button"
-            onClick={() => setStatus(tab.value)}
+            onClick={() => setStatus(tab)}
             className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-              status === tab.value
+              status === tab
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "border border-border bg-background text-muted-foreground"
             }`}
           >
-            {tab.label}
+            {tab ? tStatus(tab) : t("all")}
           </button>
         ))}
       </div>
@@ -178,17 +156,17 @@ export default function ExpensesPage() {
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-background px-4 py-16 text-center">
             <ClipboardList className="h-12 w-12 text-muted-foreground" />
             <p className="mt-4 font-semibold text-foreground">
-              ยังไม่มีรายการสร้างบิล
+              {t("empty")}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              แนบใบเสร็จหรือใบนำจ่ายเพื่อส่งรายการใหม่
+              {t("emptyHint")}
             </p>
             <Link
               href="/expenses/new"
               className="mt-5 flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
             >
               <FilePlus2 className="h-4 w-4" />
-              สร้างบิล
+              {t("create")}
             </Link>
           </div>
         ) : (
@@ -197,7 +175,7 @@ export default function ExpensesPage() {
               <div className="rounded-lg border border-border bg-background p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <ReceiptText className="h-4 w-4 text-primary" />
-                  จำนวนรายการ
+                  {t("itemCount")}
                 </div>
                 <p className="mt-1 text-xl font-bold">
                   {data?.totalCount ?? items.length}
@@ -206,10 +184,10 @@ export default function ExpensesPage() {
               <div className="rounded-lg border border-border bg-background p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Banknote className="h-4 w-4 text-emerald-600" />
-                  ยอดรวมหน้านี้
+                  {t("pageTotal")}
                 </div>
                 <p className="mt-1 text-xl font-bold">
-                  {formatMoney(
+                  {fmt.formatMoney(
                     items.reduce((sum, item) => sum + item.amount, 0),
                   )}
                 </p>

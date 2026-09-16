@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Tickets.Dtos;
 using MediatR;
@@ -17,7 +18,7 @@ public class GetTicketReviewsHandler(
     public async Task<IReadOnlyList<TicketReviewDto>> Handle(GetTicketReviewsQuery request, CancellationToken ct)
     {
         var ticket = await db.Tickets.AsNoTracking().FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketAccess.EnsureCanViewAsync(db, currentUser, permissions, ticket, ct);
 
         var reviews = await db.TicketReviews.AsNoTracking()
@@ -32,7 +33,7 @@ public class GetTicketReviewsHandler(
             r.ReviewedByEmployeeId, TicketCommandSupport.FullName(r.ReviewedByEmployee), r.ReviewedAt,
             r.ResolvedByEmployeeId,
             r.ResolvedByEmployee is null ? null : TicketCommandSupport.FullName(r.ResolvedByEmployee),
-            r.ResolvedAt, r.ProblemTypeSnapshot, r.InitialInspectionSnapshot, r.ResolutionSnapshot,
+            r.ResolvedAt, r.ProblemTypeSnapshot, r.CloseoutReasonSnapshot, r.InitialInspectionSnapshot, r.ResolutionSnapshot,
             DeserializeIds(r.ResolvedAttachmentIdsJson))).ToList();
     }
 

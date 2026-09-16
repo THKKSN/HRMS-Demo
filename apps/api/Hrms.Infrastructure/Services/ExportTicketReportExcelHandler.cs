@@ -42,6 +42,7 @@ public class ExportTicketReportExcelHandler(
                     ? t.Topic.Name
                     : t.ExternalTicketTopic != null ? t.ExternalTicketTopic.Name : "",
                 t.ProblemType,
+                t.CloseoutReasonNameSnapshot,
                 Requester = t.RequesterEmployee != null
                     ? t.RequesterEmployee.FirstName + " " + t.RequesterEmployee.LastName
                     : t.RequesterNameSnapshot ?? t.RequesterLineDisplayNameSnapshot ?? "External requester",
@@ -61,7 +62,7 @@ public class ExportTicketReportExcelHandler(
         {
             "TicketNo", "CreatedAt", "ClosedAt", "Status", "Priority",
             "SourceCompany", "SourceDepartment", "TargetCompany", "TargetDepartment",
-            "Category", "Topic", "ProblemType", "Requester", "Responsible",
+            "Category", "Topic", "CloseoutReason", "Requester", "Responsible",
             "ReviewCount", "ReturnCount", "TotalLeadMinutes"
         };
 
@@ -93,7 +94,8 @@ public class ExportTicketReportExcelHandler(
             ws.Cell(rowIndex, 9).Value = row.TargetDepartment;
             ws.Cell(rowIndex, 10).Value = row.Category;
             ws.Cell(rowIndex, 11).Value = row.Topic;
-            ws.Cell(rowIndex, 12).Value = row.ProblemType?.ToString() ?? "";
+            // ticket ใหม่ใช้ชื่อจาก master (snapshot) — ticket เก่าก่อน backfill ยังอ่านจาก enum เดิมได้
+            ws.Cell(rowIndex, 12).Value = row.CloseoutReasonNameSnapshot ?? row.ProblemType?.ToString() ?? "";
             ws.Cell(rowIndex, 13).Value = row.Requester;
             ws.Cell(rowIndex, 14).Value = row.Responsible ?? "";
             ws.Cell(rowIndex, 15).Value = row.ReviewCount;

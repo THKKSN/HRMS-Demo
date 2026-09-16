@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronLeft, ChevronRight, EyeIcon, Inbox, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import type { TicketInboxItemDto, TicketPriority, TicketStatus } from '@hrms/shared-types'
@@ -20,27 +21,18 @@ import {
 } from '@/hooks/use-ticket-taxonomy'
 import { hasAnyPermission, hasAnyRole } from '@/lib/permission'
 import { useAuthStore } from '@/stores/auth.store'
+import * as fmt from '@hrms/i18n/format'
+import { useApiError } from '@/hooks/use-api-error'
 
 const PAGE_SIZE = 10
 
-const STATUS_LABEL: Record<TicketStatus, string> = {
-  AwaitingRequesterConfirmation: 'รอผู้แจ้งตรวจรับ',
-  Open: 'เรื่องใหม่',
-  Assigned: 'มอบหมายแล้ว',
-  InProgress: 'กำลังดำเนินการ',
-  WaitingInfo: 'รอข้อมูล',
-  Resolved: 'รอตรวจปิด',
-  Closed: 'ปิดแล้ว',
-  Rejected: 'ปฏิเสธ',
-  Cancelled: 'ยกเลิก',
-}
+const TICKET_PRIORITIES: TicketPriority[] = ['Low', 'Medium', 'High', 'Critical']
 
-const PRIORITY_LABEL: Record<TicketPriority, string> = {
-  Low: 'ปกติ',
-  Medium: 'กลาง',
-  High: 'ด่วน',
-  Critical: 'ด่วนมาก',
-}
+// ป้ายสถานะใช้ชุดกลางที่ status.ticket (เดิมหน้านี้มีคำย่อของตัวเอง — เคาะรวมเป็นชุดเดียวใน Phase 2)
+const TICKET_STATUSES: TicketStatus[] = [
+  'AwaitingRequesterConfirmation', 'Open', 'Assigned', 'InProgress',
+  'WaitingInfo', 'Resolved', 'Closed', 'Rejected', 'Cancelled',
+]
 
 function statusVariant(status: TicketStatus): 'default' | 'secondary' | 'success' | 'warning' | 'destructive' {
   if (status === 'Open' || status === 'WaitingInfo') return 'warning'
@@ -55,22 +47,21 @@ function priorityClass(priority: TicketPriority) {
   return 'text-muted-foreground bg-muted/50'
 }
 
-function thaiDateTime(value: string) {
-  return new Intl.DateTimeFormat('th-TH', {
+function shortDateTime(value: string) {
+  return fmt.formatDateTime(new Date(value), {
     dateStyle: 'short',
     timeStyle: 'short',
-  }).format(new Date(value))
+  })
 }
 
 // สถานะที่ backend ยอมให้มอบหมาย/เปลี่ยนผู้รับผิดชอบได้ (ดู AssignTicketCommand)
 const ASSIGNABLE_STATUSES: TicketStatus[] = ['Open', 'Assigned', 'InProgress', 'WaitingInfo']
 
-function apiMessage(error: unknown) {
-  return (error as { response?: { data?: { message?: string } } })?.response?.data?.message
-    ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-}
-
+// ข้อความจาก API ยังเป็นไทย (รอ Phase 3) — fallback ส่งเข้ามาจากคำแปล
 function InlineAssignCell({ ticket }: { ticket: TicketInboxItemDto }) {
+  const t = useTranslations('admin.ticket.inbox')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
   // โหลดรายชื่อ candidate เมื่อผู้ใช้เปิด dropdown เท่านั้น กันยิง API ทุกแถวตอนโหลดหน้า
   const [candidatesEnabled, setCandidatesEnabled] = useState(false)
   const candidatesQuery = useTicketAssignmentCandidates(ticket.id, candidatesEnabled)
@@ -81,9 +72,9 @@ function InlineAssignCell({ ticket }: { ticket: TicketInboxItemDto }) {
     if (!employeeId || employeeId === ticket.currentAssigneeEmployeeId) return
     try {
       await assign.mutateAsync({ assignedToEmployeeId: employeeId })
-      toast.success(ticket.currentAssigneeName ? 'เปลี่ยนผู้รับผิดชอบแล้ว' : 'มอบหมายงานแล้ว')
+      toast.success(ticket.currentAssigneeName ? t('reassigned') : t('assigned'))
     } catch (error) {
-      toast.error(apiMessage(error))
+      toast.error(apiError(error, tCommon('state.error')))
     }
   }
 
@@ -97,35 +88,41 @@ function InlineAssignCell({ ticket }: { ticket: TicketInboxItemDto }) {
         onChange={event => onSelect(event.target.value)}
       >
         <option value="" disabled>
-          {assign.isPending ? 'กำลังมอบหมาย...' : '— มอบหมายให้ —'}
+          {assign.isPending ? t('assigning') : t('assignPlaceholder')}
         </option>
         {/* ก่อน candidates โหลดเสร็จ ให้มี option ของผู้รับผิดชอบปัจจุบันไว้แสดงค่า */}
         {!candidatesQuery.data && ticket.currentAssigneeEmployeeId && (
           <option value={ticket.currentAssigneeEmployeeId}>{ticket.currentAssigneeName}</option>
         )}
-        {candidatesQuery.isLoading && <option disabled>กำลังโหลดรายชื่อ...</option>}
-        {candidatesQuery.isError && <option disabled>ไม่มีสิทธิ์มอบหมายงานใบนี้</option>}
+        {candidatesQuery.isLoading && <option disabled>{t('loadingCandidates')}</option>}
+        {candidatesQuery.isError && <option disabled>{t('noAssignPermission')}</option>}
         {candidates.map(candidate => (
           <option key={candidate.employeeId} value={candidate.employeeId}>
-            {candidate.isRecommended ? 'แนะนำ · ' : ''}{candidate.employeeName}
+            {candidate.isRecommended ? t('recommended') : ''}{candidate.employeeName}
             {!candidate.isInTargetDepartment && candidate.departmentName ? ` · ${candidate.departmentName}` : ''}
-            {' · งานค้าง '}{candidate.activeTicketCount}
+            {t('activeCount', { count: candidate.activeTicketCount })}
           </option>
         ))}
       </Select>
       {ticket.currentAssigneeName ? (
         <p className="text-xs text-muted-foreground">
-          มอบหมายโดย {ticket.assignedByEmployeeName ?? 'ระบบอัตโนมัติ'}
-          {ticket.assignedAt ? ` · ${thaiDateTime(ticket.assignedAt)}` : ''}
+          {t('assignedBy', { name: ticket.assignedByEmployeeName ?? t('autoAssigned') })}
+          {ticket.assignedAt ? ` · ${shortDateTime(ticket.assignedAt)}` : ''}
         </p>
       ) : (
-        ticket.isAccepted && <p className="text-xs text-muted-foreground">รับเรื่องแล้ว</p>
+        ticket.isAccepted && <p className="text-xs text-muted-foreground">{t('accepted')}</p>
       )}
     </div>
   )
 }
 
 export default function TicketInboxPage() {
+  const t = useTranslations('admin.ticket.inbox')
+  const tList = useTranslations('admin.ticket.list')
+  const tAssigned = useTranslations('admin.ticket.assigned')
+  const tStatus = useTranslations('status.ticket')
+  const tPriority = useTranslations('status.ticketPriority')
+  const tCommon = useTranslations('common')
   const router = useRouter()
   const employee = useAuthStore((s) => s.employee)
   // gate เดียวกับ backend (GetTicketInboxQuery เช็ค ticket:view-team) — Employee เข้าหน้านี้ไม่ได้
@@ -197,7 +194,7 @@ export default function TicketInboxPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      {/* <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">กล่องงานแจ้งเรื่อง</h1>
           <p className="mt-1 text-sm text-muted-foreground">ตรวจสอบ รับเรื่อง และมอบหมายงานของแผนก</p>
@@ -206,7 +203,7 @@ export default function TicketInboxPage() {
           <Inbox className="h-4 w-4" />
           {query.data?.totalCount ?? 0} รายการ
         </div>
-      </div>
+      </div> */}
 
       {/* แยกกล่องงานตามช่องทางแจ้ง — ภายใน (พนักงาน) / ภายนอก (external portal) */}
       <div className="flex gap-1 border-b border-border">
@@ -214,13 +211,13 @@ export default function TicketInboxPage() {
           variant={requestType === 'Internal' ? 'default' : 'ghost'}
           onClick={() => { setRequestType('Internal'); resetPage() }}
         >
-          ภายใน
+          {tAssigned('internal')}
         </Button>
         <Button
           variant={requestType === 'External' ? 'default' : 'ghost'}
           onClick={() => { setRequestType('External'); resetPage() }}
         >
-          ภายนอก
+          {tAssigned('external')}
         </Button>
       </div>
 
@@ -235,7 +232,7 @@ export default function TicketInboxPage() {
             resetPage()
           }}
         >
-          <option value="">ทุกบริษัท</option>
+          <option value="">{t('allCompanies')}</option>
           {(scope?.companies ?? []).map(company => (
             <option key={company.id} value={company.id}>{company.name}</option>
           ))}
@@ -249,7 +246,7 @@ export default function TicketInboxPage() {
             resetPage()
           }}
         >
-          <option value="">ทุกแผนกที่ดูแล</option>
+          <option value="">{t('allDepartments')}</option>
           {departments.map(department => (
             <option key={department.id} value={department.id}>{department.name}</option>
           ))}
@@ -261,15 +258,15 @@ export default function TicketInboxPage() {
             resetPage()
           }}
         >
-          <option value="">ทุกสถานะ</option>
-          {(Object.keys(STATUS_LABEL) as TicketStatus[]).map(item => (
-            <option key={item} value={item}>{STATUS_LABEL[item]}</option>
+          <option value="">{tList('allStatuses')}</option>
+          {TICKET_STATUSES.map(item => (
+            <option key={item} value={item}>{tStatus(item)}</option>
           ))}
         </Select>
         <Select value={priority ?? ''} onChange={event => { setPriority((event.target.value || undefined) as TicketPriority | undefined); resetPage() }}>
-          <option value="">ทุกความเร่งด่วน</option>
-          {(Object.keys(PRIORITY_LABEL) as TicketPriority[]).map(item => (
-            <option key={item} value={item}>{PRIORITY_LABEL[item]}</option>
+          <option value="">{t('allPriorities')}</option>
+          {TICKET_PRIORITIES.map(item => (
+            <option key={item} value={item}>{tPriority(item)}</option>
           ))}
         </Select>
         <Select
@@ -277,7 +274,7 @@ export default function TicketInboxPage() {
           disabled={!departmentId}
           onChange={event => { setCategoryId(event.target.value); setTopicId(''); resetPage() }}
         >
-          <option value="">ทุกหมวด</option>
+          <option value="">{t('allCategories')}</option>
           {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
         </Select>
         <Select
@@ -285,7 +282,7 @@ export default function TicketInboxPage() {
           disabled={!categoryId}
           onChange={event => { setTopicId(event.target.value); resetPage() }}
         >
-          <option value="">ทุกหัวข้อ</option>
+          <option value="">{t('allTopics')}</option>
           {topics.map(topic => <option key={topic.id} value={topic.id}>{topic.name}</option>)}
         </Select>
         <form
@@ -297,7 +294,7 @@ export default function TicketInboxPage() {
             value={searchInput}
             onChange={event => setSearchInput(event.target.value)}
             className="pl-9"
-            placeholder="เลข Ticket หรือเรื่อง"
+            placeholder={t('searchPlaceholder')}
           />
         </form>
       </div>
@@ -306,14 +303,14 @@ export default function TicketInboxPage() {
         <table className="w-full min-w-[1120px] text-sm">
           <thead className="border-b border-border bg-muted/30 text-left text-muted-foreground">
             <tr>
-              <th className="px-4 py-3 font-medium">Ticket</th>
-              <th className="px-4 py-3 font-medium">ผู้แจ้ง</th>
-              <th className="px-4 py-3 font-medium text-center">หมวดหมู่</th>
-              {requestType === 'External' && <th className="px-4 py-3 font-medium">สถานที่</th>}
-              <th className="px-4 py-3 font-medium text-center">การมอบหมาย</th>
-              <th className="px-4 py-3 font-medium text-center">สถานะ</th>
-              <th className="px-4 py-3 font-medium text-center">เปิดเมื่อ</th>
-              <th className="px-4 py-3 font-medium">จัดการ</th>
+              <th className="px-4 py-3 font-medium">{tList('colTicket')}</th>
+              <th className="px-4 py-3 font-medium">{tList('colRequester')}</th>
+              <th className="px-4 py-3 font-medium text-center">{t('colCategory')}</th>
+              {requestType === 'External' && <th className="px-4 py-3 font-medium">{tAssigned('colLocation')}</th>}
+              <th className="px-4 py-3 font-medium text-center">{t('colAssignment')}</th>
+              <th className="px-4 py-3 font-medium text-center">{tList('colStatus')}</th>
+              <th className="px-4 py-3 font-medium text-center">{t('colOpenedAt')}</th>
+              <th className="px-4 py-3 font-medium">{tList('colManage')}</th>
             </tr>
           </thead>
           <tbody>
@@ -323,7 +320,7 @@ export default function TicketInboxPage() {
               </tr>
             ))}
             {!query.isLoading && (query.data?.items.length ?? 0) === 0 && (
-              <tr><td colSpan={requestType === 'External' ? 8 : 7} className="px-4 py-16 text-center text-muted-foreground">ไม่พบใบแจ้งเรื่องในเงื่อนไขที่เลือก</td></tr>
+              <tr><td colSpan={requestType === 'External' ? 8 : 7} className="px-4 py-16 text-center text-muted-foreground">{t('empty')}</td></tr>
             )}
             {query.data?.items.map(ticket => (
               <tr key={ticket.id} className="border-b border-border last:border-0 hover:bg-muted/20">
@@ -334,14 +331,14 @@ export default function TicketInboxPage() {
                   </p>
                   {/* title = ชื่อหัวข้อ (subject) — เคส "อื่น ๆ" แสดงข้อความที่ผู้แจ้งระบุแทน */}
                   <p className="mt-1 max-w-72 truncate font-medium">{ticket.otherTopicText ?? ticket.title}</p>
-                  <span className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs ${priorityClass(ticket.priority)}`}>{PRIORITY_LABEL[ticket.priority]}</span>
+                  <span className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs ${priorityClass(ticket.priority)}`}>{tPriority(ticket.priority)}</span>
                   
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <p>{ticket.requesterName}{ticket.requester.nickname && ` (${ticket.requester.nickname})`}</p>
                     <Badge variant={ticket.requester.type === 'External' ? 'destructive' : 'secondary'}>
-                      {ticket.requester.type === 'External' ? 'ภายนอก' : 'ภายใน'}
+                      {ticket.requester.type === 'External' ? tList('external') : tList('internal')}
                     </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">{ticket.sourceDepartmentName ?? '-'}</p>
@@ -363,20 +360,20 @@ export default function TicketInboxPage() {
                     <>
                       <p className="font-medium">{ticket.currentAssigneeName}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        มอบหมายโดย {ticket.assignedByEmployeeName ?? 'ระบบอัตโนมัติ'}
+                        {t('assignedBy', { name: ticket.assignedByEmployeeName ?? t('autoAssigned') })}
                       </p>
                       {ticket.assignedAt && (
-                        <p className="mt-0.5 text-xs text-muted-foreground">{thaiDateTime(ticket.assignedAt)}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{shortDateTime(ticket.assignedAt)}</p>
                       )}
                     </>
                   ) : (
                     <>
-                      <span className="text-amber-700">ยังไม่มอบหมาย</span>
-                      {ticket.isAccepted && <p className="text-xs text-muted-foreground">รับเรื่องแล้ว</p>}
+                      <span className="text-amber-700">{t('notAssigned')}</span>
+                      {ticket.isAccepted && <p className="text-xs text-muted-foreground">{t('accepted')}</p>}
                     </>
                   )}
                 </td>
-                <td className="px-4 py-3 flex-col justify-items-center text-center"><Badge variant={statusVariant(ticket.status)}>{STATUS_LABEL[ticket.status]}</Badge>
+                <td className="px-4 py-3 flex-col justify-items-center text-center"><Badge variant={statusVariant(ticket.status)}>{tStatus(ticket.status)}</Badge>
                   <TicketBoardSummary
                     compact
                     workflowCurrentStepLabel={ticket.workflowCurrentStepLabel}
@@ -384,11 +381,11 @@ export default function TicketInboxPage() {
                     currentBlockerReason={ticket.currentBlockerReason}
                     currentNextAction={ticket.currentNextAction}
                   /></td>
-                <td className="px-4 py-3 text-muted-foreground text-center">{thaiDateTime(ticket.createdAt)}</td>
+                <td className="px-4 py-3 text-muted-foreground text-center">{shortDateTime(ticket.createdAt)}</td>
                 <td className="px-4 py-3">
                   <Link
                     href={`/tickets/${ticket.id}`}
-                    title="ดูรายละเอียด"
+                    title={tCommon('action.viewDetail')}
                     className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-sm text-muted-foreground hover:bg-muted/80"
                   >
                     <EyeIcon className="h-4 w-4" />
@@ -402,13 +399,13 @@ export default function TicketInboxPage() {
 
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          แสดง {firstItem}–{lastItem} จาก {totalCount} รายการ · หน้า {page} จาก {totalPages}
+          {t('range', { from: firstItem, to: lastItem, total: totalCount, page, totalPages })}
         </p>
         <div className="flex gap-1">
-          <Button size="icon" variant="outline" disabled={page <= 1} onClick={() => setPage(value => value - 1)} title="หน้าก่อน">
+          <Button size="icon" variant="outline" disabled={page <= 1} onClick={() => setPage(value => value - 1)} title={t('prevPage')}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="outline" disabled={page >= totalPages} onClick={() => setPage(value => value + 1)} title="หน้าถัดไป">
+          <Button size="icon" variant="outline" disabled={page >= totalPages} onClick={() => setPage(value => value + 1)} title={t('nextPage')}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>

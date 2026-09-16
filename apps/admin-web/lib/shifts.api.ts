@@ -13,6 +13,8 @@ export const shiftsApi = {
   create: (body: {
     companyId: string
     name: string
+    nameEn?: string
+    nameId?: string
     startTime: string
     endTime: string
     gracePeriodMinutes: number
@@ -22,6 +24,8 @@ export const shiftsApi = {
     id: string,
     body: {
       name: string
+      nameEn?: string
+      nameId?: string
       startTime: string
       endTime: string
       gracePeriodMinutes: number

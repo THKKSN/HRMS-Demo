@@ -124,7 +124,7 @@ public class CreateTicketWorkflowDefinitionHandler(
         if (await db.TicketWorkflowDefinitions.AnyAsync(item =>
             item.CompanyId == request.CompanyId && item.DepartmentId == request.DepartmentId && item.Code == code, ct))
         {
-            throw new ConflictException("DUPLICATE_TICKET_WORKFLOW_CODE", $"Workflow code '{code}' มีอยู่แล้ว");
+            throw new ConflictException("DUPLICATE_TICKET_WORKFLOW_CODE", $"Workflow code '{code}' already exists.");
         }
 
         var boardSteps = request.Steps
@@ -210,7 +210,7 @@ public class UpdateTicketWorkflowDefinitionHandler(
     public async Task<TicketWorkflowDefinitionDto> Handle(UpdateTicketWorkflowDefinitionCommand request, CancellationToken ct)
     {
         var entity = await db.TicketWorkflowDefinitions.FirstOrDefaultAsync(item => item.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบ workflow ที่ระบุ");
+            ?? throw new NotFoundException("TicketWorkflowDefinition", request.Id, "TICKET_WORKFLOW_NOT_FOUND");
 
         await TicketManagementAccess.EnsureDepartmentAsync(
             db, currentUser, permissionService, "ticket:manage-topics", entity.CompanyId, entity.DepartmentId, ct);
@@ -222,7 +222,7 @@ public class UpdateTicketWorkflowDefinitionHandler(
             && item.Code == code
             && item.Id != entity.Id, ct))
         {
-            throw new ConflictException("DUPLICATE_TICKET_WORKFLOW_CODE", $"Workflow code '{code}' มีอยู่แล้ว");
+            throw new ConflictException("DUPLICATE_TICKET_WORKFLOW_CODE", $"Workflow code '{code}' already exists.");
         }
 
         var boardSteps = request.Steps
@@ -351,7 +351,7 @@ public class CreateTicketSubjectGuidanceConfigHandler(
                 item.Id == request.WorkflowDefinitionId.Value
                 && item.CompanyId == request.CompanyId
                 && item.DepartmentId == request.DepartmentId, ct);
-            if (!workflowExists) throw new KeyNotFoundException("ไม่พบ workflow ที่ระบุ");
+            if (!workflowExists) throw new NotFoundException("TicketWorkflowDefinition", request.WorkflowDefinitionId.Value, "TICKET_WORKFLOW_NOT_FOUND");
         }
 
         var entity = new TicketSubjectGuidanceConfig
@@ -398,7 +398,7 @@ public class UpdateTicketSubjectGuidanceConfigHandler(
         var entity = await db.TicketSubjectGuidanceConfigs
             .Include(item => item.WorkflowDefinition)
             .FirstOrDefaultAsync(item => item.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบ guidance config ที่ระบุ");
+            ?? throw new NotFoundException("TicketSubjectGuidanceConfig", request.Id, "TICKET_WORKFLOW_GUIDANCE_NOT_FOUND");
 
         await TicketManagementAccess.EnsureDepartmentAsync(
             db, currentUser, permissionService, "ticket:manage-topics", entity.CompanyId, entity.DepartmentId, ct);
@@ -409,7 +409,7 @@ public class UpdateTicketSubjectGuidanceConfigHandler(
                 item.Id == request.WorkflowDefinitionId.Value
                 && item.CompanyId == entity.CompanyId
                 && item.DepartmentId == entity.DepartmentId, ct);
-            if (!workflowExists) throw new KeyNotFoundException("ไม่พบ workflow ที่ระบุ");
+            if (!workflowExists) throw new NotFoundException("TicketWorkflowDefinition", request.WorkflowDefinitionId.Value, "TICKET_WORKFLOW_NOT_FOUND");
         }
 
         entity.CategoryId = request.CategoryId;

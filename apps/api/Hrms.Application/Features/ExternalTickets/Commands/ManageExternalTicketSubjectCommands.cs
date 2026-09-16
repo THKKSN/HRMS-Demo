@@ -11,7 +11,8 @@ namespace Hrms.Application.Features.ExternalTickets.Commands;
 
 public record CreateExternalTicketSubjectCommand(
     Guid ExternalTicketTopicId, string Name, string? Description,
-    string? Template, IReadOnlyList<string>? Suggestions, int SortOrder)
+    string? Template, IReadOnlyList<string>? Suggestions, int SortOrder,
+    string? NameEn = null, string? NameId = null)
     : IRequest<ExternalTicketSubjectDto>;
 
 public class CreateExternalTicketSubjectValidator : AbstractValidator<CreateExternalTicketSubjectCommand>
@@ -20,11 +21,13 @@ public class CreateExternalTicketSubjectValidator : AbstractValidator<CreateExte
     {
         RuleFor(x => x.ExternalTicketTopicId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.NameEn).MaximumLength(200).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(200).When(x => x.NameId is not null);
         RuleFor(x => x.Description).MaximumLength(500);
         RuleFor(x => x.Template).MaximumLength(2000);
         RuleFor(x => x.Suggestions)
             .Must(items => items is null || items.Count <= 20)
-            .WithMessage("รายการแนะนำต้องไม่เกิน 20 รายการ");
+            .WithErrorCode("TICKET_SUGGESTION_LIMIT").WithMessage("Up to 20 suggestions are allowed.");
         RuleForEach(x => x.Suggestions).NotEmpty().MaximumLength(100);
         RuleFor(x => x.SortOrder).InclusiveBetween(0, 9999);
     }
@@ -65,17 +68,19 @@ public class CreateExternalTicketSubjectHandler(
         await ExternalTicketConfigAccess.EnsureManagePermissionAsync(currentUser, permissionService, ct);
 
         var topicExists = await db.ExternalTicketTopics.AnyAsync(t => t.Id == request.ExternalTicketTopicId, ct);
-        if (!topicExists) throw new KeyNotFoundException("ไม่พบหัวข้อที่ระบุ");
+        if (!topicExists) throw new NotFoundException("ExternalTicketTopic", request.ExternalTicketTopicId, "TICKET_TOPIC_NOT_FOUND");
 
         var name = request.Name.Trim();
         if (await db.ExternalTicketSubjects.AnyAsync(s => s.ExternalTicketTopicId == request.ExternalTicketTopicId && s.Name == name, ct))
             throw new ConflictException("EXTERNAL_TAXONOMY_NAME_DUPLICATE",
-                $"มีหัวข้อ '{name}' อยู่แล้วในหัวข้อนี้ (อาจถูกปิดใช้งานอยู่) — ให้เปิดใช้งานรายการเดิมแทนการสร้างใหม่");
+                $"Subject '{name}' already exists in this topic (it may be inactive). Reactivate the existing one instead of creating a new one.");
 
         var subject = new ExternalTicketSubject
         {
             ExternalTicketTopicId = request.ExternalTicketTopicId,
             Name = name,
+            NameEn = Common.Helpers.NameText.Normalize(request.NameEn),
+            NameId = Common.Helpers.NameText.Normalize(request.NameId),
             Description = TrimOrNull(request.Description),
             Template = TrimOrNull(request.Template),
             SuggestionsJson = ExternalSubjectGuidance.SerializeSuggestions(request.Suggestions),
@@ -93,7 +98,7 @@ public class CreateExternalTicketSubjectHandler(
         return new ExternalTicketSubjectDto(subject.Id, subject.ExternalTicketTopicId,
             subject.Name, subject.Description, subject.Template,
             ExternalSubjectGuidance.DeserializeSuggestions(subject.SuggestionsJson),
-            subject.SortOrder, subject.IsActive);
+            subject.SortOrder, subject.IsActive, subject.NameEn, subject.NameId);
     }
 
     private static string? TrimOrNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
@@ -101,7 +106,8 @@ public class CreateExternalTicketSubjectHandler(
 
 public record UpdateExternalTicketSubjectCommand(
     Guid Id, string Name, string? Description,
-    string? Template, IReadOnlyList<string>? Suggestions, int SortOrder, bool IsActive)
+    string? Template, IReadOnlyList<string>? Suggestions, int SortOrder, bool IsActive,
+    string? NameEn = null, string? NameId = null)
     : IRequest<ExternalTicketSubjectDto>;
 
 public class UpdateExternalTicketSubjectValidator : AbstractValidator<UpdateExternalTicketSubjectCommand>
@@ -110,11 +116,13 @@ public class UpdateExternalTicketSubjectValidator : AbstractValidator<UpdateExte
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.NameEn).MaximumLength(200).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(200).When(x => x.NameId is not null);
         RuleFor(x => x.Description).MaximumLength(500);
         RuleFor(x => x.Template).MaximumLength(2000);
         RuleFor(x => x.Suggestions)
             .Must(items => items is null || items.Count <= 20)
-            .WithMessage("รายการแนะนำต้องไม่เกิน 20 รายการ");
+            .WithErrorCode("TICKET_SUGGESTION_LIMIT").WithMessage("Up to 20 suggestions are allowed.");
         RuleForEach(x => x.Suggestions).NotEmpty().MaximumLength(100);
         RuleFor(x => x.SortOrder).InclusiveBetween(0, 9999);
     }
@@ -129,16 +137,18 @@ public class UpdateExternalTicketSubjectHandler(
         await ExternalTicketConfigAccess.EnsureManagePermissionAsync(currentUser, permissionService, ct);
 
         var subject = await db.ExternalTicketSubjects.FirstOrDefaultAsync(s => s.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบหัวข้อที่ระบุ");
+            ?? throw new NotFoundException("ExternalTicketSubject", request.Id, "TICKET_SUBJECT_NOT_FOUND");
 
         var name = request.Name.Trim();
         if (await db.ExternalTicketSubjects.AnyAsync(s =>
             s.ExternalTicketTopicId == subject.ExternalTicketTopicId && s.Name == name && s.Id != subject.Id, ct))
             throw new ConflictException("EXTERNAL_TAXONOMY_NAME_DUPLICATE",
-                $"มีหัวข้อ '{name}' อยู่แล้วในหัวข้อนี้ (อาจถูกปิดใช้งานอยู่) — ให้เปิดใช้งานรายการเดิมแทนการสร้างใหม่");
+                $"Subject '{name}' already exists in this topic (it may be inactive). Reactivate the existing one instead of creating a new one.");
 
         var oldValues = new { subject.Name, subject.Description, subject.Template, subject.SuggestionsJson, subject.SortOrder, subject.IsActive };
         subject.Name = name;
+        subject.NameEn = Common.Helpers.NameText.Apply(subject.NameEn, request.NameEn);
+        subject.NameId = Common.Helpers.NameText.Apply(subject.NameId, request.NameId);
         subject.Description = TrimOrNull(request.Description);
         subject.Template = TrimOrNull(request.Template);
         subject.SuggestionsJson = ExternalSubjectGuidance.SerializeSuggestions(request.Suggestions);
@@ -155,7 +165,7 @@ public class UpdateExternalTicketSubjectHandler(
         return new ExternalTicketSubjectDto(subject.Id, subject.ExternalTicketTopicId,
             subject.Name, subject.Description, subject.Template,
             ExternalSubjectGuidance.DeserializeSuggestions(subject.SuggestionsJson),
-            subject.SortOrder, subject.IsActive);
+            subject.SortOrder, subject.IsActive, subject.NameEn, subject.NameId);
     }
 
     private static string? TrimOrNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

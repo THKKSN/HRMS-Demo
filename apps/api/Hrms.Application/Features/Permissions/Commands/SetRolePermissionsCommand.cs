@@ -29,7 +29,7 @@ public class SetRolePermissionsHandler(
     {
         var role = await db.SystemRoles
             .FirstOrDefaultAsync(r => r.Id == request.RoleId && r.IsActive, cancellationToken)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูล role");
+            ?? throw new NotFoundException("SystemRole", request.RoleId, "ROLE_NOT_FOUND");
 
         var existing = await db.RolePermissions
             .Where(rp => rp.RoleId == request.RoleId)
@@ -46,7 +46,7 @@ public class SetRolePermissionsHandler(
             if (RestrictedPermissions.TryGetValue(perm.Code, out var allowedRoles) && !allowedRoles.Contains(role.Code))
                 throw new ConflictException(
                     "PERMISSION_RESTRICTED",
-                    $"permission '{perm.Code}' กำหนดให้ role {string.Join("/", allowedRoles)} เท่านั้น");
+                    $"Permission '{perm.Code}' is restricted to the {string.Join("/", allowedRoles)} role(s).");
         }
 
         db.RolePermissions.RemoveRange(existing);

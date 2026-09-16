@@ -38,5 +38,12 @@ public sealed class RecurringJobRegistrar(IRecurringJobManager recurringJobs)
             job => job.RunAsync(CancellationToken.None),
             "0 0 * * *",
             new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
+        // 02:30 น. เวลาไทย ทุกวัน — cutoff ยึดวันที่ 1 ของเดือน จึงลบจริงเฉพาะตอนขึ้นเดือนใหม่
+        // ที่รันทุกวันเพื่อให้ตามลบได้เองถ้าวันที่ 1 เซิร์ฟเวอร์ล่มหรือ backlog เกิน MaxBatchesPerRun
+        recurringJobs.AddOrUpdate<AuditLogRetentionJob>(
+            "audit-log-retention",
+            job => job.RunAsync(CancellationToken.None),
+            "30 19 * * *",
+            new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc });
     }
 }

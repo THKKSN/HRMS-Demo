@@ -2,13 +2,14 @@
 
 import { useCallback, useMemo, useState, useTransition, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { ChevronLeft, ChevronRight, Plus, UsersRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Select } from '@/components/ui/select'
 import { useEmployees } from '@/hooks/use-employees'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
-import { getInitials, ROLE_LABEL_TH, roleChipClass } from '@/lib/employee-roles'
+import { getInitials, roleChipClass } from '@/lib/employee-roles'
 import { CreateEmployeeModal } from './create-employee-modal'
 import {
   EmployeeSearchPanel,
@@ -17,6 +18,7 @@ import {
   type EmployeeFilters,
   type EmployeeStatusFilter,
 } from './employee-search-panel'
+import * as fmt from '@hrms/i18n/format'
 
 const PAGE_SIZES = [20, 50, 100]
 
@@ -68,6 +70,8 @@ function SkeletonRows({ rows, cols }: { rows: number; cols: number }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function EmployeesPage() {
+  const t = useTranslations('admin.employees.list')
+  const tRole = useTranslations('status.roleType')
   const router = useRouter()
   const searchParams = useSearchParams()
   const [, startTransition] = useTransition()
@@ -116,13 +120,13 @@ function EmployeesPage() {
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">พนักงาน</h1>
+          <h1 className="text-xl font-semibold text-foreground">{t('title')}</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {isLoading ? 'กำลังโหลด…' : `ทั้งหมด ${totalCount.toLocaleString('th-TH')} คน`}
+            {isLoading ? t('loading') : t('totalCount', { count: fmt.formatNumber(totalCount) })}
           </p>
         </div>
         <Button size="md" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" />เพิ่มพนักงาน
+          <Plus className="h-4 w-4" />{t('add')}
         </Button>
       </div>
 
@@ -132,7 +136,7 @@ function EmployeesPage() {
         onChange={handleFilterChange}
         onReset={handleReset}
         isFetching={isFetching}
-        resultLabel={isLoading ? 'กำลังค้นหา…' : `พบ ${totalCount.toLocaleString('th-TH')} รายการ`}
+        resultLabel={isLoading ? t('searching') : t('resultCount', { count: fmt.formatNumber(totalCount) })}
       />
 
       {/* ── Table ─────────────────────────────────────────────────────────── */}
@@ -140,11 +144,11 @@ function EmployeesPage() {
         <table className="w-full min-w-[820px] text-sm">
           <thead>
             <tr className="border-b border-border bg-whited/50">
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">พนักงาน</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">สังกัด</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ตำแหน่ง</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">สิทธิ์</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">สถานะ</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colEmployee')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colAffiliation')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colPosition')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colRole')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colStatus')}</th>
               <th className="w-10 px-4 py-3" />
             </tr>
           </thead>
@@ -158,19 +162,19 @@ function EmployeesPage() {
                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-whited">
                       <UsersRound className="h-5 w-5 text-muted-foreground" />
                     </div>
-                    <p className="font-medium">ไม่พบข้อมูลพนักงาน</p>
+                    <p className="font-medium">{t('emptyTitle')}</p>
                     <p className="max-w-sm text-sm text-muted-foreground">
                       {hasFilters
-                        ? 'ลองปรับคำค้นหาหรือล้างตัวกรองบางส่วน แล้วค้นหาอีกครั้ง'
-                        : 'ยังไม่มีพนักงานในระบบ เริ่มต้นด้วยการเพิ่มพนักงานคนแรก'}
+                        ? t('emptyFiltered')
+                        : t('emptyNoData')}
                     </p>
                     {hasFilters ? (
                       <Button size="sm" variant="outline" className="mt-2" onClick={handleReset}>
-                        ล้างตัวกรองทั้งหมด
+                        {t('clearAllFilters')}
                       </Button>
                     ) : (
                       <Button size="sm" className="mt-2" onClick={() => setCreateOpen(true)}>
-                        <Plus className="h-4 w-4" />เพิ่มพนักงาน
+                        <Plus className="h-4 w-4" />{t('add')}
                       </Button>
                     )}
                   </div>
@@ -210,7 +214,7 @@ function EmployeesPage() {
                 {/* สังกัด */}
                 <td className="px-4 py-3">
                   <p className="truncate text-foreground">{emp.companyName}</p>
-                  <p className="truncate text-xs text-muted-foreground">{emp.departmentName ?? 'ไม่ระบุแผนก'}</p>
+                  <p className="truncate text-xs text-muted-foreground">{emp.departmentName ?? t('noDepartment')}</p>
                 </td>
 
                 {/* ตำแหน่ง */}
@@ -223,7 +227,7 @@ function EmployeesPage() {
                     {emp.roles.map((r) => (
                       <span
                         key={r}
-                        title={ROLE_LABEL_TH[r] ?? r}
+                        title={tRole(r)}
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${roleChipClass(r)}`}
                       >
                         {r}
@@ -235,7 +239,7 @@ function EmployeesPage() {
                 {/* สถานะ */}
                 <td className="px-4 py-3">
                   <Badge variant={emp.isActive ? 'success' : 'secondary'}>
-                    {emp.isActive ? 'ปฏิบัติงานอยู่' : 'พ้นสภาพ'}
+                    {emp.isActive ? t('statusActive') : t('statusInactive')}
                   </Badge>
                 </td>
 
@@ -252,26 +256,30 @@ function EmployeesPage() {
       {totalCount > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <span>แสดง {rangeFrom.toLocaleString('th-TH')}–{rangeTo.toLocaleString('th-TH')} จาก {totalCount.toLocaleString('th-TH')}</span>
+            <span>{t('range', {
+              from: fmt.formatNumber(rangeFrom),
+              to: fmt.formatNumber(rangeTo),
+              total: fmt.formatNumber(totalCount),
+            })}</span>
             <Select
               value={String(pageSize)}
               onChange={(e) => changeSize(Number(e.target.value))}
-              aria-label="จำนวนรายการต่อหน้า"
+              aria-label={t('pageSizeLabel')}
               className="h-8 w-auto text-xs"
             >
-              {PAGE_SIZES.map((s) => <option key={s} value={s}>{s} / หน้า</option>)}
+              {PAGE_SIZES.map((s) => <option key={s} value={s}>{t('pageSizeOption', { size: s })}</option>)}
             </Select>
           </div>
 
           {totalPages > 1 && (
             <div className="flex items-center gap-2">
               <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1}
-                aria-label="หน้าก่อนหน้า" onClick={() => goToPage(page - 1)}>
+                aria-label={t('prevPage')} onClick={() => goToPage(page - 1)}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <span className="tabular-nums">หน้า {page} / {totalPages}</span>
+              <span className="tabular-nums">{t('pageOf', { page, total: totalPages })}</span>
               <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= totalPages}
-                aria-label="หน้าถัดไป" onClick={() => goToPage(page + 1)}>
+                aria-label={t('nextPage')} onClick={() => goToPage(page + 1)}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>

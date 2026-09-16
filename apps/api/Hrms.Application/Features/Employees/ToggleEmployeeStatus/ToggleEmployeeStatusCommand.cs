@@ -22,12 +22,12 @@ public class ToggleEmployeeStatusHandler(
 
         var employee = await db.Employees
             .FirstOrDefaultAsync(e => e.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลพนักงาน");
+            ?? throw new NotFoundException("Employee", request.Id, "EMPLOYEE_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(employee.CompanyId);
 
         if (!request.IsActive && employee.Id == currentUser.EmployeeId)
-            throw new ConflictException("CANNOT_DEACTIVATE_SELF", "ไม่สามารถปิดการใช้งานบัญชีของตัวเองได้");
+            throw new ConflictException("CANNOT_DEACTIVATE_SELF", "You cannot deactivate your own account.");
 
         employee.IsActive  = request.IsActive;
         employee.UpdatedAt = DateTime.UtcNow.AddHours(7);

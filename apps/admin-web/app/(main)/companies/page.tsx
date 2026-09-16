@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { ChevronRight, ChevronDown, Plus } from 'lucide-react'
 import { toast } from 'sonner'
@@ -8,7 +9,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/stores/auth.store'
+import { usePermissionGate } from '@/hooks/use-permission-gate'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,19 +19,16 @@ import { Modal } from '@/components/ui/modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { useCompanies, useCreateCompany, useUpdateCompany } from '@/hooks/use-companies'
 import type { CompanyDto, CompanyTreeDto, OrgType } from '@hrms/shared-types'
+import { ORG_TYPE_LABEL } from '@hrms/i18n/labels'
+import { useApiError } from '@/hooks/use-api-error'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const ORG_TYPE_LABEL: Record<OrgType, string> = {
-  Holding: 'บริษัทหลัก',
-  Subsidiary: 'บริษัทในเครือ',
-  Branch: 'สาขา',
-}
-
-const ORG_TYPE_VARIANT: Record<OrgType, 'default' | 'secondary' | 'warning'> = {
+const ORG_TYPE_VARIANT: Record<OrgType, 'default' | 'secondary' | 'warning' | 'destructive'> = {
   Holding: 'default',
   Subsidiary: 'secondary',
   Branch: 'warning',
+  School: 'destructive',
 }
 
 function flattenTree(nodes: CompanyTreeDto[]): CompanyDto[] {
@@ -38,7 +36,7 @@ function flattenTree(nodes: CompanyTreeDto[]): CompanyDto[] {
   function walk(list: CompanyTreeDto[]) {
     for (const n of list) {
       result.push({
-        id: n.id, name: n.name, nameEn: n.nameEn,
+        id: n.id, name: n.name, nameEn: n.nameEn, nameId: n.nameId,
         orgType: n.orgType, isActive: n.isActive,
         isHeadquarters: n.isHeadquarters,
         parentId: undefined, parentName: undefined,
@@ -57,15 +55,21 @@ function FieldError({ message }: { message?: string }) {
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
-const companySchema = z.object({
-  name:           z.string().min(1, 'กรุณากรอกชื่อบริษัท').max(200),
+// ข้อความ validation มาจาก useTranslations จึงสร้าง schema ใน component
+type TranslateFn = (key: string) => string
+
+function buildCompanySchema(t: TranslateFn) {
+  return z.object({
+  name:           z.string().min(1, t('errorNameRequired')).max(200),
   nameEn:         z.string().max(200).optional().or(z.literal('')),
-  orgType:        z.enum(['Holding', 'Subsidiary', 'Branch']),
+  nameId:         z.string().max(200).optional().or(z.literal('')),
+  orgType:        z.enum(['Holding', 'Subsidiary', 'Branch', 'School']),
   parentId:       z.string().optional().or(z.literal('')),
   isHeadquarters: z.boolean(),
-})
+  })
+}
 
-type CompanyFormValues = z.infer<typeof companySchema>
+type CompanyFormValues = z.infer<ReturnType<typeof buildCompanySchema>>
 
 // ── Create Modal ──────────────────────────────────────────────────────────────
 
@@ -78,6 +82,11 @@ function CreateCompanyModal({
   onClose: () => void
   allCompanies: CompanyDto[]
 }) {
+  const t = useTranslations('admin.org.companies')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const companySchema = useMemo(() => buildCompanySchema(t), [t])
   const create = useCreateCompany()
   const { register, handleSubmit, setError, reset, formState: { errors, isSubmitting } } =
     useForm<CompanyFormValues>({
@@ -90,51 +99,59 @@ function CreateCompanyModal({
       await create.mutateAsync({
         name:           values.name,
         nameEn:         values.nameEn || undefined,
+        nameId:         values.nameId ?? '',
         orgType:        values.orgType,
         parentId:       values.parentId || undefined,
         isHeadquarters: values.isHeadquarters,
       })
-      toast.success(`เพิ่มบริษัท "${values.name}" สำเร็จ`)
+      toast.success(t('createSuccess', { name: values.name }))
       reset()
       onClose()
     } catch (err: unknown) {
       const e = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      if (e === 'DUPLICATE_COMPANY') setError('name', { message: 'ชื่อบริษัทนี้มีอยู่แล้ว' })
-      else if (e === 'PARENT_NOT_FOUND') setError('parentId', { message: 'ไม่พบบริษัทแม่ที่ระบุ' })
-      else if (e === 'PARENT_INACTIVE') setError('parentId', { message: 'บริษัทแม่ถูกปิดใช้งานอยู่' })
-      else { setError('root', { message: 'เกิดข้อผิดพลาด กรุณาลองใหม่' }); toast.error('เกิดข้อผิดพลาด') }
+      if (e === 'DUPLICATE_COMPANY') setError('name', { message: t('errorDuplicate') })
+      else if (e === 'PARENT_NOT_FOUND') setError('parentId', { message: t('errorParentNotFound') })
+      else if (e === 'PARENT_INACTIVE') setError('parentId', { message: t('errorParentInactive') })
+      else { setError('root', { message: apiError(err, tOrg('errorRetry')) }); toast.error(apiError(err, tOrg('error'))) }
     }
   }
 
   return (
-    <Modal open={open} onClose={() => { reset(); onClose() }} title="เพิ่มบริษัทใหม่">
+    <Modal open={open} onClose={() => { reset(); onClose() }} title={t('addTitle')}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="c-name">ชื่อบริษัท (ภาษาไทย) *</Label>
-          <Input id="c-name" {...register('name')} placeholder="บริษัท เทสระบบ จำกัด" />
+          <Label htmlFor="c-name">{t('companyNameTh')} *</Label>
+          <Input id="c-name" {...register('name')} placeholder={t('namePlaceholder')} />
           <FieldError message={errors.name?.message} />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="c-nameen">ชื่อบริษัท (ภาษาอังกฤษ)</Label>
+          <Label htmlFor="c-nameen">{t('companyNameEn')}</Label>
           <Input id="c-nameen" {...register('nameEn')} placeholder="Test System Co., Ltd." />
           <FieldError message={errors.nameEn?.message} />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="c-orgtype">ประเภทองค์กร *</Label>
+          <Label htmlFor="c-nameid">{t('companyNameId')}</Label>
+          <Input id="c-nameid" {...register('nameId')} placeholder="PT Test System" />
+          <FieldError message={errors.nameId?.message} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="c-orgtype">{t('orgType')} *</Label>
           <Select id="c-orgtype" {...register('orgType')}>
-            <option value="Holding">บริษัทแม่ (Holding)</option>
-            <option value="Subsidiary">บริษัทลูก (Subsidiary)</option>
-            <option value="Branch">สาขา (Branch)</option>
+            <option value="Holding">{t('orgTypeHolding')}</option>
+            <option value="Subsidiary">{t('orgTypeSubsidiary')}</option>
+            <option value="Branch">{t('orgTypeBranch')}</option>
+            <option value="School">{t('orgTypeSchool')}</option>
           </Select>
           <FieldError message={errors.orgType?.message} />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="c-parent">บริษัทแม่</Label>
+          <Label htmlFor="c-parent">{t('parent')}</Label>
           <Select id="c-parent" {...register('parentId')}>
-            <option value="">— ไม่มีบริษัทแม่ —</option>
+            <option value="">{t('noParent')}</option>
             {allCompanies.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -144,13 +161,13 @@ function CreateCompanyModal({
 
         <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
           <input type="checkbox" className="rounded border-border" {...register('isHeadquarters')} />
-          <span>บริษัทสำนักงานใหญ่ (HQ) — HR ในบริษัทนี้จัดการข้อมูลทุกบริษัทในระบบได้</span>
+          <span>{t('hqHint')}</span>
         </label>
 
         {errors.root && <p className="text-sm text-destructive">{errors.root.message}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => { reset(); onClose() }}>ยกเลิก</Button>
-          <Button type="submit" loading={isSubmitting}>บันทึก</Button>
+          <Button type="button" variant="outline" onClick={() => { reset(); onClose() }}>{tCommon('action.cancel')}</Button>
+          <Button type="submit" loading={isSubmitting}>{tCommon('action.save')}</Button>
         </div>
       </form>
     </Modal>
@@ -168,6 +185,11 @@ function EditCompanyModal({
   onClose: () => void
   allCompanies: CompanyDto[]
 }) {
+  const t = useTranslations('admin.org.companies')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const companySchema = useMemo(() => buildCompanySchema(t), [t])
   const update = useUpdateCompany()
   const [deactivateConfirm, setDeactivateConfirm] = useState(false)
 
@@ -177,6 +199,7 @@ function EditCompanyModal({
       defaultValues: {
         name:           company.name,
         nameEn:         company.nameEn ?? '',
+        nameId:         company.nameId ?? '',
         orgType:        company.orgType as OrgType,
         parentId:       company.parentId ?? '',
         isHeadquarters: company.isHeadquarters,
@@ -189,19 +212,20 @@ function EditCompanyModal({
         id:             company.id,
         name:           values.name,
         nameEn:         values.nameEn || undefined,
+        nameId:         values.nameId ?? '',
         orgType:        values.orgType,
         parentId:       values.parentId || undefined,
         isActive,
         isHeadquarters: values.isHeadquarters,
       })
-      toast.success('อัปเดตข้อมูลบริษัทสำเร็จ')
+      toast.success(t('updateSuccess'))
       setDeactivateConfirm(false)
       onClose()
     } catch (err: unknown) {
       const e = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      if (e === 'CIRCULAR_PARENT') setError('parentId', { message: 'ไม่สามารถตั้งบริษัทตัวเองเป็น parent ได้' })
-      else if (e === 'HAS_ACTIVE_CHILDREN') toast.error('ไม่สามารถปิดได้ — มีบริษัทลูกที่ยังใช้งานอยู่')
-      else { setError('root', { message: 'เกิดข้อผิดพลาด' }); toast.error('เกิดข้อผิดพลาด') }
+      if (e === 'CIRCULAR_PARENT') setError('parentId', { message: t('errorCircularParent') })
+      else if (e === 'HAS_ACTIVE_CHILDREN') toast.error(t('errorHasActiveChildren'))
+      else { setError('root', { message: apiError(err, tOrg('error')) }); toast.error(apiError(err, tOrg('error'))) }
     }
   }
 
@@ -209,32 +233,39 @@ function EditCompanyModal({
 
   return (
     <>
-      <Modal open onClose={onClose} title={`แก้ไข — ${company.name}`}>
+      <Modal open onClose={onClose} title={tOrg('editTitle', { name: company.name })}>
         <form onSubmit={handleSubmit((v) => doUpdate(v, company.isActive))} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="e-name">ชื่อบริษัท (ภาษาไทย) *</Label>
+            <Label htmlFor="e-name">{t('companyNameTh')} *</Label>
             <Input id="e-name" {...register('name')} />
             <FieldError message={errors.name?.message} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="e-nameen">ชื่อบริษัท (ภาษาอังกฤษ)</Label>
+            <Label htmlFor="e-nameen">{t('companyNameEn')}</Label>
             <Input id="e-nameen" {...register('nameEn')} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="e-orgtype">ประเภทองค์กร *</Label>
-            <Select id="e-orgtype" {...register('orgType')}>
-              <option value="Holding">บริษัทแม่ (Holding)</option>
-              <option value="Subsidiary">บริษัทลูก (Subsidiary)</option>
-              <option value="Branch">สาขา (Branch)</option>
-            </Select>
+            <Label htmlFor="e-nameid">{t('companyNameId')}</Label>
+            <Input id="e-nameid" {...register('nameId')} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="e-parent">บริษัทแม่</Label>
+            <Label htmlFor="e-orgtype">{t('orgType')} *</Label>
+            <Select id="e-orgtype" {...register('orgType')}>
+              <option value="Holding">{t('orgTypeHolding')}</option>
+              <option value="Subsidiary">{t('orgTypeSubsidiary')}</option>
+              <option value="Branch">{t('orgTypeBranch')}</option>
+              <option value="School">{t('orgTypeSchool')}</option>
+            </Select>
+            <FieldError message={errors.orgType?.message} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="e-parent">{t('parent')}</Label>
             <Select id="e-parent" {...register('parentId')}>
-              <option value="">— ไม่มีบริษัทแม่ —</option>
+              <option value="">{t('noParent')}</option>
               {otherCompanies.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -244,7 +275,7 @@ function EditCompanyModal({
 
           <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
             <input type="checkbox" className="rounded border-border" {...register('isHeadquarters')} />
-            <span>บริษัทสำนักงานใหญ่ (HQ)</span>
+            <span>{t('hq')}</span>
           </label>
 
           {errors.root && <p className="text-sm text-destructive">{errors.root.message}</p>}
@@ -259,11 +290,11 @@ function EditCompanyModal({
                 : doUpdate(getValues(), true)}
               loading={update.isPending}
             >
-              {company.isActive ? 'ปิดการใช้งาน' : 'เปิดการใช้งาน'}
+              {company.isActive ? tOrg('deactivate') : tOrg('activate')}
             </Button>
             <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-              <Button type="submit" loading={isSubmitting} disabled={!isDirty}>บันทึก</Button>
+              <Button type="button" variant="outline" onClick={onClose}>{tCommon('action.cancel')}</Button>
+              <Button type="submit" loading={isSubmitting} disabled={!isDirty}>{tCommon('action.save')}</Button>
             </div>
           </div>
         </form>
@@ -273,9 +304,9 @@ function EditCompanyModal({
         open={deactivateConfirm}
         onClose={() => setDeactivateConfirm(false)}
         onConfirm={() => doUpdate(getValues(), false)}
-        title="ปิดการใช้งานบริษัท"
-        description={`ยืนยันปิดการใช้งาน "${company.name}"? บริษัทลูกทั้งหมดต้องถูกปิดก่อน`}
-        confirmLabel="ปิดการใช้งาน"
+        title={t('deactivateTitle')}
+        description={t('deactivateDesc', { name: company.name })}
+        confirmLabel={tOrg('deactivate')}
         variant="destructive"
         loading={update.isPending}
       />
@@ -292,6 +323,8 @@ function CompanyTreeNode({
   node: CompanyTreeDto
   depth: number
 }) {
+  const t = useTranslations('admin.org.companies')
+  const tOrg = useTranslations('admin.org.common')
   const [expanded, setExpanded] = useState(depth === 0)
   const hasChildren = node.children.length > 0
 
@@ -328,14 +361,14 @@ function CompanyTreeNode({
           <Badge variant="default" className="text-white-xs bg-amber-500 hover:bg-amber-500">HQ</Badge>
         )}
         {!node.isActive && (
-          <Badge variant="secondary" className="text-xs">ปิดใช้งาน</Badge>
+          <Badge variant="secondary" className="text-xs">{tOrg('statusInactive')}</Badge>
         )}
 
         <Link
           href={`/companies/${node.id}`}
           className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
         >
-          ดูรายละเอียด
+          {t('viewDetail')}
         </Link>
       </div>
 
@@ -353,10 +386,12 @@ function CompanyTreeNode({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function CompaniesPage() {
+  const t = useTranslations('admin.org.companies')
   const router = useRouter()
-  const employee = useAuthStore((s) => s.employee)
-  const isAdmin = employee?.roles.some((r) => r.role === 'Admin') ?? false
-  const isHr = employee?.roles.some((r) => r.role === 'Hr') ?? false
+  const { has, hasAny } = usePermissionGate()
+  // เข้าหน้าได้ถ้าดูข้อมูลบริษัทได้ · ปุ่มเพิ่มบริษัทเฉพาะผู้จัดการโครงสร้างบริษัท
+  const canView = hasAny(['company:view', 'company:edit', 'system:manage-companies'], ['Admin', 'Hr'])
+  const isAdmin = has('system:manage-companies', ['Admin'])
 
   const [showInactive, setShowInactive] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -365,18 +400,18 @@ export default function CompaniesPage() {
   const allFlat = flattenTree(tree).filter((c) => c.isActive)
 
   useEffect(() => {
-    if (!isAdmin && !isHr) router.replace('/dashboard')
-  }, [isAdmin, isHr, router])
+    if (!canView) router.replace('/dashboard')
+  }, [canView, router])
 
-  if (!isAdmin && !isHr) return null
+  if (!canView) return null
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">โครงสร้างบริษัท</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t('title')}</h1>
         {isAdmin && (
           <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" />เพิ่มบริษัท
+            <Plus className="h-4 w-4" />{t('add')}
           </Button>
         )}
       </div>
@@ -388,7 +423,7 @@ export default function CompaniesPage() {
           checked={showInactive}
           onChange={(e) => setShowInactive(e.target.checked)}
         />
-        แสดงทั้งหมด (รวมปิดใช้งาน)
+        {t('showAll')}
       </label>
 
       <div className="rounded-lg border border-border bg-background">
@@ -399,7 +434,7 @@ export default function CompaniesPage() {
             ))}
           </div>
         ) : tree.length === 0 ? (
-          <p className="py-12 text-center text-sm text-muted-foreground">ยังไม่มีบริษัท กด "เพิ่มบริษัท" เพื่อเริ่มต้น</p>
+          <p className="py-12 text-center text-sm text-muted-foreground">{t('empty')}</p>
         ) : (
           <div className="p-2">
             {tree.map((node) => (

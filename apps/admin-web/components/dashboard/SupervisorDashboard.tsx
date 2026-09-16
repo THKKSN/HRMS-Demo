@@ -6,7 +6,6 @@ import { LeaveBalanceCards } from './widgets/LeaveBalanceCards'
 import { MonthStatsCard } from './widgets/MonthStatsCard'
 import { TeamSummaryCards } from './widgets/TeamSummaryCards'
 import { PendingApprovalList } from './widgets/PendingApprovalList'
-import { MemoPendingCard } from './MemoPendingCard'
 import { MyAssignedTicketsTable } from './MyAssignedTicketsTable'
 import { PendingWorkChips } from './PendingWorkChips'
 import { TicketOverviewSection } from './TicketOverviewSection'
@@ -43,10 +42,11 @@ export function SupervisorDashboard() {
         </>
       )} */}
 
-      {/* ภาพรวมการแจ้งเรื่อง — scope ระดับแผนกถูกกรองที่ backend */}
-      <TicketOverviewSection />
-      <MemoPendingCard variant="inbox" />
+      {/* งานของตัวเองมาก่อน แล้วค่อยตามด้วยภาพรวม — เดิมตารางงานอยู่ล่างสุดใต้กองสถิติ */}
       <MyAssignedTicketsTable />
+
+      {/* ภาพรวมการแจ้งเรื่อง + ภาพรวม Memo — scope ระดับแผนกถูกกรองที่ backend */}
+      <TicketOverviewSection />
     </div>
   )
 }

@@ -14,7 +14,8 @@ public record ProcessLeaveWebhookCommand(
 public class ProcessLeaveWebhookHandler(
     IApplicationDbContext db,
     ILineMessagingService line,
-    ILeaveNotificationService notification)
+    ILeaveNotificationService notification,
+    ILineMessageTextFactory messageText)
     : IRequestHandler<ProcessLeaveWebhookCommand, Unit>
 {
     public async Task<Unit> Handle(ProcessLeaveWebhookCommand request, CancellationToken ct)
@@ -26,9 +27,12 @@ public class ProcessLeaveWebhookHandler(
                 .Include(e => e.Roles.Where(r => r.IsActive))
                 .FirstOrDefaultAsync(e => e.LineUserId == request.LineUserId && e.IsActive, ct);
 
+            // ผู้กดปุ่มคือผู้อนุมัติ — ตอบกลับเป็นภาษาของเขา ไม่ใช่ของผู้ขอลา
+            var text = messageText.For(actor?.PreferredLanguage);
+
             if (actor is null)
             {
-                await PushAsync(request.LineUserId, "ไม่พบข้อมูลผู้ใช้ในระบบ", ct);
+                await PushAsync(request.LineUserId, text.Of("webhook.leave.userNotFound"), ct);
                 return Unit.Value;
             }
 
@@ -39,7 +43,7 @@ public class ProcessLeaveWebhookHandler(
 
             if (leave is null)
             {
-                await PushAsync(request.LineUserId, "ไม่พบคำขอลาที่ระบุ", ct);
+                await PushAsync(request.LineUserId, text.Of("webhook.leave.requestNotFound"), ct);
                 return Unit.Value;
             }
 
@@ -56,7 +60,7 @@ public class ProcessLeaveWebhookHandler(
 
                     if (!isSupervisor)
                     {
-                        await PushAsync(request.LineUserId, "คุณไม่มีสิทธิ์ดำเนินการนี้", ct);
+                        await PushAsync(request.LineUserId, text.Of("webhook.leave.noPermission"), ct);
                         return Unit.Value;
                     }
 
@@ -67,7 +71,7 @@ public class ProcessLeaveWebhookHandler(
                         leave.SupervisorApprovedAt = now;
                         await db.SaveChangesAsync(ct);
                         await notification.EnqueueApprovalPendingAsync(leave.Id);
-                        await PushAsync(request.LineUserId, $"✅ อนุมัติขั้นต้นแล้ว — รอ HR ยืนยัน", ct);
+                        await PushAsync(request.LineUserId, text.Of("webhook.leave.supervisorApproved"), ct);
                     }
                     else
                     {
@@ -77,7 +81,7 @@ public class ProcessLeaveWebhookHandler(
                         await ReturnPendingDaysAsync(leave, ct);
                         await db.SaveChangesAsync(ct);
                         await notification.EnqueueResultAsync(leave.Id);
-                        await PushAsync(request.LineUserId, "❌ ปฏิเสธแล้ว", ct);
+                        await PushAsync(request.LineUserId, text.Of("webhook.leave.rejected"), ct);
                     }
                     break;
                 }
@@ -89,7 +93,7 @@ public class ProcessLeaveWebhookHandler(
 
                     if (!isHr)
                     {
-                        await PushAsync(request.LineUserId, "คุณไม่มีสิทธิ์ดำเนินการนี้", ct);
+                        await PushAsync(request.LineUserId, text.Of("webhook.leave.noPermission"), ct);
                         return Unit.Value;
                     }
 
@@ -113,7 +117,7 @@ public class ProcessLeaveWebhookHandler(
 
                         await db.SaveChangesAsync(ct);
                         await notification.EnqueueResultAsync(leave.Id);
-                        await PushAsync(request.LineUserId, "✅ อนุมัติแล้ว", ct);
+                        await PushAsync(request.LineUserId, text.Of("webhook.leave.approved"), ct);
                     }
                     else
                     {
@@ -123,13 +127,13 @@ public class ProcessLeaveWebhookHandler(
                         await ReturnPendingDaysAsync(leave, ct);
                         await db.SaveChangesAsync(ct);
                         await notification.EnqueueResultAsync(leave.Id);
-                        await PushAsync(request.LineUserId, "❌ ปฏิเสธแล้ว", ct);
+                        await PushAsync(request.LineUserId, text.Of("webhook.leave.rejected"), ct);
                     }
                     break;
                 }
 
                 default:
-                    await PushAsync(request.LineUserId, "คำขอนี้ไม่อยู่ในสถานะรออนุมัติ", ct);
+                    await PushAsync(request.LineUserId, text.Of("webhook.leave.notPending"), ct);
                     break;
             }
         }

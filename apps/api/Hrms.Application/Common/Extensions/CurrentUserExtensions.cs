@@ -37,7 +37,7 @@ public static class CurrentUserExtensions
         CancellationToken ct = default)
     {
         if (!await permService.HasPermissionAsync(user, permissionCode, ct))
-            throw new Exceptions.AppForbiddenException($"ไม่มีสิทธิ์: {permissionCode}");
+            throw new Exceptions.AppForbiddenException($"Missing permission: {permissionCode}");
     }
 
     public static bool CanManageCompany(this ICurrentUser user, Guid companyId)

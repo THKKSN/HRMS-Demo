@@ -19,7 +19,7 @@ public class RejectExpenseClaimValidator : AbstractValidator<RejectExpenseClaimC
     {
         RuleFor(x => x.Comment)
             .NotEmpty()
-            .WithMessage("กรุณาระบุเหตุผลการปฏิเสธ")
+            .WithErrorCode("REJECT_REASON_REQUIRED").WithMessage("A rejection reason is required.")
             .MaximumLength(500);
     }
 }

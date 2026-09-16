@@ -25,7 +25,7 @@ public sealed class PreviewEmployeeImportHandler(
     public async Task<EmployeeImportPreviewDto> Handle(PreviewEmployeeImportCommand request, CancellationToken ct)
     {
         if (!currentUser.Roles.Any(role => role.Role == RoleType.Admin.ToString()))
-            throw new AppForbiddenException("ไม่มีสิทธิ์นำเข้าพนักงาน");
+            throw new AppForbiddenException("EMPLOYEE_IMPORT_FORBIDDEN", "You are not allowed to import employees.");
 
         var employee = await piswinClient.FindByNationalIdAsync(request.NationalId, ct);
 

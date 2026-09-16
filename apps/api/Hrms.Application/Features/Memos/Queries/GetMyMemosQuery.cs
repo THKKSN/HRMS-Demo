@@ -18,7 +18,7 @@ public class GetMyMemosHandler(IApplicationDbContext db, ICurrentUser currentUse
         await currentUser.ThrowIfNoPermissionAsync(permService, "memo:view-own", ct);
 
         if (currentUser.EmployeeId is not { } requesterId)
-            throw new AppUnauthorizedException("ไม่พบตัวตนผู้ใช้");
+            throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND", "Current user has no employee record.");
 
         var query = db.Memos.Where(x => x.RequesterId == requesterId);
         if (request.Status is { } status)

@@ -20,6 +20,7 @@ public record TicketReportFilter(
     Guid? ResponsibleEmployeeId,
     TicketRequestType? RequestType,
     TicketProblemType? ProblemType,
+    Guid? CloseoutReasonId = null,
     string DateBasis = "CreatedAt");
 
 public record TicketReportMetaDto(
@@ -60,10 +61,15 @@ public record TicketBacklogResultDto(
     IReadOnlyList<TicketBacklogItemDto> Items, int TotalCount, int Page, int PageSize,
     IReadOnlyDictionary<string, int> AgingBuckets, TicketReportMetaDto Meta);
 
+// ชื่อหมวด/หัวข้อ/เรื่อง ส่งครบ 3 ภาษา (i18n Phase M) — หน้าจอเลือกด้วย localizedName ตามภาษาที่ผู้ใช้ตั้ง
+// ไม่ใช่ snapshot: join จาก master data ปัจจุบัน ชื่อจึงเปลี่ยนตามที่ HR แก้ล่าสุดเสมอ
 public record TicketCategoryReportItemDto(
     Guid? CategoryId, string? CategoryName, Guid? TopicId, string? TopicName,
     Guid? SubjectId, string? SubjectName,
-    int TotalCount, int ClosedCount, int BacklogCount, double ReturnRatePercent);
+    int TotalCount, int ClosedCount, int BacklogCount, double ReturnRatePercent,
+    string? CategoryNameEn = null, string? CategoryNameId = null,
+    string? TopicNameEn = null, string? TopicNameId = null,
+    string? SubjectNameEn = null, string? SubjectNameId = null);
 
 public record TicketWorkloadItemDto(
     Guid EmployeeId, string EmployeeName, int AssignedCount, int InProgressCount,

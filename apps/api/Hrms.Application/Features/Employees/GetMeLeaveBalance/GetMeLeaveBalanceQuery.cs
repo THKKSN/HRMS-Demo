@@ -14,7 +14,7 @@ public class GetMeLeaveBalanceHandler(IApplicationDbContext db, ICurrentUser cur
     public async Task<IReadOnlyList<LeaveBalanceDto>> Handle(GetMeLeaveBalanceQuery request, CancellationToken ct)
     {
         var employeeId = currentUser.EmployeeId
-            ?? throw new AppUnauthorizedException("Not authenticated.");
+            ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
 
         var balances = await db.LeaveBalances
             .Include(b => b.LeaveType)

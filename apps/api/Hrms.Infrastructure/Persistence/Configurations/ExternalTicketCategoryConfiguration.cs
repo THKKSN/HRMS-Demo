@@ -12,6 +12,8 @@ public class ExternalTicketCategoryConfiguration : IEntityTypeConfiguration<Exte
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.Name).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.NameEn).HasMaxLength(100);
+        builder.Property(x => x.NameId).HasMaxLength(100);
         builder.Property(x => x.Description).HasMaxLength(500);
         builder.Property(x => x.CreatedAt).HasColumnType("datetime");
         builder.Property(x => x.UpdatedAt).HasColumnType("datetime");

@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, ChevronLeft, FileText, Loader2, Send } from 'lucide-react'
+import { useLocale, useTranslations } from 'next-intl'
+import { AlertCircle, ChevronLeft, FileText, Loader2, Paperclip, Send } from 'lucide-react'
+import type { MemoAttachmentInput } from '@hrms/shared-types'
+import { localizedName } from '@hrms/i18n'
+import { MemoAttachmentPicker } from '@/components/memos/memo-attachment-picker'
 import { useCreateMemo, useMemoCategories, useMemoSubCategories, useMemoTypes } from '@/hooks/use-memo'
-
-function apiMessage(error: unknown) {
-  const data = (error as { response?: { data?: { message?: string; errors?: string[]; error?: string } } })?.response?.data
-  return data?.message ?? data?.errors?.[0] ?? data?.error ?? 'ไม่สามารถส่งเรื่องได้ กรุณาลองใหม่'
-}
+import { useApiError } from '@/hooks/use-api-error'
 
 function SelectField({
   label,
@@ -44,6 +44,11 @@ function SelectField({
 }
 
 export default function NewMemoPage() {
+  const t = useTranslations('liff.memo.new')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const tStatus = useTranslations('status.memo')
+  const locale = useLocale()
   const { data: memoTypes, isLoading: typesLoading } = useMemoTypes()
   const { mutateAsync: createMemo } = useCreateMemo()
 
@@ -51,6 +56,7 @@ export default function NewMemoPage() {
   const [memoCategoryId, setMemoCategoryId] = useState('')
   const [memoSubCategoryId, setMemoSubCategoryId] = useState('')
   const [detail, setDetail] = useState('')
+  const [attachments, setAttachments] = useState<MemoAttachmentInput[]>([])
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<{ id: string } | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -58,7 +64,7 @@ export default function NewMemoPage() {
   const { data: categories, isLoading: categoriesLoading } = useMemoCategories(memoTypeId)
   const { data: subCategories, isLoading: subCategoriesLoading } = useMemoSubCategories(memoCategoryId)
 
-  const selectedType = memoTypes?.find(t => t.id === memoTypeId)
+  const selectedType = memoTypes?.find(item => item.id === memoTypeId)
   const selectedCategory = categories?.find(c => c.id === memoCategoryId)
   const selectedSubCategory = subCategories?.find(s => s.id === memoSubCategoryId)
 
@@ -82,16 +88,20 @@ export default function NewMemoPage() {
     setError(null)
     setSubmitting(true)
     try {
-      const result = await createMemo({ memoTypeId, memoCategoryId, memoSubCategoryId, detail: detail.trim() })
+      const result = await createMemo({
+        memoTypeId, memoCategoryId, memoSubCategoryId, detail: detail.trim(),
+        attachments: attachments.length ? attachments : undefined,
+      })
       setCreated({ id: result.id })
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiError(err, t('submitFailed')))
     } finally {
       setSubmitting(false)
     }
   }
 
   if (created) {
+    // ชื่อประเภท/หมวดหมู่จากตัวเลือกที่ผู้ใช้เลือกไว้ (มี nameEn/nameId จาก Phase M)
     return (
       <div className="min-h-screen bg-indigo-50/60 dark:bg-slate-950">
         <div className="bg-indigo-600 px-4 pb-6 pt-4 text-white">
@@ -100,8 +110,8 @@ export default function NewMemoPage() {
               <ChevronLeft className="h-5 w-5" />
             </Link>
             <div>
-              <h1 className="text-lg font-bold">ส่งบันทึกข้อความแล้ว</h1>
-              <p className="text-xs text-white/75">ระบบรับเรื่องเรียบร้อย รอผู้บริหารอนุมัติ</p>
+              <h1 className="text-lg font-bold">{t('success.title')}</h1>
+              <p className="text-xs text-white/75">{t('success.subtitle')}</p>
             </div>
           </div>
         </div>
@@ -109,16 +119,19 @@ export default function NewMemoPage() {
         <div className="px-4 pt-4">
           <div className="rounded-2xl bg-white p-5 shadow-sm dark:bg-slate-900">
             <div className="space-y-2 text-sm">
-              <p><span className="text-muted-foreground">ประเภทเรื่อง:</span> {selectedType?.name}</p>
-              <p><span className="text-muted-foreground">หมวดหมู่:</span> {selectedCategory?.name} / {selectedSubCategory?.name}</p>
-              <p><span className="text-muted-foreground">สถานะ:</span> รออนุมัติ</p>
+              <p><span className="text-muted-foreground">{t('success.type')}:</span> {selectedType ? localizedName(selectedType, locale) : ''}</p>
+              <p>
+                <span className="text-muted-foreground">{t('success.category')}:</span>{' '}
+                {selectedCategory ? localizedName(selectedCategory, locale) : ''} / {selectedSubCategory ? localizedName(selectedSubCategory, locale) : ''}
+              </p>
+              <p><span className="text-muted-foreground">{t('success.status')}:</span> {tStatus('Pending')}</p>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <Link href="/memos/my" className="flex h-11 items-center justify-center rounded-xl bg-indigo-600 text-sm font-semibold text-white">
-                ดูรายการทั้งหมด
+                {t('success.viewAll')}
               </Link>
               <Link href="/" className="flex h-11 items-center justify-center rounded-xl border border-slate-200 text-sm font-semibold dark:border-slate-600 dark:text-slate-100">
-                กลับหน้าแรก
+                {tCommon('action.backHome')}
               </Link>
             </div>
           </div>
@@ -135,8 +148,8 @@ export default function NewMemoPage() {
             <ChevronLeft className="h-5 w-5" />
           </Link>
           <div>
-            <h1 className="text-lg font-bold">ขอ Memo</h1>
-            <p className="text-xs text-white/75">เลือกประเภทเรื่องและกรอกรายละเอียด</p>
+            <h1 className="text-lg font-bold">{t('title')}</h1>
+            <p className="text-xs text-white/75">{t('subtitle')}</p>
           </div>
         </div>
       </div>
@@ -152,35 +165,35 @@ export default function NewMemoPage() {
         <section className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
           <div className="mb-3 flex items-center gap-2">
             <FileText className="h-4 w-4 text-indigo-600" />
-            <span className="text-sm font-semibold">ประเภทเรื่อง</span>
+            <span className="text-sm font-semibold">{t('typeSection')}</span>
           </div>
 
           <div className="space-y-3">
             <SelectField
-              label="ประเภทเรื่อง"
+              label={t('type')}
               value={memoTypeId}
               onChange={handleTypeChange}
               disabled={typesLoading}
-              placeholder={typesLoading ? 'กำลังโหลด...' : 'เลือกประเภทเรื่อง'}
-              options={(memoTypes ?? []).map(t => ({ value: t.id, label: t.name }))}
+              placeholder={typesLoading ? tCommon('state.loading') : t('selectType')}
+              options={(memoTypes ?? []).map(item => ({ value: item.id, label: localizedName(item, locale) }))}
             />
 
             <SelectField
-              label="หมวดหมู่"
+              label={t('category')}
               value={memoCategoryId}
               onChange={handleCategoryChange}
               disabled={!memoTypeId || categoriesLoading}
-              placeholder={!memoTypeId ? 'เลือกประเภทเรื่องก่อน' : categoriesLoading ? 'กำลังโหลด...' : 'เลือกหมวดหมู่'}
-              options={(categories ?? []).map(c => ({ value: c.id, label: c.name }))}
+              placeholder={!memoTypeId ? t('selectTypeFirst') : categoriesLoading ? tCommon('state.loading') : t('selectCategory')}
+              options={(categories ?? []).map(c => ({ value: c.id, label: localizedName(c, locale) }))}
             />
 
             <SelectField
-              label="หัวข้อย่อย"
+              label={t('subCategory')}
               value={memoSubCategoryId}
               onChange={setMemoSubCategoryId}
               disabled={!memoCategoryId || subCategoriesLoading}
-              placeholder={!memoCategoryId ? 'เลือกหมวดหมู่ก่อน' : subCategoriesLoading ? 'กำลังโหลด...' : 'เลือกหัวข้อย่อย'}
-              options={(subCategories ?? []).map(s => ({ value: s.id, label: s.name }))}
+              placeholder={!memoCategoryId ? t('selectCategoryFirst') : subCategoriesLoading ? tCommon('state.loading') : t('selectSubCategory')}
+              options={(subCategories ?? []).map(s => ({ value: s.id, label: localizedName(s, locale) }))}
             />
           </div>
         </section>
@@ -188,14 +201,14 @@ export default function NewMemoPage() {
         <section className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
           <div className="mb-3 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-indigo-600" />
-            <span className="text-sm font-semibold">รายละเอียด</span>
+            <span className="text-sm font-semibold">{t('detail')}</span>
           </div>
 
           <label className="block">
             <textarea
               value={detail}
               onChange={e => setDetail(e.target.value)}
-              placeholder="อธิบายรายละเอียดเรื่องที่ต้องการแจ้ง"
+              placeholder={t('detailPlaceholder')}
               maxLength={4000}
               rows={6}
               className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-slate-600 dark:bg-slate-800"
@@ -206,13 +219,26 @@ export default function NewMemoPage() {
           </div>
         </section>
 
+        <section className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
+          <div className="mb-3 flex items-center gap-2">
+            <Paperclip className="h-4 w-4 text-indigo-600" />
+            <span className="text-sm font-semibold">{t('attachments')}</span>
+          </div>
+          <MemoAttachmentPicker
+            value={attachments}
+            onChange={setAttachments}
+            disabled={submitting}
+            label={t('chooseFile')}
+          />
+        </section>
+
         <button
           type="submit"
           disabled={!canSubmit || submitting}
           className="fixed bottom-20 left-1/2 flex h-12 w-[calc(100%-2rem)] max-w-[380px] -translate-x-1/2 items-center justify-center gap-2 rounded-2xl bg-indigo-600 text-sm font-bold text-white shadow-lg disabled:bg-slate-300"
         >
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          ส่งบันทึกข้อความ
+          {t('submit')}
         </button>
       </form>
     </div>

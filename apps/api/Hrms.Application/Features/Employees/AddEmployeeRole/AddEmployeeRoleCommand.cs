@@ -37,14 +37,14 @@ public class AddEmployeeRoleHandler(
 
         var employee = await db.Employees
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลพนักงาน");
+            ?? throw new NotFoundException("Employee", request.EmployeeId, "EMPLOYEE_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(employee.CompanyId);
 
         var systemRole = await db.SystemRoles
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Id == request.RoleId && r.IsActive, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูล role");
+            ?? throw new NotFoundException("SystemRole", request.RoleId, "ROLE_NOT_FOUND");
 
         var duplicate = await db.EmployeeRoles.AnyAsync(r =>
             r.EmployeeId == request.EmployeeId &&
@@ -54,7 +54,7 @@ public class AddEmployeeRoleHandler(
             r.IsActive, ct);
 
         if (duplicate)
-            throw new ConflictException("DUPLICATE_ROLE", $"พนักงานมีสิทธิ์ {systemRole.Code} นี้อยู่แล้ว");
+            throw new ConflictException("DUPLICATE_ROLE", $"The employee already has the {systemRole.Code} role.");
 
         var role = new EmployeeRole
         {

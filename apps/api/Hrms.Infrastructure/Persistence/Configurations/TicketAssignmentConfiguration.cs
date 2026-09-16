@@ -17,6 +17,9 @@ public class TicketAssignmentConfiguration : IEntityTypeConfiguration<TicketAssi
         builder.Property(x => x.AssignedAt).HasColumnType("datetime");
         builder.Property(x => x.EndedAt).HasColumnType("datetime");
         builder.Property(x => x.EndedByEmployeeId).HasColumnType("char(36)");
+        builder.Property(x => x.MemberRole).HasConversion<string>().HasMaxLength(20);
+        // แถว Member ต้องปล่อย ActiveSlot เป็น null — MySQL ถือว่า null ไม่ชนกันใน unique index (TicketId, ActiveSlot)
+        // ทำให้ "Owner ที่ active ได้ 1 คนต่อใบ" ถูกบังคับที่ระดับ DB ต่อไปแม้ใบเดียวจะมีหลายแถว
         builder.Property(x => x.ActiveSlot).HasMaxLength(20);
         builder.Property(x => x.Note).HasMaxLength(1000);
         builder.Property(x => x.AssignmentSource).HasConversion<string>().HasMaxLength(30);

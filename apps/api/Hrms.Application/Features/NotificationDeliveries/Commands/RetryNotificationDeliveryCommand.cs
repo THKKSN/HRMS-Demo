@@ -21,12 +21,12 @@ public class RetryNotificationDeliveryHandler(
             permissions, "system:manage-notifications", ct);
         var delivery = await db.NotificationOutboxes
             .FirstOrDefaultAsync(x => x.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบรายการแจ้งเตือน");
+            ?? throw new NotFoundException("NotificationDelivery", request.Id, "NOTIFICATION_NOT_FOUND");
         if (delivery.Status is not (
             NotificationDeliveryStatus.Failed or NotificationDeliveryStatus.DeadLetter))
             throw new ConflictException(
                 "NOTIFICATION_NOT_RETRYABLE",
-                "ส่งใหม่ได้เฉพาะรายการที่ล้มเหลวหรือ Dead Letter");
+                "Only failed or dead-letter notifications can be retried.");
 
         delivery.Status = NotificationDeliveryStatus.Pending;
         delivery.AttemptCount = 0;

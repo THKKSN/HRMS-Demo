@@ -23,14 +23,14 @@ public class AcceptTicketHandler(
             .Include(t => t.RequesterEmployee)
             .Include(t => t.ExternalReporter)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketSupervisorAccess.EnsureTicketAsync(
             db, currentUser, permissionService, "ticket:update-status", ticket, ct);
 
         if (ticket.SupervisorAcceptedAt.HasValue)
             return new TicketActionResultDto(ticket.Id, ticket.Status, ticket.UpdatedAt);
         if (ticket.Status != TicketStatus.Open)
-            throw new ConflictException("INVALID_TICKET_STATUS", "รับเรื่องได้เฉพาะใบแจ้งเรื่องสถานะ Open");
+            throw new ConflictException("TICKET_NOT_OPEN", "Only tickets in Open status can be accepted.");
 
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
@@ -45,7 +45,8 @@ public class AcceptTicketHandler(
         ticket.UpdatedBy = actorId;
         TicketCommandSupport.QueueNotification(
             db, "TicketAccepted", ticket.Id, TicketCommandSupport.Requester(ticket),
-            $"ใบแจ้งเรื่อง {ticket.TicketNo} ได้รับการรับเรื่องแล้ว\nผู้รับเรื่อง: {TicketCommandSupport.FullName(actor)}",
+            "ticket.accepted.toRequester",
+            new { ticketNo = ticket.TicketNo, acceptedBy = TicketCommandSupport.FullName(actor) },
             ticket);
         await db.SaveChangesAsync(ct);
 

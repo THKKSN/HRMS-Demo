@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import {
   ArrowLeft, ChevronLeft, ChevronRight,
@@ -11,14 +12,16 @@ import { Button } from '@/components/ui/button'
 import { useEmployeeMonthlyCalendar, useEmployeeMonthlyStats } from '@/hooks/use-attendance-hr'
 import { useEmployee } from '@/hooks/use-employees'
 import type { AttendanceStatus, EmployeeCalendarDayDto } from '@hrms/shared-types'
+import { ATTENDANCE_STATUS_LABEL as STATUS_LABELS } from '@hrms/i18n/labels'
+import * as fmt from '@hrms/i18n/format'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-const THAI_MONTHS = [
-  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
-]
-const DOW_SHORT = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
+// ชื่อเดือน/วันมาจาก Intl ตามภาษาที่ผู้ใช้เลือก (เดิม hardcode ภาษาไทย)
+const MONTH_NAMES = Array.from({ length: 12 }, (_, index) =>
+  fmt.formatDate(new Date(2024, index, 1), { month: 'long' }))
+const DOW_SHORT = Array.from({ length: 7 }, (_, index) =>
+  fmt.formatDate(new Date(2024, 8, 1 + index), { weekday: 'short' }))
 
 type DayKind = 'weekend' | 'holiday' | 'leave' | 'present' | 'late' | 'halfday' | 'absent' | 'nodata'
 
@@ -29,7 +32,9 @@ type DayCfg = {
   badgeBg: string
   badgeText: string
   icon: React.ElementType | null
-  label: string
+  label?: string
+  /** คีย์ข้อความใน messages เมื่อไม่มีชื่อจากข้อมูลจริง */
+  labelKey?: string
 }
 
 function getDayCfg(day: EmployeeCalendarDayDto): DayCfg {
@@ -41,7 +46,8 @@ function getDayCfg(day: EmployeeCalendarDayDto): DayCfg {
       badgeBg: 'bg-rose-100',
       badgeText: 'text-rose-700',
       icon: Gift,
-      label: day.holidayName ?? 'วันหยุด',
+      label: day.holidayName ?? undefined,
+      labelKey: 'holiday',
     }
   if (!day.isWorkingDay)
     return {
@@ -61,7 +67,8 @@ function getDayCfg(day: EmployeeCalendarDayDto): DayCfg {
       badgeBg: 'bg-violet-100',
       badgeText: 'text-violet-800',
       icon: Palmtree,
-      label: day.leaveTypeName ?? 'ลา',
+      label: day.leaveTypeName ?? undefined,
+      labelKey: 'onLeave',
     }
   switch (day.status) {
     case 'Present':
@@ -72,7 +79,7 @@ function getDayCfg(day: EmployeeCalendarDayDto): DayCfg {
         badgeBg: 'bg-emerald-100',
         badgeText: 'text-emerald-800',
         icon: CheckCircle2,
-        label: 'ปกติ',
+        labelKey: 'calNormal',
       }
     case 'Late':
       return {
@@ -82,7 +89,7 @@ function getDayCfg(day: EmployeeCalendarDayDto): DayCfg {
         badgeBg: 'bg-amber-100',
         badgeText: 'text-amber-800',
         icon: Clock,
-        label: 'สาย',
+        labelKey: 'calLate',
       }
     case 'HalfDay':
       return {
@@ -92,7 +99,7 @@ function getDayCfg(day: EmployeeCalendarDayDto): DayCfg {
         badgeBg: 'bg-sky-100',
         badgeText: 'text-sky-800',
         icon: AlertCircle,
-        label: 'ครึ่งวัน',
+        labelKey: 'calHalfDay',
       }
     case 'Absent':
       return {
@@ -102,7 +109,7 @@ function getDayCfg(day: EmployeeCalendarDayDto): DayCfg {
         badgeBg: 'bg-red-100',
         badgeText: 'text-red-800',
         icon: XCircle,
-        label: 'ขาด',
+        labelKey: 'calAbsent',
       }
     default:
       return {
@@ -113,31 +120,31 @@ function getDayCfg(day: EmployeeCalendarDayDto): DayCfg {
         badgeText: '',
         icon: null,
         label: '—',
+        labelKey: undefined,
       }
   }
 }
 
 function fmtTime(dt: string | null) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleTimeString('th-TH', {
+  return fmt.formatTime(new Date(dt), {
     hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok',
   })
 }
 
-function fmtDuration(min: number | null) {
+type TranslateFn = (key: string, values?: Record<string, string | number>) => string
+
+function fmtDuration(min: number | null, t: TranslateFn) {
   if (min == null || min <= 0) return '—'
   const h = Math.floor(min / 60)
   const m = min % 60
-  return h > 0 ? `${h}ชม.${m > 0 ? ` ${m}น.` : ''}` : `${m}น.`
+  if (h > 0) return m > 0 ? t('durationHourMinute', { hours: h, minutes: m }) : t('durationHour', { hours: h })
+  return t('durationMinute', { minutes: m })
 }
 
 function fmtDateShort(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', weekday: 'short' })
-}
-
-const STATUS_LABELS: Record<AttendanceStatus, string> = {
-  Present: 'มาทำงาน', Late: 'มาสาย', Absent: 'ขาดงาน', HalfDay: 'ครึ่งวัน',
+  return fmt.formatDate(d, { day: 'numeric', month: 'short', weekday: 'short' })
 }
 
 // ── stat card ─────────────────────────────────────────────────────────────────
@@ -173,6 +180,8 @@ function CalendarGrid({ days, year, month }: {
   year: number
   month: number
 }) {
+  const t = useTranslations('admin.employees.attendance')
+  const tStatus = useTranslations('status.attendance')
   const firstDate = new Date(year, month - 1, 1)
   const startDow  = firstDate.getDay()
   const blanks    = Array.from({ length: startDow })
@@ -211,10 +220,14 @@ function CalendarGrid({ days, year, month }: {
               key={day.date}
               title={
                 day.isHoliday
-                  ? (day.holidayName ?? 'วันหยุดนักขัตฤกษ์')
+                  ? (day.holidayName ?? t('publicHoliday'))
                   : day.isWorkingDay
-                  ? (day.status ? STATUS_LABELS[day.status] : day.isOnLeave ? `ลา${day.leaveTypeName ? ` (${day.leaveTypeName})` : ''}` : 'ไม่มีข้อมูล')
-                  : 'วันหยุดประจำสัปดาห์'
+                  ? (day.status
+                      ? tStatus(day.status)
+                      : day.isOnLeave
+                        ? (day.leaveTypeName ? t('onLeaveWithType', { type: day.leaveTypeName }) : t('onLeave'))
+                        : t('noData'))
+                  : t('weekend')
               }
               className={`min-h-18 flex flex-col p-1.5 gap-1 transition-colors ${cfg.cellBg} ${isToday ? 'ring-2 ring-inset ring-blue-400' : ''}`}
             >
@@ -233,7 +246,7 @@ function CalendarGrid({ days, year, month }: {
                 <div className={`flex-1 flex flex-col items-center justify-center gap-0.5 rounded-md py-0.5 ${cfg.badgeBg}`}>
                   {Icon && <Icon className={`h-3.5 w-3.5 ${cfg.badgeText}`} />}
                   <span className={`text-[9px] font-semibold leading-none text-center px-0.5 truncate max-w-full ${cfg.badgeText}`}>
-                    {cfg.label}
+                    {cfg.label ?? (cfg.labelKey ? t(cfg.labelKey) : '')}
                   </span>
                 </div>
                )
@@ -246,12 +259,12 @@ function CalendarGrid({ days, year, month }: {
       {/* Legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1.5 px-4 py-3 border-t border-border bg-slate-50/60 text-xs text-slate-600">
         {([
-          { Icon: CheckCircle2, label: 'มาทำงาน',          cls: 'text-emerald-700' },
-          { Icon: Clock,        label: 'มาสาย',             cls: 'text-amber-700'   },
-          { Icon: AlertCircle,  label: 'ครึ่งวัน',          cls: 'text-sky-700'     },
-          { Icon: XCircle,      label: 'ขาดงาน',            cls: 'text-red-700'     },
-          { Icon: Palmtree,     label: 'ลา',                cls: 'text-violet-700'  },
-          { Icon: Gift,         label: 'วันหยุดนักขัตฤกษ์', cls: 'text-rose-700'    },
+          { Icon: CheckCircle2, label: tStatus('Present'), cls: 'text-emerald-700' },
+          { Icon: Clock,        label: tStatus('Late'),    cls: 'text-amber-700'   },
+          { Icon: AlertCircle,  label: tStatus('HalfDay'), cls: 'text-sky-700'     },
+          { Icon: XCircle,      label: tStatus('Absent'),  cls: 'text-red-700'     },
+          { Icon: Palmtree,     label: t('onLeave'),       cls: 'text-violet-700'  },
+          { Icon: Gift,         label: t('publicHoliday'), cls: 'text-rose-700'    },
         ] as const).map(({ Icon, label, cls }) => (
           <span key={label} className="flex items-center gap-1">
             <Icon className={`h-3 w-3 ${cls}`} />
@@ -260,7 +273,7 @@ function CalendarGrid({ days, year, month }: {
         ))}
         <span className="flex items-center gap-1 text-slate-400">
           <Minus className="h-3 w-3" />
-          <span>ไม่มีข้อมูล</span>
+          <span>{t('noData')}</span>
         </span>
       </div>
     </div>
@@ -270,23 +283,25 @@ function CalendarGrid({ days, year, month }: {
 // ── daily records table ───────────────────────────────────────────────────────
 
 function RecordsTable({ days }: { days: EmployeeCalendarDayDto[] }) {
+  const t = useTranslations('admin.employees.attendance')
+  const tStatus = useTranslations('status.attendance')
   const workDays = days.filter((d) => d.isWorkingDay)
 
   if (workDays.length === 0)
-    return <p className="py-8 text-center text-sm text-muted-foreground">ไม่มีข้อมูล</p>
+    return <p className="py-8 text-center text-sm text-muted-foreground">{t('noData')}</p>
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border text-xs text-muted-foreground">
-            <th className="py-2.5 pr-4 text-left font-medium">วันที่</th>
-            <th className="py-2.5 pr-4 text-left font-medium">เข้างาน</th>
-            <th className="py-2.5 pr-4 text-left font-medium">ออกงาน</th>
-            <th className="py-2.5 pr-4 text-left font-medium">ชม.ทำงาน</th>
-            <th className="py-2.5 pr-4 text-left font-medium">สถานะ</th>
-            <th className="py-2.5 pr-4 text-left font-medium">มาสาย</th>
-            <th className="py-2.5 text-left font-medium">หมายเหตุ</th>
+            <th className="py-2.5 pr-4 text-left font-medium">{t('colDate')}</th>
+            <th className="py-2.5 pr-4 text-left font-medium">{t('colCheckIn')}</th>
+            <th className="py-2.5 pr-4 text-left font-medium">{t('colCheckOut')}</th>
+            <th className="py-2.5 pr-4 text-left font-medium">{t('colWorkHours')}</th>
+            <th className="py-2.5 pr-4 text-left font-medium">{t('colStatus')}</th>
+            <th className="py-2.5 pr-4 text-left font-medium">{t('colLate')}</th>
+            <th className="py-2.5 text-left font-medium">{t('colRemark')}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
@@ -294,16 +309,16 @@ function RecordsTable({ days }: { days: EmployeeCalendarDayDto[] }) {
             const cfg = getDayCfg(day)
             const Icon = cfg.icon
             const statusLabel = day.status
-              ? STATUS_LABELS[day.status]
+              ? tStatus(day.status)
               : day.isOnLeave
-              ? `ลา${day.leaveTypeName ? ` (${day.leaveTypeName})` : ''}`
-              : 'ไม่มีข้อมูล'
+              ? (day.leaveTypeName ? t('onLeaveWithType', { type: day.leaveTypeName }) : t('onLeave'))
+              : t('noData')
             return (
               <tr key={day.date} className="hover:bg-slate-50 transition-colors">
                 <td className="py-2.5 pr-4 text-slate-500 text-xs">{fmtDateShort(day.date)}</td>
                 <td className="py-2.5 pr-4 font-mono text-slate-700">{fmtTime(day.checkInTime)}</td>
                 <td className="py-2.5 pr-4 font-mono text-slate-700">{fmtTime(day.checkOutTime)}</td>
-                <td className="py-2.5 pr-4 text-slate-600">{fmtDuration(day.workDurationMinutes)}</td>
+                <td className="py-2.5 pr-4 text-slate-600">{fmtDuration(day.workDurationMinutes, t)}</td>
                 <td className="py-2.5 pr-4">
                   <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold border ${cfg.badgeBg} ${cfg.badgeText} border-transparent`}>
                     {Icon && <Icon className="h-3 w-3 shrink-0" />}
@@ -311,7 +326,7 @@ function RecordsTable({ days }: { days: EmployeeCalendarDayDto[] }) {
                   </span>
                 </td>
                 <td className="py-2.5 pr-4 text-slate-500">
-                  {day.lateMinutes > 0 ? <span className="text-amber-700 font-medium">{day.lateMinutes} น.</span> : '—'}
+                  {day.lateMinutes > 0 ? <span className="text-amber-700 font-medium">{t('lateMinutes', { minutes: day.lateMinutes })}</span> : '—'}
                 </td>
                 <td className="py-2.5 text-slate-500 text-xs">{day.remark ?? '—'}</td>
               </tr>
@@ -330,6 +345,7 @@ export default function EmployeeAttendancePage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const t = useTranslations('admin.employees.attendance')
   const { id } = use(params)
   const today  = new Date()
   const [year,  setYear]  = useState(today.getFullYear())
@@ -363,7 +379,7 @@ export default function EmployeeAttendancePage({
         <div>
           <div className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-muted-foreground" />
-            <h1 className="text-xl font-semibold">ประวัติการเข้างาน</h1>
+            <h1 className="text-xl font-semibold">{t('title')}</h1>
           </div>
           {emp && (
             <p className="text-sm text-muted-foreground mt-0.5">
@@ -380,7 +396,7 @@ export default function EmployeeAttendancePage({
           <ChevronLeft className="h-4 w-4" />
         </Button>
         <h2 className="text-base font-semibold">
-          {THAI_MONTHS[month - 1]} {thaiYear}
+          {t('monthYear', { month: MONTH_NAMES[month - 1], year: thaiYear })}
         </h2>
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={nextMonth}>
           <ChevronRight className="h-4 w-4" />
@@ -389,7 +405,7 @@ export default function EmployeeAttendancePage({
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20 text-sm text-muted-foreground">
-          กำลังโหลด...
+          {t('loading')}
         </div>
       ) : (
         <>
@@ -397,14 +413,14 @@ export default function EmployeeAttendancePage({
           {stats && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               <StatCard
-                label="วันทำงาน"
+                label={t('statWorkingDays')}
                 value={stats.workingDays}
                 icon={CalendarDays}
                 iconCls="text-slate-600"
                 cardCls="border-border bg-background text-foreground"
               />
               <StatCard
-                label="มาตรงเวลา"
+                label={t('statOnTime')}
                 value={stats.presentDays}
                 sub={stats.workingDays > 0 ? `${Math.round(stats.presentDays / stats.workingDays * 100)}%` : ''}
                 icon={UserCheck}
@@ -412,31 +428,31 @@ export default function EmployeeAttendancePage({
                 cardCls="border-emerald-200 bg-emerald-50 text-emerald-900"
               />
               <StatCard
-                label="มาสาย"
+                label={t('statLate')}
                 value={stats.lateDays}
-                sub={stats.lateDays > 0 ? `รวม ${stats.totalLateMinutes} น.` : undefined}
+                sub={stats.lateDays > 0 ? t('statLateTotal', { minutes: stats.totalLateMinutes }) : undefined}
                 icon={Timer}
                 iconCls="text-amber-700"
                 cardCls="border-amber-200 bg-amber-50 text-amber-900"
               />
               <StatCard
-                label="ลา"
+                label={t('statLeave')}
                 value={stats.leaveDays}
                 icon={Palmtree}
                 iconCls="text-violet-700"
                 cardCls="border-violet-200 bg-violet-50 text-violet-900"
               />
               <StatCard
-                label="ขาดงาน"
+                label={t('statAbsent')}
                 value={stats.absentDays}
                 icon={CalendarX}
                 iconCls="text-red-700"
                 cardCls="border-red-200 bg-red-50 text-red-900"
               />
               <StatCard
-                label="อัตราการมา"
+                label={t('statRate')}
                 value={`${stats.attendanceRate}%`}
-                sub={stats.avgWorkDurationMinutes ? `เฉลี่ย ${fmtDuration(stats.avgWorkDurationMinutes)}/วัน` : undefined}
+                sub={stats.avgWorkDurationMinutes ? t('statAverage', { duration: fmtDuration(stats.avgWorkDurationMinutes, t) }) : undefined}
                 icon={TrendingUp}
                 iconCls="text-blue-700"
                 cardCls="border-blue-200 bg-blue-50 text-blue-900"
@@ -451,7 +467,7 @@ export default function EmployeeAttendancePage({
 
           {/* Daily records table */}
           <div className="rounded-xl border border-border bg-background p-4">
-            <h3 className="text-sm font-semibold mb-4">รายละเอียดรายวัน</h3>
+            <h3 className="text-sm font-semibold mb-4">{t('dailyDetail')}</h3>
             <RecordsTable days={calendar} />
           </div>
         </>

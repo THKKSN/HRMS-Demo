@@ -8,6 +8,7 @@ import { useMyLeaves, useLeaveBalance, useCancelLeave } from "@/hooks/use-leaves
 import { useAuthStore } from "@/stores/auth.store";
 import { toast } from "sonner";
 import type { LeaveStatus, LeaveRequestListItemDto } from "@hrms/shared-types";
+import * as fmt from "@hrms/i18n/format";
 
 const STATUS_TABS: { label: string; value: LeaveStatus | undefined }[] = [
   { label: "ทั้งหมด", value: undefined },
@@ -72,7 +73,7 @@ function CancelInline({ item }: { item: LeaveRequestListItemDto }) {
 }
 
 function formatDateTH(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("th-TH", {
+  return fmt.formatDate(new Date(dateStr), {
     day: "numeric",
     month: "short",
     year: "2-digit",

@@ -15,6 +15,7 @@ public class HandleLineWebhookHandler(
     ILineMessagingService line,
     IDistributedCache cache,
     ISender sender,
+    ILineMessageTextFactory messageText,
     ILogger<HandleLineWebhookHandler> logger)
     : IRequestHandler<HandleLineWebhookCommand, Unit>
 {
@@ -101,38 +102,36 @@ public class HandleLineWebhookHandler(
                     await sender.Send(new HandleLineCheckOutCommand(lineUserId, replyToken, lat.Value, lng.Value), ct);
                     break;
                 default:
-                    await line.ReplyAsync(replyToken, "กรุณากด 'ลงเวลา' ก่อนแชร์ตำแหน่ง", ct);
+                    var text = await messageText.ForLineUserAsync(lineUserId, ct);
+                    await line.ReplyAsync(replyToken, text.Of("webhook.shareLocationWithoutPrompt"), ct);
                     break;
             }
             return;
         }
 
-        var text = evt.Message?.Text?.Trim();
-        if (string.IsNullOrEmpty(text)) return;
+        var command = evt.Message?.Text?.Trim();
+        if (string.IsNullOrEmpty(command)) return;
 
-        switch (text)
+        // คำที่เทียบตรงนี้เป็น "คำสั่ง" ที่ปุ่มส่งมา ไม่ใช่ข้อความที่ต้องแปล — ดู WebhookKeywords
+        if (WebhookKeywords.Menu.Contains(command, StringComparer.Ordinal))
         {
-            case "ระบบบริหารงานบุคคล":
-            case "ระบบ HR":
-            case "HRMS":
-            case "TBG Assistant":
-            case "เมนู":
-            case "เมนูหลัก":
-            case "สร้างบิล":
-                await line.ReplyHrMenuAsync(replyToken, ct);
-                break;
+            await line.ReplyHrMenuAsync(replyToken, await messageText.ForLineUserAsync(lineUserId, ct), ct);
+            return;
+        }
 
-            case "ลงเวลา":
+        switch (command)
+        {
+            case WebhookKeywords.Attendance:
                 await sender.Send(new HandleLineAttendancePromptCommand(lineUserId, replyToken), ct);
                 break;
 
-            case "ตรวจสอบสิทธิ์":
+            case WebhookKeywords.CheckQuota:
                 logger.LogInformation("[Webhook] dispatching HandleCheckQuotaCommand userId={UserId}", lineUserId);
                 await sender.Send(new HandleCheckQuotaCommand(lineUserId, replyToken), ct);
                 break;
 
             default:
-                logger.LogInformation("[Webhook] no handler for message text={Text}", text);
+                logger.LogInformation("[Webhook] no handler for message text={Text}", command);
                 break;
         }
     }

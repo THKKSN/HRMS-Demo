@@ -14,7 +14,9 @@ public record CreateDepartmentCommand(
     Guid CompanyId,
     string Name,
     string? DeptType,
-    Guid? ManagerEmployeeId) : IRequest<DepartmentDto>;
+    Guid? ManagerEmployeeId,
+    string? NameEn = null,
+    string? NameId = null) : IRequest<DepartmentDto>;
 
 public class CreateDepartmentValidator : AbstractValidator<CreateDepartmentCommand>
 {
@@ -22,6 +24,8 @@ public class CreateDepartmentValidator : AbstractValidator<CreateDepartmentComma
     {
         RuleFor(x => x.CompanyId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.NameEn).MaximumLength(200).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(200).When(x => x.NameId is not null);
         RuleFor(x => x.DeptType).MaximumLength(50).When(x => x.DeptType is not null);
     }
 }
@@ -34,23 +38,25 @@ public class CreateDepartmentHandler(IApplicationDbContext db, ICurrentUser curr
         await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-departments", ct);
 
         if (!currentUser.CanManageCompany(request.CompanyId))
-            throw new AppForbiddenException("ไม่มีสิทธิ์จัดการแผนกใน company นี้");
+            throw new AppForbiddenException("DEPARTMENT_MANAGE_FORBIDDEN", "You are not allowed to manage departments in this company.");
 
         if (await db.Departments.AnyAsync(d => d.CompanyId == request.CompanyId && d.Name == request.Name, ct))
-            throw new ConflictException("DUPLICATE_DEPARTMENT", $"ชื่อแผนก '{request.Name}' มีอยู่แล้วใน company นี้");
+            throw new ConflictException("DUPLICATE_DEPARTMENT", $"Department '{request.Name}' already exists in this company.");
 
         Employee? manager = null;
         if (request.ManagerEmployeeId.HasValue)
         {
             manager = await db.Employees.FirstOrDefaultAsync(
                 e => e.Id == request.ManagerEmployeeId.Value && e.CompanyId == request.CompanyId && e.IsActive, ct)
-                ?? throw new KeyNotFoundException("ไม่พบข้อมูลหัวหน้าแผนก หรือไม่ได้อยู่ใน company เดียวกัน");
+                ?? throw new NotFoundException("Employee", request.ManagerEmployeeId!, "DEPARTMENT_MANAGER_INVALID");
         }
 
         var dept = new Department
         {
             CompanyId         = request.CompanyId,
             Name              = request.Name,
+            NameEn            = Common.Helpers.NameText.Normalize(request.NameEn),
+            NameId            = Common.Helpers.NameText.Normalize(request.NameId),
             DeptType          = request.DeptType,
             ManagerEmployeeId = request.ManagerEmployeeId,
             IsActive          = true,
@@ -80,6 +86,8 @@ public class CreateDepartmentHandler(IApplicationDbContext db, ICurrentUser curr
             manager is null ? null : $"{manager.FirstName} {manager.LastName}".Trim(),
             null,
             null,
-            dept.IsActive);
+            dept.IsActive,
+            NameEn: dept.NameEn,
+            NameId: dept.NameId);
     }
 }

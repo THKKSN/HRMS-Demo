@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -24,14 +25,17 @@ import { useCompanies } from '@/hooks/use-companies'
 import { useAuthStore } from '@/stores/auth.store'
 import type { HolidayDto } from '@/types/admin'
 import type { CompanyTreeDto } from '@hrms/shared-types'
+import { localizedName, type Locale } from '@hrms/i18n'
+import * as fmt from '@hrms/i18n/format'
+import { useApiError } from '@/hooks/use-api-error'
 
 function flattenCompanies(nodes: CompanyTreeDto[]): CompanyTreeDto[] {
   return nodes.flatMap((n) => [n, ...flattenCompanies(n.children)])
 }
 
-function thaiDate(dateStr: string) {
+function holidayDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+  return fmt.formatDate(d, { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function FieldError({ message }: { message?: string }) {
@@ -48,30 +52,35 @@ const YEAR_OPTIONS = [
   CURRENT_YEAR + 2,
 ]
 
-// ── Create schema ─────────────────────────────────────────────────────────────
+// ── Schemas ───────────────────────────────────────────────────────────────────
+// ข้อความ validation มาจาก useTranslations จึงสร้าง schema ใน component
 
-const createSchema = z
-  .object({
-    scope: z.enum(['national', 'company']),
-    companyId: z.string().optional(),
-    name: z.string().min(1, 'กรุณาระบุชื่อวันหยุด').max(200),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ไม่ถูกต้อง'),
+type HolidayTexts = (key: string) => string
+
+function buildCreateSchema(t: HolidayTexts) {
+  return z
+    .object({
+      scope: z.enum(['national', 'company']),
+      companyId: z.string().optional(),
+      name: z.string().min(1, t('validation.name')).max(200),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, t('validation.dateFormat')),
+    })
+    .refine((d) => d.scope === 'national' || !!d.companyId, {
+      message: t('validation.company'),
+      path: ['companyId'],
+    })
+}
+
+type CreateValues = z.infer<ReturnType<typeof buildCreateSchema>>
+
+function buildEditSchema(t: HolidayTexts) {
+  return z.object({
+    name: z.string().min(1, t('validation.name')).max(200),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, t('validation.dateFormat')),
   })
-  .refine((d) => d.scope === 'national' || !!d.companyId, {
-    message: 'กรุณาเลือกบริษัท',
-    path: ['companyId'],
-  })
+}
 
-type CreateValues = z.infer<typeof createSchema>
-
-// ── Edit schema ───────────────────────────────────────────────────────────────
-
-const editSchema = z.object({
-  name: z.string().min(1, 'กรุณาระบุชื่อวันหยุด').max(200),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'รูปแบบวันที่ไม่ถูกต้อง'),
-})
-
-type EditValues = z.infer<typeof editSchema>
+type EditValues = z.infer<ReturnType<typeof buildEditSchema>>
 
 // ── Create Modal ──────────────────────────────────────────────────────────────
 
@@ -88,7 +97,13 @@ function CreateModal({
   canSeeAll: boolean
   companies: CompanyTreeDto[]
 }) {
+  const t = useTranslations('admin.settings.holidays')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const locale = useLocale() as Locale
   const create = useCreateHoliday()
+  const schema = useMemo(() => buildCreateSchema(t), [t])
   const {
     register,
     handleSubmit,
@@ -97,7 +112,7 @@ function CreateModal({
     reset,
     formState: { errors, isSubmitting },
   } = useForm<CreateValues>({
-    resolver: zodResolver(createSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       scope: canSeeAll ? 'national' : 'company',
       companyId: '',
@@ -115,32 +130,32 @@ function CreateModal({
         name: values.name,
         date: values.date,
       })
-      toast.success(`เพิ่มวันหยุด "${values.name}" สำเร็จ`)
+      toast.success(t('created', { name: values.name }))
       reset()
       onClose()
     } catch (err: unknown) {
       const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
       if (apiErr?.error === 'DUPLICATE_HOLIDAY')
-        toast.error('มีวันหยุดวันนี้ใน scope นี้อยู่แล้ว')
-      else toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+        toast.error(t('duplicate'))
+      else toast.error(apiError(err, tCommon('state.error')))
       void setError
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="เพิ่มวันหยุดใหม่">
+    <Modal open={open} onClose={onClose} title={t('addTitle')}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {canSeeAll && (
           <div className="space-y-1.5">
-            <Label>ประเภทวันหยุด</Label>
+            <Label>{t('scopeLabel')}</Label>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input type="radio" value="national" {...register('scope')} />
-                ทั้งระบบ (วันหยุดนักขัตฤกษ์)
+                {t('scopeNationalOption')}
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input type="radio" value="company" {...register('scope')} />
-                เฉพาะบริษัท
+                {t('scopeCompanyOption')}
               </label>
             </div>
           </div>
@@ -148,16 +163,16 @@ function CreateModal({
 
         {scope === 'company' && (
           <div className="space-y-1.5">
-            <Label htmlFor="c-company">บริษัท *</Label>
+            <Label htmlFor="c-company">{tOrg('company')} *</Label>
             <select
               id="c-company"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               {...register('companyId')}
             >
-              <option value="">— เลือกบริษัท —</option>
+              <option value="">{tOrg('selectCompany')}</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {localizedName(c, locale)}
                 </option>
               ))}
             </select>
@@ -166,23 +181,23 @@ function CreateModal({
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="c-name">ชื่อวันหยุด *</Label>
-          <Input id="c-name" placeholder="เช่น วันปีใหม่" {...register('name')} />
+          <Label htmlFor="c-name">{t('name')} *</Label>
+          <Input id="c-name" placeholder={t('namePlaceholder')} {...register('name')} />
           <FieldError message={errors.name?.message} />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="c-date">วันที่ *</Label>
+          <Label htmlFor="c-date">{t('date')} *</Label>
           <DateInput id="c-date" {...register('date')} />
           <FieldError message={errors.date?.message} />
         </div>
 
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose}>
-            ยกเลิก
+            {tCommon('action.cancel')}
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            บันทึก
+            {tCommon('action.save')}
           </Button>
         </div>
       </form>
@@ -193,14 +208,19 @@ function CreateModal({
 // ── Edit Modal ────────────────────────────────────────────────────────────────
 
 function EditModal({ item, onClose }: { item: HolidayDto; onClose: () => void }) {
+  const t = useTranslations('admin.settings.holidays')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
   const update = useUpdateHoliday()
   const toggle = useToggleHolidayStatus()
+  const schema = useMemo(() => buildEditSchema(t), [t])
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<EditValues>({
-    resolver: zodResolver(editSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       name: item.name,
       date: item.date,
@@ -215,57 +235,55 @@ function EditModal({ item, onClose }: { item: HolidayDto; onClose: () => void })
         date: values.date,
         isActive: item.isActive,
       })
-      toast.success(`บันทึก "${values.name}" สำเร็จ`)
+      toast.success(t('saved', { name: values.name }))
       onClose()
     } catch (err: unknown) {
       const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
       if (apiErr?.error === 'DUPLICATE_HOLIDAY')
-        toast.error('มีวันหยุดวันนี้ใน scope นี้อยู่แล้ว')
-      else toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+        toast.error(t('duplicate'))
+      else toast.error(apiError(err, tCommon('state.error')))
     }
   }
 
   async function handleToggle() {
     try {
       await toggle.mutateAsync({ id: item.id, isActive: !item.isActive })
-      toast.success(`${item.isActive ? 'ปิด' : 'เปิด'}ใช้งาน "${item.name}" สำเร็จ`)
+      toast.success(item.isActive
+        ? t('deactivated', { name: item.name })
+        : t('activated', { name: item.name }))
       onClose()
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      toast.error(tCommon('state.error'))
     }
   }
 
   return (
-    <Modal open onClose={onClose} title={`แก้ไขวันหยุด: ${item.name}`}>
+    <Modal open onClose={onClose} title={t('editTitle', { name: item.name })}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">
-          <Label>ขอบเขต</Label>
+          <Label>{t('scope')}</Label>
           <div className="text-sm text-muted-foreground">
             {item.companyId === null ? (
               <span className="inline-flex items-center gap-1.5">
                 <Badge variant="outline" className="text-blue-600 border-blue-300">
-                  ทั้งระบบ
+                  {t('scopeNational')}
                 </Badge>
-                วันหยุดนักขัตฤกษ์ (ไม่สามารถเปลี่ยนได้)
+                {t('scopeNationalLocked')}
               </span>
             ) : (
-              <span>
-                เฉพาะบริษัท:{' '}
-                <span className="font-medium text-foreground">{item.companyName}</span>{' '}
-                (ไม่สามารถเปลี่ยนได้)
-              </span>
+              <span>{t('scopeCompanyLocked', { company: item.companyName ?? '' })}</span>
             )}
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="e-name">ชื่อวันหยุด *</Label>
+          <Label htmlFor="e-name">{t('name')} *</Label>
           <Input id="e-name" {...register('name')} />
           <FieldError message={errors.name?.message} />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="e-date">วันที่ *</Label>
+          <Label htmlFor="e-date">{t('date')} *</Label>
           <DateInput id="e-date" {...register('date')} />
           <FieldError message={errors.date?.message} />
         </div>
@@ -277,14 +295,14 @@ function EditModal({ item, onClose }: { item: HolidayDto; onClose: () => void })
             onClick={handleToggle}
             loading={toggle.isPending}
           >
-            {item.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+            {item.isActive ? tOrg('deactivate') : tOrg('activate')}
           </Button>
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
-              ยกเลิก
+              {tCommon('action.cancel')}
             </Button>
             <Button type="submit" loading={isSubmitting} disabled={!isDirty}>
-              บันทึก
+              {tCommon('action.save')}
             </Button>
           </div>
         </div>
@@ -295,11 +313,6 @@ function EditModal({ item, onClose }: { item: HolidayDto; onClose: () => void })
 
 // ── Generate From Schedule Wizard ─────────────────────────────────────────────
 
-const DAY_NAMES: Record<number, string> = {
-  0: 'อาทิตย์', 1: 'จันทร์', 2: 'อังคาร', 3: 'พุธ',
-  4: 'พฤหัสบดี', 5: 'ศุกร์', 6: 'เสาร์',
-}
-
 function GenerateFromScheduleModal({
   open,
   onClose,
@@ -309,6 +322,8 @@ function GenerateFromScheduleModal({
   onClose: () => void
   defaultYear: number
 }) {
+  const t = useTranslations('admin.settings.holidays')
+  const tCommon = useTranslations('common')
   const [step, setStep] = useState<1 | 2>(1)
   const [scheduleId, setScheduleId] = useState('')
   const [year, setYear] = useState(defaultYear)
@@ -324,7 +339,7 @@ function GenerateFromScheduleModal({
   const bulkCreate = useBulkCreateHolidays()
 
   function handlePreview() {
-    if (!scheduleId) { toast.error('กรุณาเลือกกฎวันหยุด'); return }
+    if (!scheduleId) { toast.error(t('selectRuleFirst')); return }
     setPreviewEnabled(true)
     setStep(2)
   }
@@ -333,10 +348,10 @@ function GenerateFromScheduleModal({
     if (!previewItems?.length) return
     try {
       const result = await bulkCreate.mutateAsync(previewItems)
-      toast.success(`สร้างสำเร็จ ${result.created} รายการ (ข้ามซ้ำ ${result.skipped} รายการ)`)
+      toast.success(t('bulkCreated', { created: result.created, skipped: result.skipped }))
       handleClose()
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      toast.error(tCommon('state.error'))
     }
   }
 
@@ -350,33 +365,35 @@ function GenerateFromScheduleModal({
   const selectedSchedule = activeSchedules.find((s) => s.id === scheduleId)
 
   return (
-    <Modal open={open} onClose={handleClose} title="สร้างวันหยุดจากกฎ">
+    <Modal open={open} onClose={handleClose} title={t('generateTitle')}>
       {step === 1 && (
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="g-schedule">กฎวันหยุด *</Label>
+            <Label htmlFor="g-schedule">{t('generateRule')} *</Label>
             <select
               id="g-schedule"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               value={scheduleId}
               onChange={(e) => { setScheduleId(e.target.value); setPreviewEnabled(false) }}
             >
-              <option value="">— เลือกกฎ —</option>
+              <option value="">{t('selectRule')}</option>
               {activeSchedules.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.name} ({DAY_NAMES[s.dayOfWeek]}{s.companyName ? ` · ${s.companyName}` : ''})
+                  {s.companyName
+                    ? t('ruleOptionWithCompany', {
+                        name: s.name, day: fmt.formatWeekday(s.dayOfWeek), company: s.companyName,
+                      })
+                    : t('ruleOption', { name: s.name, day: fmt.formatWeekday(s.dayOfWeek) })}
                 </option>
               ))}
             </select>
             {activeSchedules.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                ยังไม่มีกฎที่ใช้งานอยู่ — สร้างกฎได้ที่หน้า &quot;กฎวันหยุด&quot;
-              </p>
+              <p className="text-xs text-muted-foreground">{t('noActiveRule')}</p>
             )}
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="g-year">ปี</Label>
+            <Label htmlFor="g-year">{t('year')}</Label>
             <select
               id="g-year"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -384,15 +401,15 @@ function GenerateFromScheduleModal({
               onChange={(e) => { setYear(Number(e.target.value)); setPreviewEnabled(false) }}
             >
               {YEAR_OPTIONS.map((y) => (
-                <option key={y} value={y}>{y + 543}</option>
+                <option key={y} value={y}>{fmt.formatYear(y)}</option>
               ))}
             </select>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={handleClose}>ยกเลิก</Button>
+            <Button type="button" variant="outline" onClick={handleClose}>{tCommon('action.cancel')}</Button>
             <Button type="button" onClick={handlePreview} disabled={!scheduleId}>
-              ดูรายการ →
+              {t('preview')}
             </Button>
           </div>
         </div>
@@ -401,33 +418,32 @@ function GenerateFromScheduleModal({
       {step === 2 && (
         <div className="space-y-4">
           <div className="rounded-md bg-whited/50 px-3 py-2 text-sm">
-            กฎ: <span className="font-medium">{selectedSchedule?.name}</span>
-            {' · '}ปี {year + 543}
+            {t('previewHeader', { name: selectedSchedule?.name ?? '', year: fmt.formatYear(year) })}
           </div>
 
           {isPreviewing && (
             <div className="py-6 text-center text-sm text-muted-foreground animate-pulse">
-              กำลังคำนวณรายการ...
+              {t('calculating')}
             </div>
           )}
 
           {!isPreviewing && previewItems && (
             <>
               <p className="text-sm text-muted-foreground">
-                พบ <span className="font-semibold text-foreground">{previewItems.length}</span> วันหยุด
+                {t('previewCount', { count: previewItems.length })}
               </p>
               <div className="max-h-56 overflow-y-auto rounded-md border border-border">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-whited/80">
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">วันที่</th>
-                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">ชื่อวันหยุด</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">{t('colDate')}</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">{t('colName')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {previewItems.map((item) => (
                       <tr key={item.date} className="border-t border-border">
-                        <td className="px-3 py-1.5 text-muted-foreground">{thaiDate(item.date)}</td>
+                        <td className="px-3 py-1.5 text-muted-foreground">{holidayDate(item.date)}</td>
                         <td className="px-3 py-1.5">{item.name}</td>
                       </tr>
                     ))}
@@ -445,7 +461,7 @@ function GenerateFromScheduleModal({
               onClick={() => { setStep(1); setPreviewEnabled(false) }}
             >
               <ChevronLeft className="h-4 w-4" />
-              ย้อนกลับ
+              {tCommon('action.back')}
             </Button>
             <Button
               type="button"
@@ -453,7 +469,7 @@ function GenerateFromScheduleModal({
               loading={bulkCreate.isPending}
               disabled={!previewItems?.length}
             >
-              ยืนยันสร้าง {previewItems?.length ?? 0} รายการ
+              {t('confirmCreate', { count: previewItems?.length ?? 0 })}
             </Button>
           </div>
         </div>
@@ -465,6 +481,10 @@ function GenerateFromScheduleModal({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HolidaysPage() {
+  const t = useTranslations('admin.settings.holidays')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const locale = useLocale() as Locale
   const employee = useAuthStore((s) => s.employee)
   const isAdmin = employee?.roles.some((r) => r.role === 'Admin') ?? false
   const isHr = employee?.roles.some((r) => r.role === 'Hr') ?? false
@@ -528,15 +548,15 @@ export default function HolidaysPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">วันหยุดประจำปี</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t('title')}</h1>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => setGenerateOpen(true)}>
             <Wand2 className="h-4 w-4" />
-            สร้างจากกฎ
+            {t('generate')}
           </Button>
           <Button size="sm" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" />
-            เพิ่มวันหยุด
+            {t('add')}
           </Button>
         </div>
       </div>
@@ -550,7 +570,7 @@ export default function HolidaysPage() {
         >
           {YEAR_OPTIONS.map((y) => (
             <option key={y} value={y}>
-              {y + 543}
+              {fmt.formatYear(y)}
             </option>
           ))}
         </select>
@@ -561,10 +581,10 @@ export default function HolidaysPage() {
             value={companyId ?? ''}
             onChange={(e) => setCompanyId(e.target.value || undefined)}
           >
-            <option value="">ทุกบริษัท</option>
+            <option value="">{tOrg('allCompanies')}</option>
             {allCompanies.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
+                {localizedName(c, locale)}
               </option>
             ))}
           </select>
@@ -577,12 +597,12 @@ export default function HolidaysPage() {
             onChange={(e) => setIncludeInactive(e.target.checked)}
             className="rounded border-border"
           />
-          รวมที่ปิดใช้งาน
+          {t('includeInactive')}
         </label>
 
         <Input
           type="text"
-          placeholder="ค้นหาชื่อวันหยุด..."
+          placeholder={t('searchName')}
           value={searchName}
           onChange={(e) => setSearchName(e.target.value)}
           className="w-48"
@@ -600,10 +620,10 @@ export default function HolidaysPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-whited/50">
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อวันหยุด</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">วันที่</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">บริษัท</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">สถานะ</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colName')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colDate')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colCompany')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{tOrg('colStatus')}</th>
               <th className="px-4 py-3 w-12" />
             </tr>
           </thead>
@@ -622,9 +642,7 @@ export default function HolidaysPage() {
             {!isLoading && filteredHolidays.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
-                  {holidays?.length === 0
-                    ? 'ยังไม่มีวันหยุดในปีนี้ — กด "+ เพิ่มวันหยุด" เพื่อเริ่มต้น'
-                    : 'ไม่พบวันหยุดที่ตรงกับเงื่อนไขการค้นหา'}
+                  {holidays?.length === 0 ? t('empty') : t('noSearchResult')}
                 </td>
               </tr>
             )}
@@ -636,11 +654,11 @@ export default function HolidaysPage() {
                   className="border-b border-border last:border-0 hover:bg-whited/30 transition-colors"
                 >
                   <td className="px-4 py-3 font-medium">{h.name}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{thaiDate(h.date)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{holidayDate(h.date)}</td>
                   <td className="px-4 py-3">
                     {h.companyId === null ? (
                       <Badge variant="outline" className="text-blue-600 border-blue-300">
-                        ทั้งระบบ
+                        {t('scopeNational')}
                       </Badge>
                     ) : (
                       <span className="text-xs text-muted-foreground">{h.companyName}</span>
@@ -648,7 +666,7 @@ export default function HolidaysPage() {
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant={h.isActive ? 'success' : 'secondary'}>
-                      {h.isActive ? 'ใช้งาน' : 'ปิด'}
+                      {h.isActive ? tOrg('statusActive') : tOrg('statusInactive')}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
@@ -671,8 +689,11 @@ export default function HolidaysPage() {
       {!isLoading && filteredHolidays.length > 0 && (
         <div className="flex items-center justify-between text-sm text-muted-foreground">
           <span>
-            แสดง {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filteredHolidays.length)}{' '}
-            จาก {filteredHolidays.length} รายการ
+            {t('showingRange', {
+              from: (page - 1) * PAGE_SIZE + 1,
+              to: Math.min(page * PAGE_SIZE, filteredHolidays.length),
+              total: filteredHolidays.length,
+            })}
           </span>
           <div className="flex items-center gap-2">
             <Button
@@ -681,10 +702,10 @@ export default function HolidaysPage() {
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
             >
-              ก่อนหน้า
+              {tCommon('action.previous')}
             </Button>
             <span className="px-1">
-              หน้า {page} / {totalPages}
+              {t('pageOf', { page, total: totalPages })}
             </span>
             <Button
               size="sm"
@@ -692,7 +713,7 @@ export default function HolidaysPage() {
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
             >
-              ถัดไป
+              {tCommon('action.next')}
             </Button>
           </div>
         </div>

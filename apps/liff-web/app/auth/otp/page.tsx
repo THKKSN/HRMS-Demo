@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { api } from '@/lib/api'
 import { buildOtpRequestPayload } from '@/lib/auth-link'
@@ -13,6 +14,8 @@ const OTP_LENGTH = 6
 const RESEND_COOLDOWN = 60
 
 function OtpContent() {
+  const t = useTranslations('liff.auth.otp')
+  const tCommon = useTranslations('common')
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = searchParams.get('next') ?? '/'
@@ -28,8 +31,8 @@ function OtpContent() {
 
   useEffect(() => {
     if (cooldown <= 0) return
-    const t = setTimeout(() => setCooldown((c) => c - 1), 1000)
-    return () => clearTimeout(t)
+    const timer = setTimeout(() => setCooldown((c) => c - 1), 1000)
+    return () => clearTimeout(timer)
   }, [cooldown])
 
   useEffect(() => {
@@ -44,9 +47,9 @@ function OtpContent() {
     const clean = value.replace(/\D/g, '')
     if (!clean) return
     const char = clean[clean.length - 1]
-    const next = [...digits]
-    next[index] = char
-    setDigits(next)
+    const nextDigits = [...digits]
+    nextDigits[index] = char
+    setDigits(nextDigits)
     setErrorMsg(null)
     if (index < OTP_LENGTH - 1) focusBox(index + 1)
   }
@@ -55,9 +58,9 @@ function OtpContent() {
     if (e.key === 'Backspace') {
       e.preventDefault()
       if (digits[index]) {
-        const next = [...digits]
-        next[index] = ''
-        setDigits(next)
+        const nextDigits = [...digits]
+        nextDigits[index] = ''
+        setDigits(nextDigits)
       } else {
         focusBox(index - 1)
       }
@@ -72,9 +75,9 @@ function OtpContent() {
     e.preventDefault()
     const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, OTP_LENGTH)
     if (!text) return
-    const next = Array(OTP_LENGTH).fill('')
-    text.split('').forEach((c, i) => { next[i] = c })
-    setDigits(next)
+    const nextDigits = Array(OTP_LENGTH).fill('')
+    text.split('').forEach((c, i) => { nextDigits[i] = c })
+    setDigits(nextDigits)
     focusBox(Math.min(text.length, OTP_LENGTH - 1))
   }
 
@@ -102,14 +105,14 @@ function OtpContent() {
     } catch (err) {
       if (isAxiosError(err)) {
         const data = err.response?.data as ApiError | undefined
-        setErrorMsg(data?.message ?? 'รหัส OTP ไม่ถูกต้องหรือหมดอายุ')
+        setErrorMsg(data?.message ?? t('invalid'))
       }
       setDigits(Array(OTP_LENGTH).fill(''))
       focusBox(0)
     } finally {
       setIsSubmitting(false)
     }
-  }, [otpCode, router, setAuth, next])
+  }, [otpCode, router, setAuth, next, t])
 
   useEffect(() => {
     if (otpCode.length === OTP_LENGTH) {
@@ -141,12 +144,14 @@ function OtpContent() {
           router.replace('/auth/link')
           return
         }
-        setErrorMsg(data?.message ?? 'ไม่สามารถส่ง OTP ได้ กรุณาลองใหม่')
+        setErrorMsg(data?.message ?? t('resendFailed'))
       }
     } finally {
       setIsResending(false)
     }
   }
+
+  const bold = (chunks: React.ReactNode) => <span className="font-semibold text-foreground">{chunks}</span>
 
   return (
     <div className="flex flex-col px-6 py-8">
@@ -156,21 +161,16 @@ function OtpContent() {
           <ShieldCheck className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-foreground">ยืนยัน OTP</h2>
+          <h2 className="text-xl font-bold text-foreground">{t('title')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            กรุณากรอกรหัส 6 หลักที่ระบบส่งเข้าแชท LINE ของคุณ
+            {t('subtitle')}
           </p>
         </div>
       </div>
 
       {/* วิธีหารหัส */}
       <div className="mb-6 rounded-xl border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-        <p>
-          ออกจากหน้านี้ไปเปิด<span className="font-semibold text-foreground">แชท LINE</span>เพื่อดูรหัสได้ตามปกติ
-          ระบบจะไม่ปิดแอปนี้ — เมื่อเห็นรหัสแล้วให้แตะปุ่ม
-          <span className="font-semibold text-foreground">&quot;กลับไปกรอกรหัส&quot;</span>ในข้อความ
-          หรือสลับกลับมาที่หน้านี้ได้เลย
-        </p>
+        <p>{t.rich('howTo', { b: bold })}</p>
       </div>
 
       {/* OTP boxes */}
@@ -201,7 +201,7 @@ function OtpContent() {
       {isSubmitting && (
         <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          กำลังตรวจสอบ...
+          {tCommon('state.checking')}
         </div>
       )}
 
@@ -229,9 +229,10 @@ function OtpContent() {
         <div className="text-sm text-muted-foreground">
           {cooldown > 0 ? (
             <span>
-              ส่งรหัสใหม่ได้ใน{' '}
-              <span className="font-semibold tabular-nums text-foreground">{cooldown}</span>{' '}
-              วินาที
+              {t.rich('resendIn', {
+                seconds: cooldown,
+                b: (chunks) => <span className="font-semibold tabular-nums text-foreground">{chunks}</span>,
+              })}
             </span>
           ) : (
             <button
@@ -241,10 +242,10 @@ function OtpContent() {
             >
               {isResending ? (
                 <span className="flex items-center justify-center gap-1.5">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> กำลังส่ง...
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('resending')}
                 </span>
               ) : (
-                'ส่งรหัส OTP ใหม่'
+                t('resend')
               )}
             </button>
           )}
@@ -254,7 +255,7 @@ function OtpContent() {
           onClick={() => router.back()}
           className="text-sm text-muted-foreground hover:text-foreground transition-colors underline underline-offset-4"
         >
-          ย้อนกลับ
+          {tCommon('action.back')}
         </button>
       </div>
     </div>

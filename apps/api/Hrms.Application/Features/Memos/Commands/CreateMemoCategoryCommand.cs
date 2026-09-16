@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.Memos.Commands;
 
-public record CreateMemoCategoryCommand(Guid MemoTypeId, string Name) : IRequest<MemoCategoryDto>;
+public record CreateMemoCategoryCommand(Guid MemoTypeId, string Name, string? NameEn = null, string? NameId = null) : IRequest<MemoCategoryDto>;
 
 public class CreateMemoCategoryValidator : AbstractValidator<CreateMemoCategoryCommand>
 {
@@ -16,6 +16,8 @@ public class CreateMemoCategoryValidator : AbstractValidator<CreateMemoCategoryC
     {
         RuleFor(x => x.MemoTypeId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.NameEn).MaximumLength(200).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(200).When(x => x.NameId is not null);
     }
 }
 
@@ -25,21 +27,23 @@ public class CreateMemoCategoryHandler(IApplicationDbContext db, IAuditLogServic
     public async Task<MemoCategoryDto> Handle(CreateMemoCategoryCommand request, CancellationToken ct)
     {
         var memoType = await db.MemoTypes.FirstOrDefaultAsync(x => x.Id == request.MemoTypeId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบประเภทเรื่อง");
+            ?? throw new NotFoundException("MemoType", request.MemoTypeId, "MEMO_TYPE_NOT_FOUND");
 
         if (!memoType.IsActive)
-            throw new ConflictException("MEMO_TYPE_INACTIVE", "ประเภทเรื่องนี้ถูกปิดใช้งานแล้ว ไม่สามารถเพิ่มหมวดหมู่ได้");
+            throw new ConflictException("MEMO_TYPE_INACTIVE", "This memo type is inactive.");
 
         var name = request.Name.Trim();
 
         if (await db.MemoCategories.AnyAsync(x =>
                 x.MemoTypeId == request.MemoTypeId && x.Name == name && x.IsActive, ct))
-            throw new ConflictException("DUPLICATE_NAME", $"หมวดหมู่ '{name}' มีอยู่แล้วในประเภทเรื่องนี้");
+            throw new ConflictException("DUPLICATE_MEMO_CATEGORY", $"Category '{name}' already exists in this memo type.");
 
         var category = new MemoCategory
         {
             MemoTypeId = request.MemoTypeId,
             Name = name,
+            NameEn = Common.Helpers.NameText.Normalize(request.NameEn),
+            NameId = Common.Helpers.NameText.Normalize(request.NameId),
             IsActive = true,
         };
 
@@ -56,6 +60,6 @@ public class CreateMemoCategoryHandler(IApplicationDbContext db, IAuditLogServic
             newValues:   new { category.MemoTypeId, category.Name },
             ct:          ct);
 
-        return new MemoCategoryDto(category.Id, category.MemoTypeId, category.Name, category.IsActive);
+        return new MemoCategoryDto(category.Id, category.MemoTypeId, category.Name, category.IsActive, category.NameEn, category.NameId);
     }
 }

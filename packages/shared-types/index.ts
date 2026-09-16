@@ -65,6 +65,7 @@ export type LeaveTypeDto = {
   code: string
   nameTh: string
   nameEn?: string
+  nameId?: string | null
   defaultDaysPerYear: number
   requiresAttachment: boolean
 }
@@ -88,6 +89,8 @@ export type LeaveRequestDto = {
   hrName?: string
   hrComment?: string
   createdAt: string
+  leaveTypeNameEn?: string | null
+  leaveTypeNameId?: string | null
 }
 
 export type LeaveRequestListItemDto = {
@@ -110,6 +113,8 @@ export type PendingLeaveItemDto = {
   totalDays: number
   status: LeaveStatus
   createdAt: string
+  leaveTypeNameEn?: string | null
+  leaveTypeNameId?: string | null
 }
 
 export type LeaveBalanceDto = {
@@ -124,12 +129,13 @@ export type LeaveBalanceDto = {
 
 // ─── Company ─────────────────────────────────────────────────────────────────
 
-export type OrgType = 'Holding' | 'Subsidiary' | 'Branch'
+export type OrgType = 'Holding' | 'Subsidiary' | 'Branch' | 'School'
 
 export type CompanyDto = {
   id: string
   name: string
   nameEn?: string
+  nameId?: string | null
   orgType: OrgType
   parentId?: string
   parentName?: string
@@ -141,6 +147,7 @@ export type CompanyTreeDto = {
   id: string
   name: string
   nameEn?: string
+  nameId?: string | null
   orgType: OrgType
   isActive: boolean
   isHeadquarters: boolean
@@ -153,6 +160,9 @@ export type DepartmentDto = {
   id: string
   companyId: string
   name: string
+  // ชื่อภาษาอื่นของ master data (i18n Phase M) — ว่างได้ ใช้ localizedName() จาก @hrms/i18n ตอนแสดง
+  nameEn?: string | null
+  nameId?: string | null
   deptType?: string
   managerEmployeeId?: string
   managerName?: string
@@ -189,6 +199,13 @@ export type TicketRoutingMode = 'SupervisorAssign' | 'AutoAssignSingle'
 export type TicketRoutingLevel = 'None' | 'Topic' | 'Category'
 export type TicketRoutingOutcome = 'NotEvaluated' | 'NoMatch' | 'SupervisorQueue' | 'AutoAssigned'
 export type TicketAssignmentSource = 'Manual' | 'AutoTopic' | 'AutoCategory' | 'SelfClaim'
+/** บทบาทในทีมของใบแจ้งเรื่อง — Owner = ผู้รับผิดชอบหลัก (1 คน), Member = ผู้ร่วมงาน */
+export type TicketAssignmentRole = 'Owner' | 'Member'
+/**
+ * ขอบเขตงานของหน้า Assigned — ดูจากสถานะแถวมอบหมาย ไม่ใช่สถานะใบแจ้งเรื่อง
+ * Current = ยังถืออยู่, History = เคยถือแต่ถูกเปลี่ยนตัว/ถอนออกแล้ว, All = ทั้งสองอย่าง
+ */
+export type AssignedTicketScope = 'Current' | 'History' | 'All'
 export type TicketCancellationStatus = 'Pending' | 'Approved' | 'Rejected'
 export type TicketStatus =
   | 'Open'
@@ -204,12 +221,16 @@ export type TicketStatus =
 export type TicketLookupCompanyDto = {
   id: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
 }
 
 export type TicketLookupDepartmentDto = {
   id: string
   companyId: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
 }
 
 export type TicketCategoryDto = {
@@ -217,6 +238,8 @@ export type TicketCategoryDto = {
   companyId: string
   departmentId: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   description?: string
   sortOrder: number
   isActive: boolean
@@ -229,6 +252,8 @@ export type TicketTopicDto = {
   companyId: string
   departmentId: string
   categoryId: string
+  nameEn?: string | null
+  nameId?: string | null
   name: string
   description?: string
   sortOrder: number
@@ -242,6 +267,8 @@ export type TicketSubjectDto = {
   companyId: string
   departmentId: string
   categoryId: string
+  nameEn?: string | null
+  nameId?: string | null
   topicId: string
   name: string
   description?: string
@@ -252,6 +279,41 @@ export type TicketSubjectDto = {
 export type TicketManagementScopeDto = {
   companies: TicketLookupCompanyDto[]
   departments: TicketLookupDepartmentDto[]
+}
+
+/** master ประเภทปัญหา/เหตุผลปิดงาน — departmentId ว่าง = ใช้ได้ทั้งบริษัท, categoryIds ว่าง = ใช้ได้ทุกหมวด */
+export type TicketCloseoutReasonDto = {
+  id: string
+  companyId: string
+  departmentId?: string
+  name: string
+  nameEn?: string | null
+  nameId?: string | null
+  description?: string
+  kind: string
+  /** ค่า enum TicketProblemType เดิมที่แถวนี้แทน (เฉพาะ 3 แถว default ที่ migration seed) */
+  legacyProblemType?: string
+  sortOrder: number
+  isActive: boolean
+  categoryIds: string[]
+  /** ต้องกรอกรายละเอียดการแก้ไขก่อนส่งงาน/ปิดงาน (default true) */
+  requiresResolutionNote: boolean
+  /** ต้องแนบรูปหลักฐานหลังทำก่อนส่งงาน/ปิดงาน (default true) */
+  requiresCompletionEvidence: boolean
+}
+
+/** ตัวเลือกตอนปิดงานของ ticket ใบหนึ่ง (backend กรอง scope แผนก/หมวดให้แล้ว) */
+export type TicketCloseoutReasonOptionDto = {
+  id: string
+  name: string
+  nameEn?: string | null
+  nameId?: string | null
+  description?: string
+  isCompanyWide: boolean
+  /** ค่าที่ ticket เลือกไว้แล้วแต่ตอนนี้ปิดใช้งาน/หลุด scope — แสดงได้แต่ไม่ควรให้เลือกใหม่ */
+  isLegacySelection: boolean
+  requiresResolutionNote: boolean
+  requiresCompletionEvidence: boolean
 }
 
 export type ExternalTicketConfigurationDto = {
@@ -265,6 +327,8 @@ export type ExternalTicketConfigurationDto = {
 export type ExternalTicketCategoryDto = {
   id: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   description?: string
   sortOrder: number
   isActive: boolean
@@ -274,6 +338,8 @@ export type ExternalTicketTopicDto = {
   id: string
   externalTicketCategoryId: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   description?: string
   sortOrder: number
   isActive: boolean
@@ -283,6 +349,8 @@ export type ExternalTicketSubjectDto = {
   id: string
   externalTicketTopicId: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   description?: string
   template?: string
   suggestions: string[]
@@ -297,7 +365,10 @@ export type ExternalReporterProfileDto = {
   lineDisplayName: string
   pictureUrl?: string
   fullName?: string
+  /** E.164 เช่น +66812345678 (ข้อมูลเก่าก่อน backfill อาจยังเป็นรูปแบบอื่น) */
   phone?: string
+  /** ประเทศของเบอร์โทร ISO 3166-1 alpha-2 เช่น TH — ไม่มีค่าคือข้อมูลเก่าที่ยังไม่รู้ประเทศ */
+  phoneCountry?: string
   email?: string
   organization?: string
 }
@@ -312,6 +383,8 @@ export type ExternalLineLoginResult = {
 export type ExternalTicketFormSubjectDto = {
   id: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   description?: string
   template?: string
   suggestions: string[]
@@ -320,6 +393,8 @@ export type ExternalTicketFormSubjectDto = {
 export type ExternalTicketFormTopicDto = {
   id: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   description?: string
   subjects: ExternalTicketFormSubjectDto[]
 }
@@ -327,6 +402,8 @@ export type ExternalTicketFormTopicDto = {
 export type ExternalTicketFormCategoryDto = {
   id: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   description?: string
   topics: ExternalTicketFormTopicDto[]
 }
@@ -478,6 +555,53 @@ export type TicketAssignmentDto = {
   routingLevelSnapshot: TicketRoutingLevel
 }
 
+export type TicketTeamTemplateMemberDto = {
+  employeeId: string
+  employeeName: string
+  employeeCode?: string
+  departmentName?: string
+  /** พนักงานคนนี้ยัง active อยู่ไหม — ถ้าลาออกแล้วยังค้างใน template ให้เตือนในหน้าตั้งค่า */
+  isActiveEmployee: boolean
+}
+
+/** ทีมสำเร็จรูประดับบริษัท/แผนก — ใช้ดึงเข้าใบแจ้งเรื่อง ไม่ใช่ตัวให้สิทธิ์ */
+export type TicketTeamTemplateDto = {
+  id: string
+  companyId: string
+  departmentId?: string
+  departmentName?: string
+  name: string
+  description?: string
+  isActive: boolean
+  sortOrder: number
+  members: TicketTeamTemplateMemberDto[]
+}
+
+export type TicketTeamTemplateOptionDto = {
+  id: string
+  name: string
+  description?: string
+  isCompanyWide: boolean
+  memberCount: number
+  /** จำนวนคนที่จะถูกเพิ่มจริงถ้ากดดึงทีมนี้ (ตัดคนที่อยู่ในทีมแล้วออก) */
+  addableCount: number
+}
+
+export type TicketTeamMemberDto = {
+  assignmentId: string
+  employeeId: string
+  employeeName: string
+  employeeCode?: string
+  departmentName?: string
+  memberRole: TicketAssignmentRole
+  assignedAt: string
+  assignedByEmployeeId?: string
+  assignedByEmployeeName?: string
+  note?: string
+  /** ถอนออกจากทีมได้ — ผู้รับผิดชอบหลักถอนตรง ๆ ไม่ได้ ต้องใช้เมนูเปลี่ยนผู้รับผิดชอบ */
+  canRemove: boolean
+}
+
 export type TicketInboxItemDto = {
   id: string
   ticketNo: string
@@ -575,6 +699,8 @@ export type TicketAssignmentCandidateDto = {
   departmentName?: string
   // false = คนนอกแผนกปลายทาง (จ่ายข้ามแผนกใน company เดียวกัน)
   isInTargetDepartment: boolean
+  /** งานที่กำลังร่วมทีมกับคนอื่น (ไม่ใช่ผู้รับผิดชอบหลัก) */
+  teamTicketCount: number
 }
 
 export type EmployeeResponsibilityDto = {
@@ -693,7 +819,10 @@ export type TicketDetailDto = {
   waitingInfoByEmployeeId?: string
   waitingInfoByEmployeeName?: string
   waitingInfoAt?: string
+  /** enum เดิม — คงไว้ช่วงเปลี่ยนผ่าน ค่าจริงอยู่ที่ closeoutReasonId/closeoutReasonName */
   problemType?: TicketProblemType
+  closeoutReasonId?: string
+  closeoutReasonName?: string
   initialInspectionNote?: string
   resolutionNote?: string
   resolvedByEmployeeId?: string
@@ -718,6 +847,7 @@ export type TicketDetailDto = {
   attachments: TicketAttachmentDto[]
   latestCancellationRequest?: TicketCancellationRequestDto
   auditEvents: TicketAuditEventDto[]
+  teamMembers: TicketTeamMemberDto[]
   actions: TicketActionFlagsDto
   createdAt: string
   updatedAt: string
@@ -739,6 +869,13 @@ export type TicketProgressEntryDto = {
   createdByEmployeeName: string
   createdAt: string
   attachments: TicketAttachmentDto[]
+  /** ผู้ใช้ปัจจุบันแก้ไขการ์ดใบนี้ได้ (ผู้สร้างที่ยังรับผิดชอบอยู่ หรือ Supervisor/Admin ขณะ ticket ยังดำเนินงาน) */
+  canEdit: boolean
+  /** เวลาที่ปักหมุด — undefined = ไม่ได้ปัก; backend เรียงการ์ดที่ปักไว้ขึ้นก่อนเสมอ */
+  pinnedAt?: string
+  pinnedByEmployeeName?: string
+  /** ผู้รับผิดชอบปัจจุบัน/Supervisor/Admin ปัก/เลิกปักได้ทุกการ์ดขณะ ticket ยังดำเนินงาน (สูงสุด 3 ใบต่อ ticket) */
+  canPin: boolean
 }
 
 export type TicketActionFlagsDto = {
@@ -762,6 +899,12 @@ export type TicketActionFlagsDto = {
   canViewTicketReport: boolean
   canClaim: boolean
   canRequestCancellation: boolean
+  /** ผู้รับผิดชอบหลักของใบนี้ */
+  isTeamOwner: boolean
+  /** ผู้ร่วมงานที่ถูกดึงเข้าทีมของใบนี้ */
+  isTeamMember: boolean
+  /** เพิ่ม/ถอดผู้ร่วมงานได้ */
+  canManageTeam: boolean
 }
 
 export type TicketReviewDto = {
@@ -777,6 +920,7 @@ export type TicketReviewDto = {
   resolvedByEmployeeName?: string
   resolvedAt?: string
   problemTypeSnapshot?: TicketProblemType
+  closeoutReasonSnapshot?: string
   initialInspectionSnapshot?: string
   resolutionSnapshot?: string
   resolvedAttachmentIds: string[]
@@ -848,10 +992,16 @@ export type TicketBacklogResultDto = {
 export type TicketCategoryReportItemDto = {
   categoryId?: string
   categoryName?: string
+  categoryNameEn?: string
+  categoryNameId?: string
   topicId?: string
   topicName?: string
+  topicNameEn?: string
+  topicNameId?: string
   subjectId?: string
   subjectName?: string
+  subjectNameEn?: string
+  subjectNameId?: string
   totalCount: number
   closedCount: number
   backlogCount: number
@@ -883,6 +1033,7 @@ export type TicketPendingCountsDto = {
   cancellationPending?: number | null
   memoAwaitingAck?: number | null
   memoAwaitingApproval?: number | null
+  memoStepTasks?: number | null
 }
 
 export type TicketQualityReportDto = {
@@ -939,6 +1090,8 @@ export type AssignedTicketItemDto = {
   currentBlockerReason?: string
   currentNextAction?: string
   updatedAt: string
+  /** บทบาทของผู้ใช้ในใบนี้ — Member = ถูกดึงเข้าร่วมทีม ไม่ใช่เจ้าภาพ */
+  memberRole: TicketAssignmentRole
 }
 
 export type TicketTimelineEventDto = {
@@ -963,20 +1116,125 @@ export type TicketActionResultDto = {
 
 export type MemoStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected'
 
+// ประเภทขั้นตอน: Work = ดำเนินการ (ส่งคืนได้แค่ขั้นก่อนหน้าติดกัน ปิดเรื่องไม่ได้)
+// Approval = อนุมัติ (อนุมัติ/ไม่อนุมัติ/ตีกลับโดยเลือกขั้นปลายทางหรือย้อนถึงผู้ขอได้)
+export type MemoStepKind = 'Work' | 'Approval'
+export type MemoStepStatus = 'Waiting' | 'Current' | 'Done' | 'Rejected'
+
 export type MemoTypeDto = {
   id: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   companyId: string
   companyName: string
+  companyNameEn?: string | null
+  companyNameId?: string | null
   departmentId: string
   departmentName: string
+  departmentNameEn?: string | null
+  departmentNameId?: string | null
   isActive: boolean
+  // ผู้อนุมัติด่านแรก — employeeId = null คือทุกคนใน role (pool ทั้งระบบ)
+  firstApproverRoleCode?: RoleType
+  firstApproverEmployeeId?: string
+  firstApproverEmployeeName?: string
+}
+
+// ขั้นตอนทำงานหลังแผนกรับทราบ (config ต่อ MemoType)
+export type MemoWorkflowStepDto = {
+  id: string
+  memoTypeId: string
+  sortOrder: number
+  label: string
+  stepKind: MemoStepKind
+  assigneeRoleCode: RoleType
+  assigneeEmployeeId?: string
+  assigneeEmployeeName?: string
+  isActive: boolean
+}
+
+// snapshot ขั้นตอนต่อเรื่อง — canAct/canReturn คำนวณจากฝั่ง server ตาม user ปัจจุบัน
+export type MemoStepInstanceDto = {
+  id: string
+  sortOrder: number
+  label: string
+  stepKind: MemoStepKind
+  status: MemoStepStatus
+  assigneeRoleCode: RoleType
+  assigneeEmployeeId?: string
+  assigneeEmployeeName?: string
+  actedAt?: string
+  actedByName?: string
+  actionNote?: string
+  canAct: boolean
+  /** ย้อนขั้นได้หรือไม่ — เท่ากับ returnTargets มีอย่างน้อยหนึ่งรายการ */
+  canReturn: boolean
+  /** ปลายทางที่ย้อนได้ ส่งมาเฉพาะขั้นที่เป็นคิวปัจจุบัน — Approval เลือกได้ทุกขั้นก่อนหน้า + ผู้ขอ · Work ได้ขั้นติดกันขั้นเดียว */
+  returnTargets?: MemoReturnTargetDto[]
+}
+
+// ปลายทางของการย้อนขั้นตอน — stepInstanceId ว่างคือ "ผู้ขอ" ซึ่งอยู่ก่อนขั้นที่ 1
+export type MemoReturnTargetDto = {
+  stepInstanceId?: string
+  label: string
+  sortOrder: number
+}
+
+export type MemoAttachmentDto = {
+  id: string
+  url: string
+  fileName?: string
+  contentType?: string
+  sizeBytes: number
+  memoStepInstanceId?: string
+  memoActivityId?: string
+  uploadedByName?: string
+  createdAt: string
+}
+
+export type MemoActivityDto = {
+  id: string
+  message: string
+  isSystem: boolean
+  memoStepInstanceId?: string
+  stepLabel?: string
+  authorName?: string
+  createdAt: string
+  attachments: MemoAttachmentDto[]
+  // ผู้ที่กำลังดูแก้บันทึกใบนี้ได้หรือไม่ — เจ้าของบันทึกหรือ Admin และต้องไม่ใช่บันทึกของระบบ
+  canEdit?: boolean
+}
+
+// metadata ไฟล์ที่ upload ผ่าน /v1/uploads?module=memos แล้วส่งไปผูกกับเรื่อง/step/activity
+export type MemoAttachmentInput = {
+  url: string
+  fileName?: string
+  contentType?: string
+  sizeBytes: number
+  storageKey?: string
+}
+
+export type MemoStepTaskDto = {
+  memoId: string
+  memoNo: string
+  memoTypeName: string
+  memoCategoryNameSnapshot: string
+  memoSubCategoryNameSnapshot: string
+  requesterName: string
+  stepInstanceId: string
+  stepSortOrder: number
+  stepLabel: string
+  stepKind: MemoStepKind
+  createdAt: string
 }
 
 export type MemoCategoryDto = {
   id: string
   memoTypeId: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   isActive: boolean
 }
 
@@ -984,6 +1242,8 @@ export type MemoSubCategoryDto = {
   id: string
   memoCategoryId: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   isActive: boolean
 }
 
@@ -1006,6 +1266,7 @@ export type MemoDto = {
   status: MemoStatus
   approvedAt?: string
   approvedByName?: string
+  approveComment?: string
   rejectedAt?: string
   rejectReason?: string
   acknowledgedAt?: string
@@ -1015,6 +1276,18 @@ export type MemoDto = {
   receivedAt?: string
   receivedByName?: string
   createdAt: string
+  // ฟิลด์ workflow — populate เฉพาะ GetMemoById (endpoint อื่นคืน undefined)
+  firstApproverRoleCode?: RoleType
+  firstApproverEmployeeName?: string
+  steps?: MemoStepInstanceDto[]
+  attachments?: MemoAttachmentDto[]
+  activities?: MemoActivityDto[]
+  canActOnCurrentStep?: boolean
+  canAddActivity?: boolean
+  /** เรื่องถูกขั้นอนุมัติตีกลับมาให้ผู้ขอแก้ไข — workflow หยุดรอจนผู้ขอกดส่งกลับ */
+  returnedToRequesterAt?: string
+  returnedToRequesterReason?: string
+  canResubmit?: boolean
 }
 
 export type MemoListItemDto = {
@@ -1066,10 +1339,54 @@ export type MemoInboxItemDto = {
   createdAt: string
 }
 
+// ─── Memo Reports ────────────────────────────────────────────────────────────
+
+// appliedScope: 'All' = Admin/Executive เห็นทุกบริษัท · 'SupervisorScope' = เฉพาะแผนกปลายทางของตัวเอง
+export type MemoReportMetaDto = {
+  dateFrom: string
+  dateTo: string
+  timezone: string
+  appliedScope: string
+}
+
+export type MemoTopicItemDto = {
+  memoTypeId: string
+  memoTypeName: string
+  memoTypeNameEn?: string
+  memoTypeNameId?: string
+  /** snapshot ตอนสร้างเรื่อง — คงภาษาไทยเสมอ ไม่แปลย้อนหลัง */
+  categoryName: string
+  /** snapshot ตอนสร้างเรื่อง — คงภาษาไทยเสมอ ไม่แปลย้อนหลัง */
+  subCategoryName: string
+  targetCompanyName: string
+  targetCompanyNameEn?: string
+  targetCompanyNameId?: string
+  targetDepartmentName: string
+  targetDepartmentNameEn?: string
+  targetDepartmentNameId?: string
+  totalCount: number
+  pendingCount: number
+  inProgressCount: number
+  completedCount: number
+  rejectedCount: number
+}
+
+export type MemoOverviewDto = {
+  totalCount: number
+  pendingCount: number
+  inProgressCount: number
+  completedCount: number
+  rejectedCount: number
+  topTopics: MemoTopicItemDto[]
+  meta: MemoReportMetaDto
+}
+
 export type SystemRoleDto = {
   id: string
   code: string
   nameTh: string
+  nameEn?: string | null
+  nameId?: string | null
 }
 
 // ─── Address Reference ───────────────────────────────────────────────────────
@@ -1098,6 +1415,8 @@ export type LocationDto = {
   id: string
   companyId: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   latitude: number
   longitude: number
   radiusMeters: number
@@ -1119,6 +1438,8 @@ export type RoleLabelDto = {
   id: string
   companyId: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   isActive: boolean
 }
 
@@ -1244,6 +1565,7 @@ export type AuditLogDto = {
   newValues?: string
   performedByEmployeeId?: string
   performedByName?: string
+  performedByAvatarUrl?: string
   performedAt: string
 }
 
@@ -1427,14 +1749,7 @@ export type AdminDashboardDto = {
   totalDepartments: number
   totalEmployees: number
   activeEmployees: number
-  recentAuditLogs: {
-    id: string
-    module: string
-    action: string
-    description: string
-    performedByName?: string
-    performedAt: string
-  }[]
+  recentAuditLogs: AuditLogDto[]
 }
 
 // ─── OT Requests ─────────────────────────────────────────────────────────────

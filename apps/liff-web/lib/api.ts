@@ -1,4 +1,5 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
+import { readLocaleCookie } from '@hrms/i18n'
 
 // ต้อง import แบบ lazy เพื่อกัน circular dependency (store ใช้ api, api ใช้ store)
 function getAuthStore() {
@@ -15,10 +16,16 @@ export const api = axios.create({
   },
 })
 
-// Request: แนบ JWT
+// Request: แนบ JWT + ภาษาปัจจุบัน
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getAuthStore().getState().accessToken
   if (token) config.headers.Authorization = `Bearer ${token}`
+
+  // ให้ API จำภาษาล่าสุดไว้ใช้ตอนส่ง notification ทาง LINE (แผน notification-i18n งาน N2.1)
+  // อ่านจาก cookie ตรง ๆ ไม่ใช่ getCurrentLocale() เพราะ request แรก ๆ อาจยิงก่อน LocaleProvider ตั้งค่า
+  // ยังไม่มี cookie = ผู้ใช้ยังไม่ผ่านหน้าเลือกภาษา → ไม่ส่ง header ดีกว่าส่งค่าที่เดาเอง
+  const locale = readLocaleCookie()
+  if (locale) config.headers['X-Locale'] = locale
   return config
 })
 

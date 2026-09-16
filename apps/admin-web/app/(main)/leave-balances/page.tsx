@@ -14,14 +14,17 @@ import { useLeaveBalances, useAdjustBalance, useCreateLeaveBalance, useSeedBalan
 import { useLeaveTypes } from '@/hooks/use-leave-types'
 import { useCompanies } from '@/hooks/use-companies'
 import { useEmployees } from '@/hooks/use-employees'
+import { usePermissionGate } from '@/hooks/use-permission-gate'
 import { useAuthStore } from '@/stores/auth.store'
 import type { LeaveBalanceAdminDto } from '@/types/admin'
+import { useApiError } from '@/hooks/use-api-error'
 
 const CURRENT_YEAR = new Date().getFullYear()
 
 // ── Create balance modal ──────────────────────────────────────────────────────
 
 function CreateBalanceModal({ open, onClose, defaultYear }: { open: boolean; onClose: () => void; defaultYear: number }) {
+  const apiError = useApiError()
   const [empId, setEmpId]       = useState('')
   const [ltId, setLtId]         = useState('')
   const [year, setYear]         = useState(defaultYear)
@@ -47,8 +50,7 @@ function CreateBalanceModal({ open, onClose, defaultYear }: { open: boolean; onC
       setEmpId(''); setLtId(''); setTotalDays('0'); setError('')
       onClose()
     } catch (err: unknown) {
-      const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
-      setError(apiErr?.error === 'BALANCE_ALREADY_EXISTS' ? 'พนักงานนี้มีสิทธิ์ประเภทการลานี้อยู่แล้วในปีนี้' : 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+      setError(apiError(err, 'เกิดข้อผิดพลาด กรุณาลองใหม่'))
     }
   }
 
@@ -232,6 +234,7 @@ function BalanceCell({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 function LeaveBalancesPage() {
+  const apiError = useApiError()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -239,6 +242,7 @@ function LeaveBalancesPage() {
   const [companyFilter, setCompanyFilter] = useState('')
 
   const currentUser = useAuthStore((s) => s.employee)
+  const { has } = usePermissionGate()
   const isAdmin  = currentUser?.roles.some((r) => r.role === 'Admin') ?? false
   const isHr     = currentUser?.roles.some((r) => r.role === 'Hr')    ?? false
 
@@ -256,8 +260,9 @@ function LeaveBalancesPage() {
   }, [tree])
 
   const isHqHr    = isHr && (tree.find((n) => n.id === currentUser?.companyId)?.isHeadquarters ?? false)
+  // HQ scope (canSeeAll) ยังอิง role — รอ permission code ใหม่ตาม Track C ใน docs/permission-hardcode-audit.md
   const canSeeAll = isAdmin || isHqHr
-  const canEdit   = isAdmin || isHr
+  const canEdit   = has('leave:manage-balance', ['Admin', 'Hr'])
 
   // ตั้ง companyFilter หลัง allCompanies โหลด (canSeeAll อาจเปลี่ยนจาก false → true)
   const [scopeReady, setScopeReady] = useState(false)
@@ -311,11 +316,7 @@ function LeaveBalancesPage() {
       toast.success('บันทึกสิทธิ์สำเร็จ')
       setEditId(null)
     } catch (err: unknown) {
-      const apiErr = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-      if (apiErr?.error === 'QUOTA_BELOW_USED')
-        setEditError(apiErr.message ?? 'สิทธิ์น้อยกว่าวันที่ใช้ไปแล้ว')
-      else
-        setEditError('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      setEditError(apiError(err, 'เกิดข้อผิดพลาด กรุณาลองใหม่'))
     }
   }
 
@@ -342,8 +343,7 @@ function LeaveBalancesPage() {
       toast.success('เพิ่มสิทธิ์สำเร็จ')
       setCreateKey(null)
     } catch (err: unknown) {
-      const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
-      setCreateError(apiErr?.error === 'BALANCE_ALREADY_EXISTS' ? 'มีสิทธิ์นี้อยู่แล้ว' : 'เกิดข้อผิดพลาด')
+      setCreateError(apiError(err, 'เกิดข้อผิดพลาด'))
     }
   }
 

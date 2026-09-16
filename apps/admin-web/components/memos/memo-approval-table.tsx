@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { EyeIcon, FileText, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -9,13 +10,9 @@ import { Select } from '@/components/ui/select'
 import { MEMO_TABLE_PAGE_SIZE, TablePagination } from '@/components/memos/table-pagination'
 import { useMemosForApproval } from '@/hooks/use-memo'
 import type { MemoStatus } from '@hrms/shared-types'
+import * as fmt from '@hrms/i18n/format'
 
-const STATUS_LABEL: Record<MemoStatus, string> = {
-  Draft: 'แบบร่าง',
-  Pending: 'รออนุมัติ',
-  Approved: 'อนุมัติแล้ว',
-  Rejected: 'ไม่อนุมัติ',
-}
+const MEMO_STATUSES: MemoStatus[] = ['Draft', 'Pending', 'Approved', 'Rejected']
 
 function statusVariant(status: MemoStatus): 'default' | 'secondary' | 'success' | 'warning' | 'destructive' {
   if (status === 'Pending') return 'warning'
@@ -24,11 +21,14 @@ function statusVariant(status: MemoStatus): 'default' | 'secondary' | 'success' 
   return 'secondary'
 }
 
-function thaiDateTime(value: string) {
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
+function shortDateTime(value: string) {
+  return fmt.formatDateTime(new Date(value), { dateStyle: 'short', timeStyle: 'short' })
 }
 
 export function MemoApprovalTable() {
+  const t = useTranslations('admin.memo.approval')
+  const tStatus = useTranslations('status.memo')
+  const tCommon = useTranslations('common')
   const [status, setStatus] = useState<MemoStatus | undefined>('Pending')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -51,12 +51,12 @@ export function MemoApprovalTable() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">อนุมัติ Memo</h2>
-          <p className="mt-1 text-sm text-muted-foreground">ตรวจสอบและดำเนินการอนุมัติบันทึกข้อความของพนักงาน</p>
+          <h2 className="text-lg font-semibold">{t('title')}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <FileText className="h-4 w-4" />
-          {filtered.length} รายการ
+          {t('count', { count: filtered.length })}
         </div>
       </div>
 
@@ -66,7 +66,7 @@ export function MemoApprovalTable() {
           <Input
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            placeholder="ค้นหา เลขที่ / เรื่อง / ผู้ขอ..."
+            placeholder={t('searchPlaceholder')}
             className="pl-9"
           />
         </div>
@@ -75,9 +75,9 @@ export function MemoApprovalTable() {
           onChange={event => { setStatus((event.target.value || undefined) as MemoStatus | undefined); setPage(1) }}
           className="w-44"
         >
-          <option value="">ทุกสถานะ</option>
-          {(Object.keys(STATUS_LABEL) as MemoStatus[]).map(item => (
-            <option key={item} value={item}>{STATUS_LABEL[item]}</option>
+          <option value="">{t('allStatuses')}</option>
+          {MEMO_STATUSES.map(item => (
+            <option key={item} value={item}>{tStatus(item)}</option>
           ))}
         </Select>
       </div>
@@ -86,12 +86,12 @@ export function MemoApprovalTable() {
         <table className="w-full min-w-[900px] text-sm">
           <thead className="border-b border-border bg-muted/30 text-left text-muted-foreground">
             <tr>
-              <th className="px-4 py-3 font-medium">เลขที่</th>
-              <th className="px-4 py-3 font-medium">เรื่อง</th>
-              <th className="px-4 py-3 font-medium">ผู้ขอ</th>
-              <th className="px-4 py-3 font-medium">สถานะ</th>
-              <th className="px-4 py-3 font-medium">ส่งเมื่อ</th>
-              <th className="px-4 py-3 font-medium">จัดการ</th>
+              <th className="px-4 py-3 font-medium">{t('colNo')}</th>
+              <th className="px-4 py-3 font-medium">{t('colSubject')}</th>
+              <th className="px-4 py-3 font-medium">{t('colRequester')}</th>
+              <th className="px-4 py-3 font-medium">{t('colStatus')}</th>
+              <th className="px-4 py-3 font-medium">{t('colSentAt')}</th>
+              <th className="px-4 py-3 font-medium">{t('colManage')}</th>
             </tr>
           </thead>
           <tbody>
@@ -101,7 +101,7 @@ export function MemoApprovalTable() {
               </tr>
             ))}
             {!isLoading && items.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">ไม่พบรายการในเงื่อนไขที่เลือก</td></tr>
+              <tr><td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">{t('empty')}</td></tr>
             )}
             {items.map(item => (
               <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/20">
@@ -116,12 +116,12 @@ export function MemoApprovalTable() {
                   <p className="max-w-72 truncate font-medium">{item.requesterName}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{item.companyName} / {item.departmentName}</p>
                 </td>
-                <td className="px-4 py-3"><Badge variant={statusVariant(item.status)}>{STATUS_LABEL[item.status]}</Badge></td>
-                <td className="px-4 py-3 text-muted-foreground">{thaiDateTime(item.createdAt)}</td>
+                <td className="px-4 py-3"><Badge variant={statusVariant(item.status)}>{tStatus(item.status)}</Badge></td>
+                <td className="px-4 py-3 text-muted-foreground">{shortDateTime(item.createdAt)}</td>
                 <td className="px-4 py-3">
                   <Link
                     href={`/memos/${item.id}`}
-                    title="ดูรายละเอียด"
+                    title={tCommon('action.viewDetail')}
                     className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-sm text-muted-foreground hover:bg-muted/80"
                   >
                     <EyeIcon className="h-4 w-4" />

@@ -1,0 +1,56 @@
+{
+  "action": {
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "confirm": "ยืนยัน",
+    "close": "ปิด",
+    "back": "ย้อนกลับ",
+    "next": "ถัดไป",
+    "previous": "ก่อนหน้า",
+    "retry": "ลองใหม่อีกครั้ง",
+    "retryShort": "ลองใหม่",
+    "submit": "ส่งคำขอ",
+    "edit": "แก้ไข",
+    "delete": "ลบ",
+    "search": "ค้นหา",
+    "viewAll": "ดูทั้งหมด",
+    "viewDetail": "ดูรายละเอียด",
+    "ok": "ตกลง",
+    "yes": "ใช่",
+    "no": "ไม่",
+    "backHome": "กลับหน้าหลัก"
+  },
+  "state": {
+    "loading": "กำลังโหลด...",
+    "noData": "ไม่พบข้อมูล",
+    "notFound": "ไม่พบข้อมูลที่ระบุ",
+    "empty": "ยังไม่มีรายการ",
+    "error": "เกิดข้อผิดพลาด กรุณาลองใหม่",
+    "loadFailed": "โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่",
+    "saving": "กำลังบันทึก...",
+    "sending": "กำลังส่ง...",
+    "processing": "กำลังดำเนินการ...",
+    "checking": "กำลังตรวจสอบ...",
+    "comingSoon": "เร็วๆ นี้"
+  },
+  "field": {
+    "optional": "(ถ้ามี)"
+  },
+  "duration": {
+    "days": "{count} วัน",
+    "hours": "{count} ชั่วโมง",
+    "minutes": "{count} นาที",
+    "hoursMinutes": "{hours} ชั่วโมง {minutes} นาที",
+    "hoursShort": "{count} ชม.",
+    "hoursMinutesShort": "{hours} ชม. {minutes} นาที"
+  },
+  "time": {
+    "range": "{from}–{to} น."
+  },
+  "language": {
+    "label": "ภาษา"
+  },
+  "pagination": {
+    "pageOf": "{page} / {total}"
+  }
+}

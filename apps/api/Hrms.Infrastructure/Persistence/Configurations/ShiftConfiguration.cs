@@ -13,6 +13,8 @@ public class ShiftConfiguration : IEntityTypeConfiguration<Shift>
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.CompanyId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.Name).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.NameEn).HasMaxLength(100);
+        builder.Property(x => x.NameId).HasMaxLength(100);
         builder.Property(x => x.StartTime).HasColumnType("time").IsRequired();
         builder.Property(x => x.EndTime).HasColumnType("time").IsRequired();
         builder.Property(x => x.GracePeriodMinutes).HasDefaultValue(0);

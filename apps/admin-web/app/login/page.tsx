@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
@@ -10,16 +11,23 @@ import { useAuthStore } from '@/stores/auth.store'
 import { api } from '@/lib/api'
 import type { AuthResultDto } from '@hrms/shared-types'
 
-const schema = z.object({
-  email: z.string().email('อีเมลไม่ถูกต้อง'),
-  password: z.string().min(1, 'กรุณากรอกรหัสผ่าน'),
-})
-type FormValues = z.infer<typeof schema>
+type FormValues = { email: string; password: string }
 
 export default function LoginPage() {
+  const t = useTranslations('admin.auth.login')
   const router = useRouter()
   const setAuth = useAuthStore((s) => s.setAuth)
   const [showPassword, setShowPassword] = useState(false)
+
+  // schema สร้างใน component เพราะข้อความ validation ต้องมาจาก useTranslations
+  const schema = useMemo(
+    () =>
+      z.object({
+        email: z.string().email(t('invalidEmail')),
+        password: z.string().min(1, t('passwordRequired')),
+      }),
+    [t],
+  )
 
   const {
     register,
@@ -37,9 +45,9 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
       if (status === 401) {
-        setError('password', { message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' })
+        setError('password', { message: t('invalidCredentials') })
       } else {
-        setError('root', { message: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' })
+        setError('root', { message: t('genericError') })
       }
     }
   }
@@ -74,20 +82,16 @@ export default function LoginPage() {
             TBG Assistant
           </h1>
           <p className="mt-3 text-lg text-sky-100 font-medium">
-            ระบบบริหารจัดการข้อมูลภายใน
+            {t('tagline')}
           </p>
 
           <div className="mt-10 space-y-4">
-            {[
-              { label: 'จัดการข้อมูลพนักงานและแผนก' },
-              { label: 'อนุมัติคำขอลาและติดตามการทำงาน' },
-              { label: 'รายงานสถิติและการวิเคราะห์ HR' },
-            ].map(({ label }) => (
-              <div key={label} className="flex items-center gap-3">
+            {(['employees', 'approvals', 'reports'] as const).map((key) => (
+              <div key={key} className="flex items-center gap-3">
                 <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/20">
                   <div className="h-1.5 w-1.5 rounded-full bg-white" />
                 </div>
-                <p className="text-sm text-sky-100">{label}</p>
+                <p className="text-sm text-sky-100">{t(`features.${key}`)}</p>
               </div>
             ))}
           </div>
@@ -111,13 +115,13 @@ export default function LoginPage() {
             <img src="/tbg-assistant.jpg" alt="TBG Assistant" className="h-10 w-10 object-cover rounded-lg" />
           </div>
           <h1 className="text-xl font-bold text-foreground">TBG Assistant</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">ระบบบริหารจัดการข้อมูลภายใน</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t('tagline')}</p>
         </div>
 
         {/* Desktop heading */}
         <div className="mb-8 hidden w-full max-w-sm lg:block">
-          <h2 className="text-2xl font-bold text-foreground">ยินดีต้อนรับกลับ</h2>
-          <p className="mt-1 text-sm text-muted-foreground">เข้าสู่ระบบเพื่อเริ่มใช้งาน</p>
+          <h2 className="text-2xl font-bold text-foreground">{t('welcomeTitle')}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t('welcomeSubtitle')}</p>
         </div>
 
         {/* Form */}
@@ -125,7 +129,7 @@ export default function LoginPage() {
           {/* Email */}
           <div className="space-y-1.5">
             <label htmlFor="email" className="text-sm font-medium text-foreground">
-              อีเมล
+              {t('email')}
             </label>
             <div className="relative">
               <Mail className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -148,7 +152,7 @@ export default function LoginPage() {
           {/* Password */}
           <div className="space-y-1.5">
             <label htmlFor="password" className="text-sm font-medium text-foreground">
-              รหัสผ่าน
+              {t('password')}
             </label>
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -196,16 +200,18 @@ export default function LoginPage() {
             {isSubmitting ? (
               <>
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                กำลังเข้าสู่ระบบ...
+                {t('submitting')}
               </>
             ) : (
-              'เข้าสู่ระบบ'
+              t('submit')
             )}
           </button>
         </form>
 
         <p className="mt-10 text-center text-xs text-muted-foreground">
-          Powered by <span className='text-primary'>Thipparath Business Group Co.,Ltd.</span>
+          {t.rich('poweredBy', {
+            company: () => <span className="text-primary">Thipparath Business Group Co.,Ltd.</span>,
+          })}
         </p>
       </div>
     </div>

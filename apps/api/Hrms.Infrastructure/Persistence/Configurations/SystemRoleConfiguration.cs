@@ -13,6 +13,8 @@ public class SystemRoleConfiguration : IEntityTypeConfiguration<SystemRole>
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.Code).HasConversion<string>().HasMaxLength(50).IsRequired();
         builder.Property(x => x.NameTh).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.NameEn).HasMaxLength(100);
+        builder.Property(x => x.NameId).HasMaxLength(100);
         builder.Property(x => x.IsSystem).HasColumnType("tinyint(1)");
         builder.Property(x => x.IsActive).HasColumnType("tinyint(1)");
         builder.Property(x => x.CreatedAt).HasColumnType("datetime");

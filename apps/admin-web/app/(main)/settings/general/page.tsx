@@ -1,8 +1,10 @@
 "use client";
 
-import { CaseSensitive, Check, Info, Monitor, Moon, Sun } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { CaseSensitive, Check, Globe, Info, Monitor, Moon, Sun } from "lucide-react";
 import { useFontSize, type FontSize } from "@/hooks/use-font-size";
 import { useTheme, type ThemeMode } from "@/hooks/use-theme";
+import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { cn } from "@/lib/utils";
 
 // ── ตัวเลือกโหมดสี พร้อมกล่อง preview จำลองหน้าจอ ──────────────────────────────
@@ -32,18 +34,13 @@ function ThemePreview({ mode }: { mode: ThemeMode }) {
   );
 }
 
-const THEME_OPTIONS: { value: ThemeMode; label: string; description: string }[] = [
-  { value: "light", label: "สว่าง", description: "พื้นหลังสว่างตลอดเวลา" },
-  { value: "dark", label: "มืด", description: "พื้นหลังมืดตลอดเวลา" },
-  { value: "system", label: "ตามระบบ", description: "สลับอัตโนมัติตามเครื่อง" },
-];
-
+const THEME_VALUES: ThemeMode[] = ["light", "dark", "system"];
 const THEME_ICON = { light: Sun, dark: Moon, system: Monitor } as const;
 
-const FONT_OPTIONS: { value: FontSize; label: string; description: string; previewClass: string }[] = [
-  { value: "small", label: "เล็ก", description: "เห็นข้อมูลมากขึ้น", previewClass: "text-base" },
-  { value: "normal", label: "มาตรฐาน", description: "ขนาดปกติของระบบ", previewClass: "text-xl" },
-  { value: "large", label: "ใหญ่", description: "อ่านง่าย สบายตา", previewClass: "text-2xl" },
+const FONT_VALUES: { value: FontSize; previewClass: string }[] = [
+  { value: "small", previewClass: "text-base" },
+  { value: "normal", previewClass: "text-xl" },
+  { value: "large", previewClass: "text-2xl" },
 ];
 
 // ── การ์ดตัวเลือกร่วม: ขอบ primary + เครื่องหมายถูกมุมขวาบนเมื่อถูกเลือก ─────────
@@ -112,36 +109,45 @@ function SectionCard({
 }
 
 export default function GeneralSettingsPage() {
+  const t = useTranslations("admin.settings.general");
   const { mode, setMode } = useTheme();
   const { fontSize, setFontSize } = useFontSize();
 
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">ตั้งค่าทั่วไป</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          ปรับหน้าจอให้เหมาะกับการใช้งานของคุณ — ค่าถูกเก็บไว้ในเครื่องนี้ ไม่กระทบผู้ใช้คนอื่น
-        </p>
+        <h1 className="text-xl font-semibold text-foreground">{t("title")}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p>
       </div>
+
+      {/* ภาษา — ตัวสลับตัวเดียวกับปุ่มบน header (แผน i18n งาน 2.2) */}
+      <SectionCard
+        icon={Globe}
+        iconClass="bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400"
+        title={t("language.title")}
+        description={t("language.description")}
+      >
+        <LanguageSwitcher variant="cards" />
+      </SectionCard>
 
       <SectionCard
         icon={Moon}
         iconClass="bg-indigo-100 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400"
-        title="โหมดสี (Theme)"
-        description="เลือกโทนสว่าง มืด หรือให้ตามการตั้งค่าเครื่อง"
+        title={t("theme.title")}
+        description={t("theme.description")}
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {THEME_OPTIONS.map((option) => {
-            const Icon = THEME_ICON[option.value];
-            const active = mode === option.value;
+          {THEME_VALUES.map((value) => {
+            const Icon = THEME_ICON[value];
+            const active = mode === value;
             return (
-              <OptionCard key={option.value} active={active} onClick={() => setMode(option.value)}>
-                <ThemePreview mode={option.value} />
+              <OptionCard key={value} active={active} onClick={() => setMode(value)}>
+                <ThemePreview mode={value} />
                 <span className={cn("mt-1 flex items-center gap-1.5 text-sm font-semibold", active && "text-foreground")}>
                   <Icon className={cn("h-4 w-4", active && "text-primary")} />
-                  {option.label}
+                  {t(`theme.${value}`)}
                 </span>
-                <span className="text-xs text-muted-foreground">{option.description}</span>
+                <span className="text-xs text-muted-foreground">{t(`theme.${value}Hint`)}</span>
               </OptionCard>
             );
           })}
@@ -151,21 +157,23 @@ export default function GeneralSettingsPage() {
       <SectionCard
         icon={CaseSensitive}
         iconClass="bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400"
-        title="ขนาดตัวอักษร"
-        description="ปรับขนาดตัวอักษรของทั้งระบบ"
+        title={t("fontSize.title")}
+        description={t("fontSize.description")}
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {FONT_OPTIONS.map((option) => {
+          {FONT_VALUES.map((option) => {
             const active = fontSize === option.value;
             return (
               <OptionCard key={option.value} active={active} onClick={() => setFontSize(option.value)}>
                 <span className="flex h-12 items-center justify-center">
                   <span className={cn("font-semibold leading-none", option.previewClass, active ? "text-primary" : "text-foreground/70")}>
-                    กขค Aa
+                    {t("fontSize.sample")}
                   </span>
                 </span>
-                <span className={cn("text-sm font-semibold", active && "text-foreground")}>{option.label}</span>
-                <span className="text-xs text-muted-foreground">{option.description}</span>
+                <span className={cn("text-sm font-semibold", active && "text-foreground")}>
+                  {t(`fontSize.${option.value}`)}
+                </span>
+                <span className="text-xs text-muted-foreground">{t(`fontSize.${option.value}Hint`)}</span>
               </OptionCard>
             );
           })}
@@ -174,7 +182,7 @@ export default function GeneralSettingsPage() {
 
       <div className="flex items-center justify-between rounded-2xl border border-border bg-muted/30 px-5 py-3.5 text-sm">
         <span className="flex items-center gap-2 text-muted-foreground">
-          <Info className="h-4 w-4" /> Version
+          <Info className="h-4 w-4" /> {t("version")}
         </span>
         <span className="rounded-full bg-background px-3 py-1 text-xs font-semibold tabular-nums shadow-sm">
           v{process.env.NEXT_PUBLIC_APP_VERSION ?? "-"}

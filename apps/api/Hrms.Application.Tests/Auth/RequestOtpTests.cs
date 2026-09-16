@@ -27,17 +27,84 @@ public sealed class RequestOtpTests
             .ReturnsAsync("123456");
         var messaging = new Mock<ILineMessagingService>();
         var handler = new RequestOtpHandler(
-            db, VerifiedLine().Object, previewTokens.Object, otp.Object, messaging.Object);
+            db, VerifiedLine().Object, previewTokens.Object, otp.Object, messaging.Object,
+            Mock.Of<IJwtService>());
 
         var result = await handler.Handle(
             new RequestOtpCommand("line-token", "preview-token"), default);
 
         result.Hint.Should().Be("OTP ส่งแล้ว กรุณาตรวจสอบ LINE ของคุณ");
+        result.Session.Should().BeNull();
         otp.VerifyAll();
         messaging.Verify(service => service.PushMessageAsync(
             "U-LINE-123",
             It.Is<string>(message => message.Contains("123456")),
             It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handler_ShouldLinkAccountDirectlyWhenLinePushQuotaExceeded()
+    {
+        await using var db = CreateDb();
+        var employee = Employee("00123");
+        db.Employees.Add(employee);
+        await db.SaveChangesAsync();
+        var previewTokens = Preview("preview-token", employee.Id, "U-LINE-123");
+        var otp = new Mock<IOtpService>();
+        otp.Setup(service => service.GenerateAndStoreAsync(
+                employee.Id, "U-LINE-123", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("123456");
+        var messaging = new Mock<ILineMessagingService>();
+        messaging.Setup(service => service.PushMessageAsync(
+                "U-LINE-123", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new LinePushQuotaExceededException("monthly limit"));
+        var jwt = new Mock<IJwtService>();
+        jwt.Setup(service => service.GenerateAccessToken(
+                It.IsAny<Employee>(), It.IsAny<IEnumerable<EmployeeRole>>()))
+            .Returns(("access-token", DateTime.UtcNow.AddMinutes(15)));
+        jwt.Setup(service => service.GenerateRefreshToken())
+            .Returns(("refresh-token", "refresh-hash", DateTime.UtcNow.AddDays(7)));
+        var handler = new RequestOtpHandler(
+            db, VerifiedLine().Object, previewTokens.Object, otp.Object, messaging.Object, jwt.Object);
+
+        var result = await handler.Handle(
+            new RequestOtpCommand("line-token", "preview-token", "1.2.3.4", "UA"), default);
+
+        // ผูกบัญชีให้เลย + คืน session ไม่ต้องกรอก OTP
+        result.Session.Should().NotBeNull();
+        result.Session!.AccessToken.Should().Be("access-token");
+        result.Session.RefreshToken.Should().Be("refresh-token");
+        (await db.Employees.SingleAsync()).LineUserId.Should().Be("U-LINE-123");
+        (await db.RefreshTokens.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Handler_ShouldNotSwallowNonQuotaPushFailures()
+    {
+        await using var db = CreateDb();
+        var employee = Employee("00123");
+        db.Employees.Add(employee);
+        await db.SaveChangesAsync();
+        var previewTokens = Preview("preview-token", employee.Id, "U-LINE-123");
+        var otp = new Mock<IOtpService>();
+        otp.Setup(service => service.GenerateAndStoreAsync(
+                employee.Id, "U-LINE-123", It.IsAny<CancellationToken>()))
+            .ReturnsAsync("123456");
+        var messaging = new Mock<ILineMessagingService>();
+        messaging.Setup(service => service.PushMessageAsync(
+                "U-LINE-123", It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("LINE push failed with 500"));
+        var handler = new RequestOtpHandler(
+            db, VerifiedLine().Object, previewTokens.Object, otp.Object, messaging.Object,
+            Mock.Of<IJwtService>());
+
+        var action = () => handler.Handle(
+            new RequestOtpCommand("line-token", "preview-token"), default);
+
+        // push ล้มด้วยเหตุอื่น (ไม่ใช่ quota) ต้องไม่ผูกบัญชีให้ ต้อง fail ตามเดิม
+        await action.Should().ThrowAsync<HttpRequestException>();
+        (await db.Employees.SingleAsync()).LineUserId.Should().BeNull();
+        (await db.RefreshTokens.CountAsync()).Should().Be(0);
     }
 
     [Theory]
@@ -54,7 +121,7 @@ public sealed class RequestOtpTests
         var otp = new Mock<IOtpService>();
         var handler = new RequestOtpHandler(
             db, VerifiedLine().Object, previewTokens.Object, otp.Object,
-            Mock.Of<ILineMessagingService>());
+            Mock.Of<ILineMessagingService>(), Mock.Of<IJwtService>());
 
         var action = () => handler.Handle(
             new RequestOtpCommand("line-token", "invalid-preview"), default);
@@ -72,7 +139,7 @@ public sealed class RequestOtpTests
         var otp = new Mock<IOtpService>();
         var handler = new RequestOtpHandler(
             db, VerifiedLine().Object, previewTokens.Object, otp.Object,
-            Mock.Of<ILineMessagingService>());
+            Mock.Of<ILineMessagingService>(), Mock.Of<IJwtService>());
 
         var action = () => handler.Handle(
             new RequestOtpCommand("line-token", "preview-token"), default);
@@ -108,7 +175,7 @@ public sealed class RequestOtpTests
         var otp = new Mock<IOtpService>();
         var handler = new RequestOtpHandler(
             db, VerifiedLine().Object, previewTokens.Object, otp.Object,
-            Mock.Of<ILineMessagingService>());
+            Mock.Of<ILineMessagingService>(), Mock.Of<IJwtService>());
 
         var action = () => handler.Handle(
             new RequestOtpCommand("line-token", "preview-token"), default);
@@ -129,7 +196,7 @@ public sealed class RequestOtpTests
         var previewTokens = Preview("preview-token", employee.Id, "U-LINE-123");
         var handler = new RequestOtpHandler(
             db, VerifiedLine().Object, previewTokens.Object,
-            Mock.Of<IOtpService>(), Mock.Of<ILineMessagingService>());
+            Mock.Of<IOtpService>(), Mock.Of<ILineMessagingService>(), Mock.Of<IJwtService>());
 
         var action = () => handler.Handle(
             new RequestOtpCommand("line-token", "preview-token"), default);
@@ -148,7 +215,7 @@ public sealed class RequestOtpTests
         var previewTokens = new Mock<ILinkPreviewTokenService>(MockBehavior.Strict);
         var handler = new RequestOtpHandler(
             Mock.Of<IApplicationDbContext>(), line.Object, previewTokens.Object,
-            Mock.Of<IOtpService>(), Mock.Of<ILineMessagingService>());
+            Mock.Of<IOtpService>(), Mock.Of<ILineMessagingService>(), Mock.Of<IJwtService>());
 
         var action = () => handler.Handle(
             new RequestOtpCommand("bad-token", "preview-token"), default);

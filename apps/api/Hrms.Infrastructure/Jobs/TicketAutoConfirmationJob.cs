@@ -1,28 +1,41 @@
 using Hangfire;
+using Hrms.Application.Common.Options;
 using Hrms.Application.Features.Tickets;
 using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
 using Hrms.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Hrms.Infrastructure.Jobs;
 
+/// <summary>
+/// ปิดใบที่รอผู้แจ้งกดยืนยันนานเกินกำหนดให้เอง
+///
+/// จำนวนวันมาจาก snapshot บนใบ (Ticket.WorkflowAutoAcknowledgeAfterDays) ถ้าใบนั้นไม่มี
+/// ให้ใช้ Ticket:AutoAcknowledgeAfterDaysDefault จาก appsettings แทน — เดิม job กรอง
+/// snapshot ที่เป็น null ออก ใบที่สร้างขึ้นตอนยังไม่มี workflow ผูกไว้จึงค้างถาวร
+/// </summary>
 [AutomaticRetry(Attempts = 0)]
-public class TicketAutoConfirmationJob(HrmsDbContext db, ILogger<TicketAutoConfirmationJob> logger)
+public class TicketAutoConfirmationJob(
+    HrmsDbContext db,
+    IOptions<TicketOptions> ticketOptions,
+    ILogger<TicketAutoConfirmationJob> logger)
 {
     public async Task RunAsync(CancellationToken ct = default)
     {
         var now = DateTime.UtcNow.AddHours(7);
+        var fallbackDays = Math.Max(1, ticketOptions.Value.AutoAcknowledgeAfterDaysDefault);
         var tickets = await db.Tickets
             .Include(ticket => ticket.Assignments.Where(assignment => assignment.IsActive && assignment.IsPrimary))
             .Where(ticket => ticket.Status == TicketStatus.AwaitingRequesterConfirmation
-                && ticket.WorkflowAutoAcknowledgeAfterDays != null
                 && ticket.VerifiedAt != null)
             .ToListAsync(ct);
 
         var dueTickets = tickets.Where(ticket =>
-            ticket.VerifiedAt!.Value.AddDays(ticket.WorkflowAutoAcknowledgeAfterDays!.Value) <= now).ToList();
+            ticket.VerifiedAt!.Value.AddDays(
+                ticket.WorkflowAutoAcknowledgeAfterDays is > 0 and int days ? days : fallbackDays) <= now).ToList();
         foreach (var ticket in dueTickets)
         {
             var assignment = ticket.Assignments.FirstOrDefault();

@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { Modal } from './modal'
 import { Button } from './button'
 
@@ -18,11 +19,13 @@ interface ConfirmModalProps {
 export function ConfirmModal({
   open, onClose, onConfirm,
   title, description,
-  confirmLabel = 'ยืนยัน',
-  cancelLabel = 'ยกเลิก',
+  // ไม่ใส่ค่า default ตรง signature เพราะข้อความต้องมาจาก useTranslations (เรียกใน component เท่านั้น)
+  confirmLabel,
+  cancelLabel,
   variant = 'default',
   loading,
 }: ConfirmModalProps) {
+  const tCommon = useTranslations('common')
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
       {description && (
@@ -30,10 +33,10 @@ export function ConfirmModal({
       )}
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={onClose} disabled={loading}>
-          {cancelLabel}
+          {cancelLabel ?? tCommon('action.cancel')}
         </Button>
         <Button variant={variant} loading={loading} onClick={onConfirm}>
-          {confirmLabel}
+          {confirmLabel ?? tCommon('action.confirm')}
         </Button>
       </div>
     </Modal>

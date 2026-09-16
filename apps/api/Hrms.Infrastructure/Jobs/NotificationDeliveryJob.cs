@@ -1,9 +1,11 @@
-using System.Text.Json;
 using Hangfire;
 using Hrms.Application.Common.Helpers;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Common.Localization;
+using Hrms.Application.Common.Notifications;
 using Hrms.Domain.Enums;
 using Hrms.Infrastructure.Persistence;
+using Hrms.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -13,6 +15,7 @@ namespace Hrms.Infrastructure.Jobs;
 public class NotificationDeliveryJob(
     HrmsDbContext db,
     ILineMessagingService line,
+    INotificationTemplateCatalog templates,
     ILogger<NotificationDeliveryJob> logger)
 {
     private const int MaxAttempts = 5;
@@ -30,6 +33,9 @@ public class NotificationDeliveryJob(
                 .SetProperty(x => x.NextAttemptAt, now)
                 .SetProperty(x => x.ProcessingStartedAt, (DateTime?)null)
                 .SetProperty(x => x.LastError, "Recovered stale delivery lock"), ct);
+
+        // สร้างใหม่ทุกรอบ — ภาษาที่ผู้ใช้เปลี่ยนระหว่างวันต้องมีผลกับรอบถัดไปทันที
+        var locales = new RecipientLocaleResolver(db);
 
         var ids = await db.NotificationOutboxes.AsNoTracking()
             .Where(x => (x.Status == NotificationDeliveryStatus.Pending ||
@@ -56,13 +62,20 @@ public class NotificationDeliveryJob(
             var delivery = await db.NotificationOutboxes.FirstAsync(x => x.Id == id, ct);
             try
             {
-                var payload = JsonSerializer.Deserialize<TicketNotificationPayload>(
-                    delivery.PayloadJson)
+                var payload = NotificationPayload.FromJson(delivery.PayloadJson)
                     ?? throw new InvalidOperationException("Notification payload is empty.");
-                var ticketUrl = line.BuildLiffUri($"/tickets/{delivery.EntityId}");
-                var card = LineFlexBuilder.BuildTicketNotificationCard(payload.Message, ticketUrl);
+                var locale = await locales.ResolveAsync(delivery, ct);
+                var text = new MessageText(templates, locale);
+                var message = ResolveMessage(payload, locale);
+                // Memo กับ Ticket ใช้การ์ดโครงเดียวกัน แต่ deep link และป้าย header ต่างกัน
+                var isMemo = string.Equals(delivery.EntityType, "Memo", StringComparison.OrdinalIgnoreCase);
+                var detailUrl = line.BuildLiffUri(isMemo
+                    ? $"/memos/{delivery.EntityId}"
+                    : $"/tickets/{delivery.EntityId}");
+                var card = LineFlexBuilder.BuildTicketNotificationCard(
+                    message, detailUrl, delivery.EventType, text, isMemo ? "MEMO" : "INTERNAL TICKET");
                 await line.PushFlexMessageAsync(
-                    delivery.LineUserId, TitleFrom(payload.Message), card, ct);
+                    delivery.LineUserId, TitleFrom(message, text), card, ct);
                 delivery.Status = NotificationDeliveryStatus.Sent;
                 delivery.SentAt = DateTime.UtcNow.AddHours(7);
                 delivery.ProcessingStartedAt = null;
@@ -96,12 +109,41 @@ public class NotificationDeliveryJob(
         }
     }
 
-    private static string TitleFrom(string message)
+    /// <summary>
+    /// ประกอบข้อความจาก payload — รูปใหม่ประกอบจากเทมเพลตตอนนี้ ส่วนรูปเก่าใช้ข้อความที่เก็บไว้ตรง ๆ
+    ///
+    /// <para>
+    /// ภาษามาจาก <c>PreferredLanguage</c> ของผู้รับ (ไม่ใช่ของคนที่กดปุ่ม) ผ่าน
+    /// <see cref="RecipientLocaleResolver"/> — คิวเก่าที่ยังเป็นรูป <c>{ Message }</c> ไม่เกี่ยวกับภาษา
+    /// เพราะข้อความถูกประกอบไว้ตั้งแต่ตอน queue แล้ว
+    /// </para>
+    /// <para>
+    /// เทมเพลตหายต้องไม่ทำให้ส่งไม่ออก — ตกไปใช้ <c>Message</c> เดิมถ้ามี ไม่มีก็ใช้ key เปล่า ๆ
+    /// ให้เห็นบนหน้าจอว่าคีย์ไหนขาด (เจอเร็วกว่ารอ log)
+    /// </para>
+    /// </summary>
+    private string ResolveMessage(NotificationPayload payload, string locale)
+    {
+        if (string.IsNullOrWhiteSpace(payload.TemplateKey))
+            return payload.Message ?? string.Empty;
+
+        var template = templates.Find(payload.TemplateKey, locale);
+        if (template is null)
+        {
+            logger.LogWarning(
+                "Notification template {TemplateKey} not found for locale {Locale}",
+                payload.TemplateKey, locale);
+            return payload.Message ?? payload.TemplateKey;
+        }
+        return NotificationTemplate.Render(
+            template, payload.ResolveParams(locale, key => templates.Find(key, locale)));
+    }
+
+    /// <summary><c>altText</c> ของ LINE — บรรทัดแรกของข้อความ ซึ่งแปลมาแล้วตามภาษาผู้รับ</summary>
+    private static string TitleFrom(string message, MessageText text)
         => message.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .FirstOrDefault() ?? "อัปเดตใบแจ้งเรื่อง";
+            .FirstOrDefault() ?? text.Of("card.fallbackTitle");
 
     private static string Truncate(string value, int maxLength)
         => value.Length <= maxLength ? value : value[..maxLength];
-
-    private sealed record TicketNotificationPayload(string Message);
 }

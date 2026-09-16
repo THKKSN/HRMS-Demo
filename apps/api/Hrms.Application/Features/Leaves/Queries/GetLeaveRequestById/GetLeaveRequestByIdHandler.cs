@@ -47,7 +47,9 @@ public class GetLeaveRequestByIdHandler(IApplicationDbContext db, ICurrentUser c
             r.SupervisorComment,
             hrName,
             r.HrComment,
-            r.CreatedAt);
+            r.CreatedAt,
+            LeaveTypeNameEn: r.LeaveType.NameEn,
+            LeaveTypeNameId: r.LeaveType.NameId);
     }
 
     internal static async Task<(string? supervisorName, string? hrName)> LookupApproverNamesAsync(

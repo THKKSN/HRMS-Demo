@@ -27,4 +27,21 @@
     <ProjectReference Include="..\Hrms.Infrastructure\Hrms.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- ContentRoot ถูกตั้งเป็นโฟลเดอร์ dll (ดู Program.cs) จึงต้อง copy wwwroot ไป output ด้วย
+         ตอน build ไม่งั้น dev จะไม่มีไฟล์แนบเก่าให้เปิดดู และ layout ไม่ตรงกับ publish
+         Update ไม่ใช่ Include เพราะ Web SDK รวม wwwroot\** เป็น Content ให้อยู่แล้ว -->
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ข้อความ LINE notification ใช้ไฟล์คำแปลชุดเดียวกับ frontend (แผน notification-i18n · D10)
+         เพื่อให้ pnpm i18n:export/import กับ GLOSSARY.md คุมศัพท์ได้ที่เดียวทั้งระบบ
+         Link ทำให้ไปโผล่ที่ i18n\<locale>\notifications.json ใน output ตรงกับที่
+         NotificationTemplateCatalog มองหา — deploy เป็น copy publish ทับจึงตามไปเอง -->
+    <Content Include="..\..\..\packages\i18n\messages\**\notifications.json"
+             Link="i18n\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

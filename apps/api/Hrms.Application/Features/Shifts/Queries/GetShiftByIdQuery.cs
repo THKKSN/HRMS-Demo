@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Shifts.Commands;
 using Hrms.Application.Features.Shifts.Dtos;
@@ -16,7 +17,7 @@ public class GetShiftByIdHandler(IApplicationDbContext db, IScopeGuard scope)
         var shift = await db.Shifts
             .Include(s => s.Company)
             .FirstOrDefaultAsync(s => s.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException($"ไม่พบ Shift Id '{request.Id}'");
+            ?? throw new NotFoundException("Shift", request.Id, "SHIFT_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(shift.CompanyId, ct);
 

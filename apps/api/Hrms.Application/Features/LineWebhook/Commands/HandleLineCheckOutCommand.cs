@@ -14,7 +14,8 @@ public record HandleLineCheckOutCommand(
 public class HandleLineCheckOutHandler(
     IApplicationDbContext db,
     ILineMessagingService line,
-    IGeofenceService geofence)
+    IGeofenceService geofence,
+    ILineMessageTextFactory messageText)
     : IRequestHandler<HandleLineCheckOutCommand, Unit>
 {
     public async Task<Unit> Handle(HandleLineCheckOutCommand request, CancellationToken ct)
@@ -22,10 +23,11 @@ public class HandleLineCheckOutHandler(
         var employee = await db.Employees
             .FirstOrDefaultAsync(e => e.LineUserId == request.LineUserId && e.IsActive, ct);
 
+        var text = messageText.For(employee?.PreferredLanguage);
+
         if (employee is null)
         {
-            await line.ReplyAsync(request.ReplyToken,
-                "ไม่พบข้อมูลผู้ใช้ กรุณาผูกบัญชีก่อนใช้งาน", ct);
+            await line.ReplyAsync(request.ReplyToken, text.Of("webhook.accountNotLinked"), ct);
             return Unit.Value;
         }
 
@@ -37,15 +39,14 @@ public class HandleLineCheckOutHandler(
 
         if (record?.CheckInTime == null)
         {
-            await line.ReplyAsync(request.ReplyToken,
-                "ยังไม่ได้เช็คอินวันนี้ กรุณากด 'ลงเวลา' เพื่อเช็คอินก่อน", ct);
+            await line.ReplyAsync(request.ReplyToken, text.Of("webhook.notCheckedInYet"), ct);
             return Unit.Value;
         }
 
         if (record.CheckOutTime != null)
         {
             await line.ReplyAsync(request.ReplyToken,
-                $"คุณเช็คเอาต์วันนี้ไปแล้ว เวลา {record.CheckOutTime.Value.ToString("HH:mm")} น.", ct);
+                text.Of("webhook.alreadyCheckedOut", new { time = record.CheckOutTime.Value.ToString("HH:mm") }), ct);
             return Unit.Value;
         }
 
@@ -61,8 +62,7 @@ public class HandleLineCheckOutHandler(
 
         if (matchedLocation is null)
         {
-            await line.ReplyAsync(request.ReplyToken,
-                "ตำแหน่งปัจจุบันอยู่นอกพื้นที่ที่กำหนด กรุณาเช็คเอาต์ในบริเวณสำนักงาน 📍", ct);
+            await line.ReplyAsync(request.ReplyToken, text.Of("webhook.outsideGeofenceCheckOut"), ct);
             return Unit.Value;
         }
 
@@ -74,10 +74,11 @@ public class HandleLineCheckOutHandler(
 
         var locationName = matchedLocation.Name;
         var card = LineFlexBuilder.BuildCheckOutResultCard(
+            text,
             $"{employee.FirstName} {employee.LastName}",
             record.CheckInTime.Value, now, locationName);
 
-        await line.ReplyFlexMessageAsync(request.ReplyToken, "เช็คเอาต์สำเร็จ", card, ct);
+        await line.ReplyFlexMessageAsync(request.ReplyToken, text.Of("attendance.checkOut.done"), card, ct);
         return Unit.Value;
     }
 }

@@ -13,7 +13,8 @@ public record UpdateCompanyCommand(
     string? NameEn,
     Guid? ParentId,
     bool IsActive,
-    bool IsHeadquarters) : IRequest<CompanyDto>;
+    bool IsHeadquarters,
+    string? NameId = null) : IRequest<CompanyDto>;
 
 public class UpdateCompanyValidator : AbstractValidator<UpdateCompanyCommand>
 {
@@ -21,6 +22,7 @@ public class UpdateCompanyValidator : AbstractValidator<UpdateCompanyCommand>
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.NameEn).MaximumLength(200).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(200).When(x => x.NameId is not null);
     }
 }
 
@@ -33,10 +35,10 @@ public class UpdateCompanyHandler(IApplicationDbContext db, IScopeGuard scope, I
 
         var company = await db.Companies
             .FirstOrDefaultAsync(c => c.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลบริษัท");
+            ?? throw new NotFoundException("Company", request.Id, "COMPANY_NOT_FOUND");
 
         if (request.ParentId.HasValue && request.ParentId.Value == company.Id)
-            throw new ConflictException("CIRCULAR_PARENT", "ไม่สามารถตั้งบริษัทตัวเองเป็นบริษัทแม่ได้");
+            throw new ConflictException("CIRCULAR_PARENT", "A company cannot be its own parent.");
 
         if (!request.IsActive)
         {
@@ -44,17 +46,17 @@ public class UpdateCompanyHandler(IApplicationDbContext db, IScopeGuard scope, I
                 .AnyAsync(c => c.ParentId == company.Id && c.IsActive, ct);
 
             if (hasActiveChildren)
-                throw new ConflictException("HAS_ACTIVE_CHILDREN", "ไม่สามารถปิดบริษัทที่ยังมีบริษัทลูกที่ใช้งานอยู่");
+                throw new ConflictException("HAS_ACTIVE_CHILDREN", "A company with active child companies cannot be deactivated.");
         }
 
         string? parentName = null;
         if (request.ParentId.HasValue)
         {
             var parent = await db.Companies.FirstOrDefaultAsync(c => c.Id == request.ParentId.Value, ct)
-                ?? throw new KeyNotFoundException("ไม่พบข้อมูลบริษัทแม่");
+                ?? throw new NotFoundException("Company", request.ParentId.Value, "PARENT_COMPANY_NOT_FOUND");
 
             if (!parent.IsActive)
-                throw new ConflictException("PARENT_INACTIVE", "บริษัทแม่ถูกปิดใช้งานแล้ว");
+                throw new ConflictException("PARENT_INACTIVE", "The parent company is inactive.");
 
             parentName = parent.Name;
         }
@@ -63,6 +65,7 @@ public class UpdateCompanyHandler(IApplicationDbContext db, IScopeGuard scope, I
 
         company.Name           = request.Name;
         company.NameEn         = request.NameEn;
+        company.NameId         = Common.Helpers.NameText.Apply(company.NameId, request.NameId);
         company.ParentId       = request.ParentId;
         company.IsActive       = request.IsActive;
         company.IsHeadquarters = request.IsHeadquarters;
@@ -88,6 +91,7 @@ public class UpdateCompanyHandler(IApplicationDbContext db, IScopeGuard scope, I
             company.ParentId,
             parentName,
             company.IsActive,
-            company.IsHeadquarters);
+            company.IsHeadquarters,
+            NameId: company.NameId);
     }
 }

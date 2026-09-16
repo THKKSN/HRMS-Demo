@@ -26,7 +26,7 @@ public class GetTicketCategoriesHandler(IApplicationDbContext db, ICurrentUser c
         return await query
             .OrderBy(c => c.SortOrder)
             .ThenBy(c => c.Name)
-            .Select(c => new TicketCategoryDto(c.Id, c.CompanyId, c.DepartmentId, c.Name, c.Description, c.SortOrder, c.IsActive, c.EnableResponsibilityFallback, c.RoutingMode))
+            .Select(c => new TicketCategoryDto(c.Id, c.CompanyId, c.DepartmentId, c.Name, c.Description, c.SortOrder, c.IsActive, c.EnableResponsibilityFallback, c.RoutingMode, c.NameEn, c.NameId))
             .ToListAsync(ct);
     }
 }

@@ -11,4 +11,6 @@ public record TicketCategoryDto(
     int SortOrder,
     bool IsActive,
     bool EnableResponsibilityFallback,
-    TicketRoutingMode RoutingMode);
+    TicketRoutingMode RoutingMode,
+    string? NameEn = null,
+    string? NameId = null);

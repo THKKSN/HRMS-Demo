@@ -1,0 +1,251 @@
+{
+  "ticket": {
+    "created": {
+      "toManager": "มีใบแจ้งเรื่องใหม่ {ticketNo}\nหัวข้อ: {title}\nจาก: {requester}\nปลายทาง: {department}\nหมวด: {taxonomy}\nความเร่งด่วน: {priority}\nการกระจายงาน: {routing}",
+      "toAutoAssignee": "คุณได้รับมอบหมายงาน {ticketNo}\nเรื่อง: {title}\nหัวข้อ: {taxonomy}",
+      "toCandidate": "มีงานใหม่ในขอบเขตที่คุณรับผิดชอบ {ticketNo}\nเรื่อง: {title}\nคุณสามารถเปิด LIFF เพื่อรับงานนี้ได้"
+    },
+    "accepted": {
+      "toRequester": "ใบแจ้งเรื่อง {ticketNo} ได้รับการรับเรื่องแล้ว\nผู้รับเรื่อง: {acceptedBy}"
+    },
+    "claimed": {
+      "toRequester": "ใบแจ้งเรื่อง {ticketNo} มีผู้รับผิดชอบแล้ว\nผู้รับผิดชอบ: {owner}"
+    },
+    "assigned": {
+      "toAssignee": "คุณได้รับมอบหมายงาน {ticketNo}\nเรื่อง: {title}\nสถานที่: {location}\nผู้มอบหมาย: {assignedBy}",
+      "toRequester": "ใบแจ้งเรื่อง {ticketNo} ได้รับการมอบหมายแล้ว\nผู้รับผิดชอบ: {owner}",
+      "toPreviousAssignee": "งาน {ticketNo} ถูกเปลี่ยนผู้รับผิดชอบแล้ว\nผู้รับผิดชอบใหม่: {owner}",
+      "toTeam": "งาน {ticketNo} เปลี่ยนผู้รับผิดชอบหลักเป็น {owner}"
+    },
+    "started": {
+      "toRequester": "ทีมเริ่มดำเนินการ {ticketNo} แล้ว\nเรื่อง: {title}",
+      "toTeam": "งาน {ticketNo} เริ่มดำเนินการแล้ว\nเรื่อง: {title}"
+    },
+    "resumed": {
+      "toRequester": "ทีมกลับมาดำเนินการ {ticketNo} แล้ว"
+    },
+    "commented": {
+      "all": "มีข้อความใหม่ใน {ticketNo}\nจาก: {actor}\n{comment}"
+    },
+    "waitingInfo": {
+      "toRequester": "ทีมขอข้อมูลเพิ่มสำหรับ {ticketNo}\n{question}"
+    },
+    "resolved": {
+      "toReviewer": "งาน {ticketNo} ดำเนินการเสร็จแล้วและรอตรวจรับ\nเรื่อง: {title}"
+    },
+    "returned": {
+      "all": "งาน {ticketNo} ถูกส่งกลับแก้ไข\nเหตุผล: {reason}"
+    },
+    "closed": {
+      "all": "งาน {ticketNo} ผ่านการตรวจและปิดแล้ว"
+    },
+    "requesterConfirmed": {
+      "all": "ผู้แจ้งยืนยันปิดงาน {ticketNo} แล้ว"
+    },
+    "rejected": {
+      "toRequester": "ใบแจ้งเรื่อง {ticketNo} ถูกปฏิเสธ\nเหตุผล: {reason}",
+      "toAssignee": "งาน {ticketNo} ถูกยุติ\nเหตุผล: {reason}"
+    },
+    "cancellationRequested": {
+      "toReviewers": "มีคำขอยกเลิก {ticketNo}\nผู้แจ้ง: {requester}\nเหตุผล: {reason}"
+    },
+    "cancelled": {
+      "all": "คำขอยกเลิก {ticketNo} ได้รับอนุมัติ\nเหตุผล: {reason}"
+    },
+    "cancellationRejected": {
+      "all": "คำขอยกเลิก {ticketNo} ไม่ได้รับอนุมัติ\nเหตุผล: {reason}"
+    },
+    "teamMemberAdded": {
+      "toMember": "คุณถูกดึงเข้าทีมงาน {ticketNo}\nเรื่อง: {title}\nผู้รับผิดชอบหลัก: {owner}\nโดย: {actor}",
+      "toTeam": "ทีมงาน {ticketNo} มีผู้ร่วมงานเพิ่ม: {members}"
+    },
+    "teamMemberRemoved": {
+      "toMember": "คุณถูกถอนออกจากทีมงาน {ticketNo}\nเรื่อง: {title}"
+    }
+  },
+  "memo": {
+    "submitted": {
+      "toApprover": "มีเรื่องรออนุมัติ: {memoTitle}"
+    },
+    "approved": {
+      "toRequester": "เรื่อง '{memoTitle}' ได้รับการอนุมัติแล้ว\nความเห็น: {comment}",
+      "toTargetSupervisor": "เรื่อง '{memoTitle}' ได้รับการอนุมัติแล้ว\nส่งเข้า: {target}\nความเห็น: {comment}"
+    },
+    "rejected": {
+      "toRequester": "เรื่อง '{memoTitle}' ไม่ได้รับการอนุมัติ\nเหตุผล: {reason}"
+    },
+    "stepReady": {
+      "toAssignee": "เรื่อง '{memoTitle}' ถึงขั้นตอน '{step}' รอคุณดำเนินการ"
+    },
+    "stepsCompleted": {
+      "toSupervisor": "เรื่อง '{memoTitle}' ดำเนินการครบทุกขั้นตอนแล้ว พร้อมส่งมอบ"
+    },
+    "stepRejected": {
+      "toRequester": "เรื่อง '{memoTitle}' ไม่ได้รับการอนุมัติที่ขั้นตอน '{step}'\nเหตุผล: {reason}"
+    },
+    "stepReturned": {
+      "toAssignee": "เรื่อง '{memoTitle}' ถูกตีกลับจากขั้นตอน '{fromStep}' มาที่ '{toStep}'\nเหตุผล: {reason}"
+    },
+    "returnedToRequester": {
+      "toRequester": "เรื่อง '{memoTitle}' ถูกตีกลับจากขั้นตอน '{fromStep}' มาให้คุณแก้ไข\nเหตุผล: {reason}"
+    },
+    "resubmitted": {
+      "toAssignee": "ผู้ขอแก้ไขเรื่อง '{memoTitle}' แล้ว กลับมาที่ขั้นตอน '{step}' รอคุณดำเนินการ"
+    },
+    "deliveredToRequester": {
+      "toRequester": "เรื่อง '{memoTitle}' ดำเนินการเสร็จแล้ว กรุณายืนยันตรวจรับ"
+    }
+  },
+  "enum": {
+    "priority": {
+      "Low": "ปกติ",
+      "Medium": "กลาง",
+      "High": "ด่วน",
+      "Critical": "ด่วนมาก"
+    },
+    "routing": {
+      "NotEvaluated": "กำลังตรวจสอบ",
+      "NoMatch": "ยังไม่พบผู้รับผิดชอบ",
+      "SupervisorQueue": "ส่งเข้าคิวผู้รับผิดชอบ",
+      "AutoAssigned": "มอบหมายอัตโนมัติ"
+    }
+  },
+  "card": {
+    "fallbackTitle": "อัปเดตใบแจ้งเรื่อง",
+    "noDetailHint": "แตะปุ่มด้านล่างเพื่อตรวจสอบรายละเอียด",
+    "updatedAt": "อัปเดตเมื่อ {time} น.",
+    "openButton": "เปิดดูรายละเอียด",
+    "badge": {
+      "newTicket": "งานใหม่",
+      "assigned": "มอบหมายแล้ว",
+      "inProgress": "กำลังดำเนินการ",
+      "actionRequired": "ต้องดำเนินการ",
+      "awaitingAcceptance": "รอตรวจรับ",
+      "closed": "ปิดงานแล้ว",
+      "newMessage": "ข้อความใหม่",
+      "pendingApproval": "รออนุมัติ",
+      "pendingReview": "รอพิจารณา",
+      "approved": "อนุมัติแล้ว",
+      "notApproved": "ไม่อนุมัติ",
+      "stopped": "ยุติรายการ",
+      "cancelled": "ยกเลิกแล้ว"
+    }
+  },
+  "leave": {
+    "pending": {
+      "title": "📋 คำขอลางาน",
+      "subtitle": "กรุณาพิจารณาอนุมัติ",
+      "altText": "📋 {employee} ขอ{leaveType} {dateRange} ({days} วัน)"
+    },
+    "field": {
+      "employee": "พนักงาน",
+      "type": "ประเภท",
+      "dates": "วันที่",
+      "days": "จำนวน",
+      "reason": "เหตุผล",
+      "supervisorApproved": "หัวหน้าอนุมัติ",
+      "attachments": "เอกสารแนบ",
+      "approver": "ผู้อนุมัติ",
+      "comment": "หมายเหตุ"
+    },
+    "value": {
+      "days": "{days} วัน",
+      "attachments": "📎 มีเอกสารแนบ {count} ไฟล์"
+    },
+    "action": {
+      "approve": "อนุมัติ",
+      "approveDisplayText": "อนุมัติคำขอลางาน",
+      "reject": "ปฏิเสธ",
+      "rejectDisplayText": "ปฏิเสธคำขอลางาน"
+    },
+    "result": {
+      "approvedTitle": "คำขอลางานได้รับอนุมัติ",
+      "rejectedTitle": "คำขอลางานถูกปฏิเสธ",
+      "approvedAltText": "✅ คำขอ{leaveType} {dateRange} ของคุณได้รับอนุมัติแล้ว",
+      "rejectedAltText": "❌ คำขอ{leaveType} {dateRange} ของคุณถูกปฏิเสธ"
+    }
+  },
+  "attendance": {
+    "value": {
+      "time": "{time} น."
+    },
+    "field": {
+      "location": "สถานที่",
+      "checkInTime": "เวลาเข้า",
+      "checkIn": "เข้างาน",
+      "checkOut": "ออกงาน"
+    },
+    "checkIn": {
+      "title": "เช็คอินเริ่มงาน",
+      "done": "เช็คอินสำเร็จ",
+      "onTime": "มาทำงานตรงเวลา ✅",
+      "lateBy": "มาสาย {minutes} นาที"
+    },
+    "checkOut": {
+      "title": "เช็คเอาต์ออกงาน",
+      "done": "เช็คเอาต์สำเร็จ",
+      "worked": "ทำงาน {hours} ชม. {minutes} นาที"
+    },
+    "prompt": {
+      "notCheckedInYet": "ยังไม่ได้เช็คอินวันนี้",
+      "checkedInAt": "เช็คอินแล้ว {time} น.",
+      "shareForCheckIn": "📍 แชร์ตำแหน่งเพื่อเช็คอิน",
+      "shareForCheckOut": "📍 แชร์ตำแหน่งเพื่อเช็คเอาต์"
+    },
+    "today": {
+      "title": "สถานะการเข้างานวันนี้"
+    },
+    "status": {
+      "present": "✅ มาทำงาน",
+      "late": "⚠️ มาสาย",
+      "absent": "❌ ขาดงาน",
+      "notRecorded": "— ยังไม่ลงเวลา"
+    },
+    "report": {
+      "title": "สรุปการเข้างาน",
+      "altText": "สรุปการเข้างาน {company} {date}",
+      "date": "{dayOfWeek}ที่ {date}",
+      "checkedIn": "เข้างาน",
+      "late": "มาสาย",
+      "onLeave": "ลา",
+      "notCheckedIn": "ไม่ได้เช็คอิน",
+      "notCheckedInNames": "รายชื่อที่ยังไม่ได้เช็คอิน",
+      "people": "{count} คน",
+      "ofTotalPeople": "{count}/{total} คน",
+      "andMorePeople": "และอีก {count} คน"
+    }
+  },
+  "webhook": {
+    "accountNotLinked": "ไม่พบข้อมูลผู้ใช้ กรุณาผูกบัญชีก่อนใช้งาน",
+    "accountNotLinkedLogin": "ไม่พบข้อมูลผู้ใช้ กรุณากด 'เข้าสู่ระบบ' เพื่อผูกบัญชีก่อนใช้งาน",
+    "alreadyCheckedIn": "คุณเช็คอินวันนี้ไปแล้ว เวลา {time} น.",
+    "alreadyCheckedOut": "คุณเช็คเอาต์วันนี้ไปแล้ว เวลา {time} น.",
+    "notCheckedInYet": "ยังไม่ได้เช็คอินวันนี้ กรุณากด 'ลงเวลา' เพื่อเช็คอินก่อน",
+    "outsideGeofenceCheckIn": "ตำแหน่งปัจจุบันอยู่นอกพื้นที่ที่กำหนด กรุณาเช็คอินในบริเวณสำนักงาน 📍",
+    "outsideGeofenceCheckOut": "ตำแหน่งปัจจุบันอยู่นอกพื้นที่ที่กำหนด กรุณาเช็คเอาต์ในบริเวณสำนักงาน 📍",
+    "shareLocation": "แชร์ตำแหน่ง",
+    "shareLocationWithoutPrompt": "กรุณากด 'ลงเวลา' ก่อนแชร์ตำแหน่ง",
+    "menu": {
+      "welcome": "สวัสดีครับ/ค่ะ! ยินดีต้อนรับสู่ระบบบริหารงานบุคคล กรุณาเลือกเมนูที่ต้องการ",
+      "attendance": "ลงเวลางาน",
+      "leave": "ลางาน",
+      "leaveQuota": "ตรวจสอบสิทธิ์"
+    },
+    "quota": {
+      "title": "สิทธิ์วันลาของคุณ",
+      "subtitle": "{name} · ปี {year}",
+      "altText": "สิทธิ์วันลาของ {name}",
+      "noData": "ยังไม่มีข้อมูลโควต้าวันลาสำหรับปี {year}",
+      "remainingOfTotal": "{remaining}/{total} วัน"
+    },
+    "leave": {
+      "userNotFound": "ไม่พบข้อมูลผู้ใช้ในระบบ",
+      "requestNotFound": "ไม่พบคำขอลาที่ระบุ",
+      "noPermission": "คุณไม่มีสิทธิ์ดำเนินการนี้",
+      "supervisorApproved": "✅ อนุมัติขั้นต้นแล้ว — รอ HR ยืนยัน",
+      "approved": "✅ อนุมัติแล้ว",
+      "rejected": "❌ ปฏิเสธแล้ว",
+      "notPending": "คำขอนี้ไม่อยู่ในสถานะรออนุมัติ"
+    }
+  }
+}

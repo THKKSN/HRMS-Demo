@@ -1,4 +1,5 @@
 import axios, { type InternalAxiosRequestConfig } from 'axios'
+import { readLocaleCookie } from '@hrms/i18n'
 import type { ExternalLineLoginResult } from '@hrms/shared-types'
 import { getLiffAccessToken } from '@/lib/liff'
 
@@ -19,6 +20,10 @@ export const externalApi = axios.create({
 externalApi.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = getExternalAuthStore().getState().accessToken
   if (token) config.headers.Authorization = `Bearer ${token}`
+
+  // กลุ่มนี้มีโอกาสไม่ใช่คนไทยมากที่สุด — ภาษาที่จำไว้ตรงนี้คือภาษาที่เขาจะได้รับ notification (D11)
+  const locale = readLocaleCookie()
+  if (locale) config.headers['X-Locale'] = locale
   return config
 })
 

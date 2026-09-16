@@ -34,7 +34,7 @@ public class GetCompanyDashboardHandler(
         {
             var canAccess = isSystemWide || (accessibleIds?.Contains(request.CompanyId.Value) == true);
             if (!canAccess)
-                throw new AppForbiddenException("ไม่มีสิทธิ์เข้าถึงบริษัทนี้");
+                throw new AppForbiddenException("COMPANY_ACCESS_FORBIDDEN", "You are not allowed to access this company.");
 
             filterIds           = new HashSet<Guid> { request.CompanyId.Value };
             filterIsSystemWide  = false;

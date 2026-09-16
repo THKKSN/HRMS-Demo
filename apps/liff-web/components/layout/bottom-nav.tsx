@@ -2,15 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { FileText, Home, MessagesSquare, User } from 'lucide-react'
 import { usePendingApprovals } from '@/hooks/use-leaves'
 import { useTicketPendingCounts } from '@/hooks/use-tickets'
-import { isSupervisorOrAbove } from '@/lib/auth-utils'
+import { hasPermission } from '@/lib/auth-utils'
 import { useAuthStore } from '@/stores/auth.store'
 
 function PendingBadge() {
   const employee = useAuthStore(s => s.employee)
-  const enabled = !!employee && isSupervisorOrAbove(employee.roles)
+  const enabled = hasPermission(employee, 'leave:approve-supervisor', ['Supervisor', 'Hr', 'Admin'])
   const { data } = usePendingApprovals(enabled ? {} : false)
 
   if (!enabled || !data?.totalCount) return null
@@ -53,20 +54,22 @@ function TicketBadge() {
 }
 
 export function BottomNav() {
+  const t = useTranslations('liff.nav')
   const pathname = usePathname()
   const employee = useAuthStore(s => s.employee)
-  const isExecutive = employee?.roles.some(role => ['Executive', 'Admin'].includes(role.role)) ?? false
-  const isSupervisor = employee?.roles.some(role => role.role === 'Supervisor') ?? false
-  // ปลายทางแท็บ Memo ตามหน้าที่หลักของ role: ผู้บริหาร → รออนุมัติ, หัวหน้าแผนก → เข้าแผนก, อื่นๆ → ของฉัน
-  const memoHref = isExecutive ? '/memos/approvals' : isSupervisor ? '/memos/inbox' : '/memos/my'
-  // แท็บแจ้งเรื่องแนวเดียวกัน: หัวหน้าแผนก → กล่องรับเรื่อง, อื่นๆ → เรื่องที่แจ้ง
-  const ticketHref = isSupervisor ? '/tickets/inbox' : '/tickets/my'
+  const canApproveMemo = hasPermission(employee, 'memo:approve', ['Executive', 'Admin'])
+  const canViewMemoInbox = hasPermission(employee, 'memo:view-inbox', ['Supervisor'])
+  const canViewTicketInbox = hasPermission(employee, 'ticket:view-team', ['Admin', 'Hr', 'Supervisor'])
+  // ปลายทางแท็บ Memo ตามหน้าที่หลัก: ผู้อนุมัติ → รออนุมัติ, ผู้ดู inbox แผนก → เข้าแผนก, อื่นๆ → ของฉัน
+  const memoHref = canApproveMemo ? '/memos/approvals' : canViewMemoInbox ? '/memos/inbox' : '/memos/my'
+  // แท็บแจ้งเรื่องแนวเดียวกัน: มีสิทธิ์ดูงานทีม → กล่องรับเรื่อง, อื่นๆ → เรื่องที่แจ้ง
+  const ticketHref = canViewTicketInbox ? '/tickets/inbox' : '/tickets/my'
 
   const tabs = [
-    { label: 'หน้าแรก', href: '/', icon: Home },
-    { label: 'แจ้งเรื่อง', href: ticketHref, icon: MessagesSquare },
-    { label: 'Memo', href: memoHref, icon: FileText },
-    { label: 'โปรไฟล์', href: '/profile', icon: User },
+    { label: t('home'), href: '/', icon: Home },
+    { label: t('tickets'), href: ticketHref, icon: MessagesSquare },
+    { label: t('memo'), href: memoHref, icon: FileText },
+    { label: t('profile'), href: '/profile', icon: User },
   ]
 
   return (

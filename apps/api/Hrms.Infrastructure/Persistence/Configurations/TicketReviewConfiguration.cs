@@ -19,6 +19,7 @@ public class TicketReviewConfiguration : IEntityTypeConfiguration<TicketReview>
         builder.Property(x => x.ResolvedByEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.ResolvedAt).HasColumnType("datetime");
         builder.Property(x => x.ProblemTypeSnapshot).HasConversion<string>().HasMaxLength(30);
+        builder.Property(x => x.CloseoutReasonSnapshot).HasMaxLength(100);
         builder.Property(x => x.InitialInspectionSnapshot).HasMaxLength(2000);
         builder.Property(x => x.ResolutionSnapshot).HasMaxLength(2000);
         builder.Property(x => x.ResolvedAttachmentIdsJson).HasMaxLength(4000).IsRequired();

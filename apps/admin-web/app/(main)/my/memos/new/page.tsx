@@ -3,16 +3,20 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { AlertCircle, ChevronLeft, FileText } from 'lucide-react'
+import { useLocale, useTranslations } from 'next-intl'
+import { AlertCircle, ChevronLeft, FileText, Paperclip } from 'lucide-react'
+import { localizedName, type Locale } from '@hrms/i18n'
 import { useCreateMemo, useMemoCategories, useMemoSubCategories, useMemoTypes } from '@/hooks/use-memo'
+import { MemoAttachmentPicker } from '@/components/memos/memo-attachment-picker'
+import type { MemoAttachmentInput } from '@hrms/shared-types'
+import { useApiError } from '@/hooks/use-api-error'
 
-function apiMessage(error: unknown) {
-  return (error as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message
-    ?? (error as { response?: { data?: { error?: string } } })?.response?.data?.error
-    ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-}
-
+// ข้อความจาก API ยังเป็นไทย (รอ Phase 3) — fallback ส่งเข้ามาจากคำแปล
 export default function MyMemoNewPage() {
+  const t = useTranslations('admin.memo.new')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const locale = useLocale() as Locale
   const router = useRouter()
   const { data: memoTypes, isLoading: typesLoading } = useMemoTypes()
   const { mutateAsync: createMemo, isPending: isSubmitting } = useCreateMemo()
@@ -21,6 +25,7 @@ export default function MyMemoNewPage() {
   const [memoCategoryId, setMemoCategoryId] = useState('')
   const [memoSubCategoryId, setMemoSubCategoryId] = useState('')
   const [detail, setDetail] = useState('')
+  const [attachments, setAttachments] = useState<MemoAttachmentInput[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const { data: categories, isLoading: categoriesLoading } = useMemoCategories(memoTypeId)
@@ -44,10 +49,16 @@ export default function MyMemoNewPage() {
     if (!canSubmit || isSubmitting) return
     setError(null)
     try {
-      const result = await createMemo({ memoTypeId, memoCategoryId, memoSubCategoryId, detail: detail.trim() })
+      const result = await createMemo({
+        memoTypeId,
+        memoCategoryId,
+        memoSubCategoryId,
+        detail: detail.trim(),
+        attachments: attachments.length ? attachments : undefined,
+      })
       router.replace(`/my/memos?created=${result.id}`)
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiError(err, tCommon('state.error')))
     }
   }
 
@@ -64,8 +75,8 @@ export default function MyMemoNewPage() {
             <ChevronLeft className="h-5 w-5" />
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-foreground">ส่งบันทึกข้อความใหม่</h1>
-            <p className="mt-0.5 text-sm text-muted-foreground">เลือกประเภทเรื่องและกรอกรายละเอียด</p>
+            <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">{t('subtitle')}</p>
           </div>
         </div>
 
@@ -73,26 +84,26 @@ export default function MyMemoNewPage() {
           <div className="rounded-2xl border border-border bg-background p-5 shadow-sm space-y-4">
             <div className="mb-1 flex items-center gap-2">
               <FileText className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold">ประเภทเรื่อง</span>
+              <span className="text-sm font-semibold">{t('typeSection')}</span>
             </div>
 
             <div>
-              <label className="mb-1 block text-xs text-muted-foreground">ประเภทเรื่อง</label>
+              <label className="mb-1 block text-xs text-muted-foreground">{t('memoType')}</label>
               <select
                 value={memoTypeId}
                 onChange={(e) => handleTypeChange(e.target.value)}
                 disabled={typesLoading}
                 className="w-full rounded-xl border border-border bg-whited px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
               >
-                <option value="">{typesLoading ? 'กำลังโหลด...' : 'เลือกประเภทเรื่อง'}</option>
-                {memoTypes?.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+                <option value="">{typesLoading ? tCommon('state.loading') : t('selectType')}</option>
+                {memoTypes?.map((item) => (
+                  <option key={item.id} value={item.id}>{localizedName(item, locale)}</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="mb-1 block text-xs text-muted-foreground">หมวดหมู่</label>
+              <label className="mb-1 block text-xs text-muted-foreground">{t('category')}</label>
               <select
                 value={memoCategoryId}
                 onChange={(e) => handleCategoryChange(e.target.value)}
@@ -100,16 +111,16 @@ export default function MyMemoNewPage() {
                 className="w-full rounded-xl border border-border bg-whited px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
               >
                 <option value="">
-                  {!memoTypeId ? 'เลือกประเภทเรื่องก่อน' : categoriesLoading ? 'กำลังโหลด...' : 'เลือกหมวดหมู่'}
+                  {!memoTypeId ? t('selectTypeFirst') : categoriesLoading ? tCommon('state.loading') : t('selectCategory')}
                 </option>
                 {categories?.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>{localizedName(c, locale)}</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="mb-1 block text-xs text-muted-foreground">หัวข้อย่อย</label>
+              <label className="mb-1 block text-xs text-muted-foreground">{t('subCategory')}</label>
               <select
                 value={memoSubCategoryId}
                 onChange={(e) => setMemoSubCategoryId(e.target.value)}
@@ -117,10 +128,10 @@ export default function MyMemoNewPage() {
                 className="w-full rounded-xl border border-border bg-whited px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
               >
                 <option value="">
-                  {!memoCategoryId ? 'เลือกหมวดหมู่ก่อน' : subCategoriesLoading ? 'กำลังโหลด...' : 'เลือกหัวข้อย่อย'}
+                  {!memoCategoryId ? t('selectCategoryFirst') : subCategoriesLoading ? tCommon('state.loading') : t('selectSubCategory')}
                 </option>
                 {subCategories?.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>{localizedName(s, locale)}</option>
                 ))}
               </select>
             </div>
@@ -129,19 +140,32 @@ export default function MyMemoNewPage() {
           <div className="rounded-2xl border border-border bg-background p-5 shadow-sm">
             <div className="mb-3 flex items-center gap-2">
               <FileText className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold">รายละเอียด</span>
+              <span className="text-sm font-semibold">{t('detailSection')}</span>
             </div>
             <textarea
               value={detail}
               onChange={(e) => setDetail(e.target.value)}
               rows={6}
               maxLength={4000}
-              placeholder="อธิบายรายละเอียดเรื่องที่ต้องการแจ้ง..."
+              placeholder={t('detailPlaceholder')}
               className="w-full resize-none rounded-xl border border-border bg-whited px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <div className="mt-1 flex justify-end">
               <span className="text-xs text-muted-foreground">{detail.length}/4000</span>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-background p-5 shadow-sm">
+            <div className="mb-3 flex items-center gap-2">
+              <Paperclip className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">{t('attachmentSection')}</span>
+            </div>
+            <MemoAttachmentPicker
+              value={attachments}
+              onChange={setAttachments}
+              disabled={isSubmitting}
+              label={t('chooseFiles')}
+            />
           </div>
 
           {error && (
@@ -159,9 +183,9 @@ export default function MyMemoNewPage() {
             {isSubmitting ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
-                กำลังส่งเรื่อง...
+                {t('submitting')}
               </span>
-            ) : 'ส่งบันทึกข้อความ'}
+            ) : t('submit')}
           </button>
         </form>
       </div>

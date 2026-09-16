@@ -15,7 +15,7 @@ public class RejectOtRequestValidator : AbstractValidator<RejectOtRequestCommand
 {
     public RejectOtRequestValidator()
     {
-        RuleFor(x => x.Comment).NotEmpty().WithMessage("กรุณาระบุเหตุผลการปฏิเสธ").MaximumLength(500);
+        RuleFor(x => x.Comment).NotEmpty().WithErrorCode("REJECT_REASON_REQUIRED").WithMessage("A rejection reason is required.").MaximumLength(500);
     }
 }
 

@@ -16,7 +16,7 @@ public class GetMeHandler(IApplicationDbContext db, ICurrentUser currentUser)
     public async Task<EmployeeProfileDto> Handle(GetMeQuery request, CancellationToken ct)
     {
         var employeeId = currentUser.EmployeeId
-            ?? throw new AppUnauthorizedException("Not authenticated.");
+            ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
 
         var employee = await db.Employees
             .Include(e => e.Roles.Where(r => r.IsActive))
@@ -24,7 +24,7 @@ public class GetMeHandler(IApplicationDbContext db, ICurrentUser currentUser)
             .Include(e => e.Department)
             .Include(e => e.RoleLabel)
             .FirstOrDefaultAsync(e => e.Id == employeeId && e.IsActive, ct)
-            ?? throw new AppUnauthorizedException("Employee not found.");
+            ?? throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND");
 
         var roles = employee.Roles
             .Select(r => new RoleClaim(

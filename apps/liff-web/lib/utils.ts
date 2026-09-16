@@ -5,18 +5,5 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatDate(date: string | Date, locale = 'th-TH') {
-  return new Intl.DateTimeFormat(locale, {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date(date))
-}
-
-export function formatDateShort(date: string | Date, locale = 'th-TH') {
-  return new Intl.DateTimeFormat(locale, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(date))
-}
+// formatter วันที่ย้ายไปรวมที่ @hrms/i18n (ใช้ locale ปัจจุบัน, ค่าเริ่มต้น th-TH เหมือนเดิม) — re-export ให้ import path เดิมใช้ต่อได้
+export { formatDate, formatDateShort } from '@hrms/i18n/format'

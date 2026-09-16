@@ -20,4 +20,7 @@ public record LeaveRequestDto(
     string? SupervisorComment,
     string? HrName,
     string? HrComment,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    // ชื่อประเภทการลาอีก 2 ภาษา — หน้าจอเลือกด้วย localizedName() ตามภาษาที่ผู้ใช้เลือก
+    string? LeaveTypeNameEn = null,
+    string? LeaveTypeNameId = null);

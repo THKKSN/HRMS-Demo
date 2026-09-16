@@ -29,7 +29,8 @@ public class RoleLabelController(IMediator mediator) : ControllerBase
         [FromBody] CreateRoleLabelRequest request,
         CancellationToken ct)
     {
-        var result = await mediator.Send(new CreateRoleLabelCommand(request.CompanyId, request.Name), ct);
+        var result = await mediator.Send(new CreateRoleLabelCommand(
+            request.CompanyId, request.Name, request.NameEn, request.NameId), ct);
         return CreatedAtAction(nameof(GetAll), new { companyId = result.CompanyId }, result);
     }
 
@@ -40,7 +41,8 @@ public class RoleLabelController(IMediator mediator) : ControllerBase
         [FromBody] UpdateRoleLabelRequest request,
         CancellationToken ct)
     {
-        var result = await mediator.Send(new UpdateRoleLabelCommand(id, request.Name, request.IsActive), ct);
+        var result = await mediator.Send(new UpdateRoleLabelCommand(
+            id, request.Name, request.IsActive, request.NameEn, request.NameId), ct);
         return Ok(result);
     }
 
@@ -53,5 +55,6 @@ public class RoleLabelController(IMediator mediator) : ControllerBase
     }
 }
 
-public record CreateRoleLabelRequest(Guid CompanyId, string Name);
-public record UpdateRoleLabelRequest(string Name, bool IsActive);
+// NameEn/NameId = ชื่อหลายภาษาของ master data (i18n Phase M) — ไม่ส่ง = คงค่าเดิม, ส่ง "" = ล้างค่า
+public record CreateRoleLabelRequest(Guid CompanyId, string Name, string? NameEn = null, string? NameId = null);
+public record UpdateRoleLabelRequest(string Name, bool IsActive, string? NameEn = null, string? NameId = null);

@@ -3,27 +3,14 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, ArrowLeft, X } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { useMyAttendanceHistory } from '@/hooks/use-attendance'
+import { useFmt } from '@/hooks/use-fmt'
 import { useMyHolidays } from '@/hooks/use-holidays'
 import { useMyLeaves } from '@/hooks/use-leaves'
 import type { AttendanceRecordDto } from '@hrms/shared-types'
 
 // ── constants ─────────────────────────────────────────────────────────────────
-
-const MONTH_TH = [
-  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
-  'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม',
-  'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
-]
-
-const DAY_NAMES = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส']
-
-const STATUS_LABEL: Record<string, string> = {
-  Present: 'มาทำงาน',
-  Late: 'มาสาย',
-  Absent: 'ขาดงาน',
-  HalfDay: 'ครึ่งวัน',
-}
 
 const STATUS_DOT: Record<string, string> = {
   Present: 'bg-green-500',
@@ -42,26 +29,17 @@ const STATUS_BADGE: Record<string, string> = {
   HalfDay: 'bg-blue-100 text-blue-700',
 }
 
+const TIME_OPTIONS: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' }
+
+// วันอาทิตย์–เสาร์ชุดใดก็ได้ ใช้ดึงชื่อวันย่อตาม locale (2024-01-07 เป็นวันอาทิตย์)
+const WEEK_SAMPLE = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 7 + i))
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 
 function pad(n: number) { return String(n).padStart(2, '0') }
 
 function toDateStr(y: number, m: number, d: number) {
   return `${y}-${pad(m)}-${pad(d)}`
-}
-
-function formatTime(iso?: string) {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString('th-TH', {
-    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok',
-  })
-}
-
-function formatLate(minutes: number) {
-  if (minutes < 60) return `${minutes} นาที`
-  const h = Math.floor(minutes / 60)
-  const m = minutes % 60
-  return m > 0 ? `${h} ชม. ${m} น.` : `${h} ชม.`
 }
 
 // ── DayCell ───────────────────────────────────────────────────────────────────
@@ -94,20 +72,31 @@ function getCell(
 // ── Bottom Sheet ──────────────────────────────────────────────────────────────
 
 function BottomSheet({
-  day,
   dateStr,
   cell,
   onClose,
 }: {
-  day: number
   dateStr: string
   cell: CellInfo
   onClose: () => void
 }) {
+  const t = useTranslations('liff.attendance')
+  const tCommon = useTranslations('common')
+  const tStatus = useTranslations('status.attendance')
+  const fmt = useFmt()
   const d = new Date(dateStr + 'T00:00:00')
-  const dayName = DAY_NAMES[d.getDay()]
-  const monthName = MONTH_TH[d.getMonth()]
-  const year = d.getFullYear() + 543
+  // ปีแยกต่างหากเพื่อไม่ให้ th ติดคำว่า "พ.ศ." (เหมือนของเดิม)
+  const heading = `${fmt.formatDate(d, { weekday: 'short', day: 'numeric', month: 'long' })} ${fmt.formatYear(d.getFullYear())}`
+
+  const formatTime = (iso?: string) => (iso ? fmt.formatTime(new Date(iso), TIME_OPTIONS) : '—')
+  const lateText = (minutes: number) => {
+    if (minutes < 60) return tCommon('duration.minutes', { count: minutes })
+    const hours = Math.floor(minutes / 60)
+    const rest = minutes % 60
+    return rest > 0
+      ? tCommon('duration.hoursMinutesShort', { hours, minutes: rest })
+      : tCommon('duration.hoursShort', { count: hours })
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={onClose}>
@@ -117,9 +106,7 @@ function BottomSheet({
       >
         {/* Header */}
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold">
-            {dayName}. {day} {monthName} {year}
-          </p>
+          <p className="text-sm font-semibold">{heading}</p>
           <button onClick={onClose} className="rounded-full p-1 active:bg-whited">
             <X className="h-4 w-4 text-muted-foreground" />
           </button>
@@ -129,21 +116,21 @@ function BottomSheet({
         {cell.kind === 'record' && (
           <div className="space-y-3">
             <span className={`inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold ${STATUS_BADGE[cell.rec.status] ?? 'bg-whited text-muted-foreground'}`}>
-              {STATUS_LABEL[cell.rec.status] ?? cell.rec.status}
-              {cell.rec.isLate && cell.rec.lateMinutes > 0 && ` · สาย ${formatLate(cell.rec.lateMinutes)}`}
+              {tStatus(cell.rec.status)}
+              {cell.rec.isLate && cell.rec.lateMinutes > 0 && ` · ${t('history.late', { duration: lateText(cell.rec.lateMinutes) })}`}
             </span>
             <div className="rounded-xl border border-border divide-y divide-border text-sm">
               <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-muted-foreground">เข้างาน</span>
+                <span className="text-muted-foreground">{t('checkIn')}</span>
                 <span className="font-medium">{formatTime(cell.rec.checkInTime)}</span>
               </div>
               <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-muted-foreground">ออกงาน</span>
+                <span className="text-muted-foreground">{t('checkOut')}</span>
                 <span className="font-medium">{formatTime(cell.rec.checkOutTime)}</span>
               </div>
               {cell.rec.locationName && (
                 <div className="flex items-center justify-between px-4 py-3">
-                  <span className="text-muted-foreground">สถานที่</span>
+                  <span className="text-muted-foreground">{t('history.location')}</span>
                   <span className="font-medium text-right max-w-[60%] truncate">{cell.rec.locationName}</span>
                 </div>
               )}
@@ -154,7 +141,8 @@ function BottomSheet({
         {cell.kind === 'leave' && (
           <div className="flex items-center gap-2 rounded-xl bg-purple-50 px-4 py-3 text-sm text-purple-700">
             <span>📋</span>
-            <span className="font-medium">ลางาน — {cell.leaveTypeName}</span>
+            {/* leaveTypeName เป็นชื่อไทยจาก API — รอปรับ DTO ฝั่งผู้บริโภค (ดูแผน Phase 1) */}
+            <span className="font-medium">{t('history.leave', { type: cell.leaveTypeName })}</span>
           </div>
         )}
 
@@ -166,15 +154,15 @@ function BottomSheet({
         )}
 
         {cell.kind === 'weekend' && (
-          <p className="text-sm text-muted-foreground">วันหยุดสุดสัปดาห์</p>
+          <p className="text-sm text-muted-foreground">{t('history.weekend')}</p>
         )}
 
         {cell.kind === 'noRecord' && (
-          <p className="text-sm text-muted-foreground">ยังไม่มีการลงเวลาวันนี้</p>
+          <p className="text-sm text-muted-foreground">{t('history.noRecord')}</p>
         )}
 
         {cell.kind === 'future' && (
-          <p className="text-sm text-muted-foreground">ยังไม่ถึงวันนี้</p>
+          <p className="text-sm text-muted-foreground">{t('history.future')}</p>
         )}
       </div>
     </div>
@@ -183,7 +171,17 @@ function BottomSheet({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+const LEGEND = [
+  { key: 'present', dot: 'bg-green-500' },
+  { key: 'late', dot: 'bg-yellow-400' },
+  { key: 'absent', dot: 'bg-red-500' },
+  { key: 'leave', dot: 'bg-purple-400' },
+  { key: 'holiday', dot: 'bg-gray-500' },
+] as const
+
 export default function AttendanceHistoryPage() {
+  const t = useTranslations('liff.attendance.history')
+  const fmt = useFmt()
   const router = useRouter()
   const now = new Date()
   const todayStr = toDateStr(now.getFullYear(), now.getMonth() + 1, now.getDate())
@@ -201,6 +199,9 @@ export default function AttendanceHistoryPage() {
   const { data: leavesData, isLoading: leaveLoading } = useMyLeaves({ status: 'Approved', pageSize: 200 })
 
   const isLoading = histLoading || holLoading || leaveLoading
+
+  const dayNames = WEEK_SAMPLE.map(d => fmt.formatDate(d, { weekday: 'short' }))
+  const monthLabel = `${fmt.formatDate(new Date(year, month - 1, 1), { month: 'long' })} ${fmt.formatYear(year)}`
 
   // build lookup maps
   const recordMap = new Map<string, AttendanceRecordDto>()
@@ -225,12 +226,21 @@ export default function AttendanceHistoryPage() {
   }
 
   // summary
-  let cntPresent = 0, cntLate = 0, cntAbsent = 0, cntHoliday = holidayMap.size, cntLeave = leaveMap.size
+  let cntPresent = 0, cntLate = 0, cntAbsent = 0
+  const cntHoliday = holidayMap.size
+  const cntLeave = leaveMap.size
   for (const rec of recordMap.values()) {
     if (rec.status === 'Present') cntPresent++
     else if (rec.status === 'Late') cntLate++
     else if (rec.status === 'Absent') cntAbsent++
   }
+  const summary = [
+    { key: 'present', value: cntPresent, color: 'text-green-600' },
+    { key: 'late', value: cntLate, color: 'text-yellow-600' },
+    { key: 'absent', value: cntAbsent, color: 'text-red-600' },
+    { key: 'leave', value: cntLeave, color: 'text-purple-500' },
+    { key: 'holiday', value: cntHoliday, color: 'text-gray-600' },
+  ] as const
 
   // calendar grid
   const firstDow = new Date(year, month - 1, 1).getDay() // 0=อา
@@ -267,7 +277,7 @@ export default function AttendanceHistoryPage() {
         <button onClick={() => router.back()} className="rounded-full p-1 active:bg-whited">
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <h1 className="flex-1 text-base font-semibold">ปฎิทิน</h1>
+        <h1 className="flex-1 text-base font-semibold">{t('title')}</h1>
       </div>
 
       {/* Month selector */}
@@ -275,9 +285,7 @@ export default function AttendanceHistoryPage() {
         <button onClick={prevMonth} className="rounded-full p-2 active:bg-whited">
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <span className="text-sm font-semibold">
-          {MONTH_TH[month - 1]} {year + 543}
-        </span>
+        <span className="text-sm font-semibold">{monthLabel}</span>
         <button
           onClick={nextMonth}
           disabled={!canGoNext}
@@ -289,9 +297,9 @@ export default function AttendanceHistoryPage() {
 
       {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-border">
-        {DAY_NAMES.map((d, i) => (
+        {dayNames.map((d, i) => (
           <div
-            key={d}
+            key={i}
             className={`py-2 text-center text-xs font-medium ${i === 0 || i === 6 ? 'text-muted-foreground' : 'text-foreground'}`}
           >
             {d}
@@ -367,16 +375,10 @@ export default function AttendanceHistoryPage() {
 
       {/* Legend */}
       <div className="flex items-center justify-center gap-3 px-4 py-3 border-t border-border flex-wrap">
-        {[
-          { dot: 'bg-green-500', label: 'ทำงาน' },
-          { dot: 'bg-yellow-400', label: 'สาย' },
-          { dot: 'bg-red-500', label: 'ขาด' },
-          { dot: 'bg-purple-400', label: 'ลางาน' },
-          { dot: 'bg-gray-500', label: 'วันหยุด' },
-        ].map(({ dot, label }) => (
-          <div key={label} className="flex items-center gap-1">
+        {LEGEND.map(({ key, dot }) => (
+          <div key={key} className="flex items-center gap-1">
             <span className={`w-2 h-2 rounded-full ${dot}`} />
-            <span className="text-xs text-muted-foreground">{label}</span>
+            <span className="text-xs text-muted-foreground">{t(`legend.${key}`)}</span>
           </div>
         ))}
       </div>
@@ -384,16 +386,10 @@ export default function AttendanceHistoryPage() {
       {/* Summary */}
       {!isLoading && (
         <div className="mx-4 mb-4 rounded-2xl border border-border bg-white grid grid-cols-5 divide-x divide-border text-center">
-          {[
-            { label: 'ทำงาน', value: cntPresent, color: 'text-green-600' },
-            { label: 'สาย', value: cntLate, color: 'text-yellow-600' },
-            { label: 'ขาดงาน', value: cntAbsent, color: 'text-red-600' },
-            { label: 'ลางาน', value: cntLeave, color: 'text-purple-500' },
-            { label: 'วันหยุด', value: cntHoliday, color: 'text-gray-600' },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="py-3 px-1">
+          {summary.map(({ key, value, color }) => (
+            <div key={key} className="py-3 px-1">
               <p className={`text-lg font-bold ${color}`}>{value}</p>
-              <p className="text-[10px] text-muted-foreground leading-tight">{label}</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">{t(`summary.${key}`)}</p>
             </div>
           ))}
         </div>
@@ -402,7 +398,6 @@ export default function AttendanceHistoryPage() {
       {/* Bottom sheet */}
       {selected && (
         <BottomSheet
-          day={selected.day}
           dateStr={selected.dateStr}
           cell={selected.cell}
           onClose={() => setSelected(null)}

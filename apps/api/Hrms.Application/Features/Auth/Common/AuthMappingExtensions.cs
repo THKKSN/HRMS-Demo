@@ -32,6 +32,43 @@ public static class AuthMappingExtensions
             permissionCodes ?? []);
     }
 
+    /// <summary>
+    /// ผูก LINE user เข้ากับพนักงาน แล้วออก access/refresh token — จุดจบร่วมของทั้ง
+    /// การยืนยัน OTP และการ fallback ตอน push เต็ม เรียกหลังตรวจสิทธิ์ครบแล้วเท่านั้น
+    /// </summary>
+    public static async Task<AuthResultDto> BindLineAndIssueSessionAsync(
+        this Employee employee,
+        IApplicationDbContext db,
+        IJwtService jwt,
+        string lineUserId,
+        string? pictureUrl,
+        string? ip,
+        string? userAgent,
+        CancellationToken ct = default)
+    {
+        employee.LineUserId = lineUserId;
+        if (pictureUrl is not null)
+            employee.AvatarUrl = pictureUrl;
+
+        var (accessToken, accessExpires) = jwt.GenerateAccessToken(employee, employee.Roles);
+        var (refreshToken, refreshHash, refreshExpires) = jwt.GenerateRefreshToken();
+
+        db.RefreshTokens.Add(new Hrms.Domain.Entities.RefreshToken
+        {
+            EmployeeId = employee.Id,
+            TokenHash = refreshHash,
+            ExpiresAt = refreshExpires,
+            CreatedByIp = ip,
+            UserAgent = userAgent
+        });
+
+        await db.SaveChangesAsync(ct);
+
+        var expiresIn = (int)(accessExpires - DateTime.UtcNow).TotalSeconds;
+        var permissionCodes = await employee.GetPermissionCodesAsync(db, ct);
+        return new AuthResultDto(accessToken, refreshToken, expiresIn, employee.ToAuthDto(permissionCodes));
+    }
+
     public static async Task<IReadOnlyList<string>> GetPermissionCodesAsync(
         this Employee employee,
         IApplicationDbContext db,

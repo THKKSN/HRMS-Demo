@@ -1,4 +1,5 @@
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Common.Localization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,7 +7,10 @@ namespace Hrms.Application.Features.LineWebhook.Commands;
 
 public record HandleCheckQuotaCommand(string LineUserId, string? ReplyToken = null) : IRequest<Unit>;
 
-public class HandleCheckQuotaHandler(IApplicationDbContext db, ILineMessagingService line)
+public class HandleCheckQuotaHandler(
+    IApplicationDbContext db,
+    ILineMessagingService line,
+    ILineMessageTextFactory messageText)
     : IRequestHandler<HandleCheckQuotaCommand, Unit>
 {
     public async Task<Unit> Handle(HandleCheckQuotaCommand request, CancellationToken ct)
@@ -14,10 +18,11 @@ public class HandleCheckQuotaHandler(IApplicationDbContext db, ILineMessagingSer
         var employee = await db.Employees
             .FirstOrDefaultAsync(e => e.LineUserId == request.LineUserId && e.IsActive, ct);
 
+        var text = messageText.For(employee?.PreferredLanguage);
+
         if (employee is null)
         {
-            await SendTextAsync(request,
-                "ไม่พบข้อมูลผู้ใช้ กรุณากด 'เข้าสู่ระบบ' เพื่อผูกบัญชีก่อนใช้งาน", ct);
+            await SendTextAsync(request, text.Of("webhook.accountNotLinkedLogin"), ct);
             return Unit.Value;
         }
 
@@ -33,8 +38,7 @@ public class HandleCheckQuotaHandler(IApplicationDbContext db, ILineMessagingSer
 
         if (balances.Count == 0)
         {
-            await SendTextAsync(request,
-                $"ยังไม่มีข้อมูลโควต้าวันลาสำหรับปี {year}", ct);
+            await SendTextAsync(request, text.Of("webhook.quota.noData", new { year }), ct);
             return Unit.Value;
         }
 
@@ -44,11 +48,20 @@ public class HandleCheckQuotaHandler(IApplicationDbContext db, ILineMessagingSer
             layout = "horizontal",
             contents = new object[]
             {
-                new { type = "text", text = b.LeaveType.NameTh, size = "sm", color = "#555555", flex = 4 },
                 new
                 {
                     type = "text",
-                    text = $"{b.TotalDays - b.UsedDays - b.PendingDays}/{b.TotalDays} วัน",
+                    text = LocalizedName.For(b.LeaveType.NameTh, b.LeaveType.NameEn, b.LeaveType.NameId, text.Locale),
+                    size = "sm", color = "#555555", flex = 4
+                },
+                new
+                {
+                    type = "text",
+                    text = text.Of("webhook.quota.remainingOfTotal", new
+                    {
+                        remaining = b.TotalDays - b.UsedDays - b.PendingDays,
+                        total = b.TotalDays,
+                    }),
                     size = "sm",
                     color = "#111111",
                     align = "end",
@@ -68,8 +81,17 @@ public class HandleCheckQuotaHandler(IApplicationDbContext db, ILineMessagingSer
                 backgroundColor = "#1DB446",
                 contents = new object[]
                 {
-                    new { type = "text", text = "สิทธิ์วันลาของคุณ", color = "#ffffff", size = "md", weight = "bold" },
-                    new { type = "text", text = $"{employee.FirstName} {employee.LastName} · ปี {year}", color = "#ffffffcc", size = "sm" }
+                    new { type = "text", text = text.Of("webhook.quota.title"), color = "#ffffff", size = "md", weight = "bold" },
+                    new
+                    {
+                        type = "text",
+                        text = text.Of("webhook.quota.subtitle", new
+                        {
+                            name = $"{employee.FirstName} {employee.LastName}",
+                            year,
+                        }),
+                        color = "#ffffffcc", size = "sm"
+                    }
                 }
             },
             body = new
@@ -83,7 +105,7 @@ public class HandleCheckQuotaHandler(IApplicationDbContext db, ILineMessagingSer
 
         await SendFlexAsync(
             request,
-            $"สิทธิ์วันลาของ {employee.FirstName}",
+            text.Of("webhook.quota.altText", new { name = employee.FirstName }),
             card,
             ct);
 

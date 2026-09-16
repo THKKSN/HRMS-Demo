@@ -2,26 +2,20 @@
 
 import { useParams } from 'next/navigation'
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { PageHeader } from '@/components/layout/page-header'
+import { useFmt } from '@/hooks/use-fmt'
 import {
   useOtRequestById,
   useCancelOtRequest,
   useApproveOtRequest,
   useRejectOtRequest,
 } from '@/hooks/use-ot-requests'
-import { isSupervisorOrAbove, isHrOrAdmin } from '@/lib/auth-utils'
+import { hasPermission } from '@/lib/auth-utils'
 import { useAuthStore } from '@/stores/auth.store'
 import type { OtStatus } from '@hrms/shared-types'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
-const STATUS_LABEL: Record<OtStatus, string> = {
-  PendingSupervisor: 'รออนุมัติหัวหน้า',
-  PendingHr:        'รออนุมัติ HR',
-  Approved:         'อนุมัติแล้ว',
-  Rejected:         'ถูกปฏิเสธ',
-  Cancelled:        'ยกเลิกแล้ว',
-}
 
 const STATUS_COLOR: Record<OtStatus, string> = {
   PendingSupervisor: 'bg-amber-100 text-amber-700',
@@ -31,56 +25,26 @@ const STATUS_COLOR: Record<OtStatus, string> = {
   Cancelled:        'bg-gray-100 text-gray-500',
 }
 
-const RATE_LABEL: Record<string, string> = {
-  Weekday: 'วันธรรมดา (×1.5)',
-  Weekend: 'วันหยุด (×2)',
-  Holiday: 'วันหยุดนักขัตฤกษ์ (×3)',
-}
+const TIMELINE_KEYS = ['submitted', 'supervisorApproved', 'hrApproved'] as const
 
-type TimelineStep = { label: string; done: boolean; current: boolean }
-
-function buildTimeline(status: OtStatus): TimelineStep[] {
-  const steps = [
-    { key: 'PendingSupervisor', label: 'ยื่นคำขอ' },
-    { key: 'PendingHr',        label: 'หัวหน้าอนุมัติ' },
-    { key: 'Approved',         label: 'HR อนุมัติ' },
-  ]
-
-  const ORDER: Record<OtStatus, number> = {
-    PendingSupervisor: 0,
-    PendingHr: 1,
-    Approved: 2,
-    Rejected: 2,
-    Cancelled: 2,
-  }
-  const cur = ORDER[status]
-
-  return steps.map((s, idx) => ({
-    label: s.label,
-    done:    idx < cur,
-    current: idx === cur && status !== 'Rejected' && status !== 'Cancelled',
-  }))
-}
-
-function formatDateTH(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('th-TH', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  })
-}
-
-function formatDateTime(iso?: string) {
-  if (!iso) return undefined
-  return new Date(iso).toLocaleString('th-TH', {
-    dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Bangkok',
-  })
+const STATUS_ORDER: Record<OtStatus, number> = {
+  PendingSupervisor: 0,
+  PendingHr: 1,
+  Approved: 2,
+  Rejected: 2,
+  Cancelled: 2,
 }
 
 // ─── page ─────────────────────────────────────────────────────────────────────
 
 export default function OtDetailPage() {
+  const t = useTranslations('liff.ot')
+  const tCommon = useTranslations('common')
+  const tStatus = useTranslations('status.ot')
+  const tRate = useTranslations('status.otRate')
+  const fmt = useFmt()
   const { id } = useParams<{ id: string }>()
   const employee = useAuthStore((s) => s.employee)
-  const roles    = employee?.roles ?? []
 
   const { data: ot, isLoading } = useOtRequestById(id)
   const { mutateAsync: cancelOt, isPending: isCancelling } = useCancelOtRequest()
@@ -92,12 +56,17 @@ export default function OtDetailPage() {
   const [comment, setComment] = useState('')
   const [error,   setError]   = useState<string | null>(null)
 
+  const formatDateLong = (dateStr: string) =>
+    fmt.formatDate(new Date(dateStr + 'T00:00:00'), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const formatDateTime = (iso?: string) =>
+    iso ? fmt.formatDateTime(new Date(iso), { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Bangkok' }) : undefined
+
   async function handleCancel() {
     try {
       await cancelOt(id)
       setShowCancelConfirm(false)
     } catch {
-      setError('ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+      setError(t('detail.errors.cancelFailed'))
     }
   }
 
@@ -107,7 +76,7 @@ export default function OtDetailPage() {
       await approveOt({ id, comment: comment.trim() || undefined })
       setComment('')
     } catch {
-      setError('อนุมัติไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+      setError(t('detail.errors.approveFailed'))
     }
   }
 
@@ -118,14 +87,14 @@ export default function OtDetailPage() {
       setComment('')
       setShowRejectConfirm(false)
     } catch {
-      setError('ปฏิเสธไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+      setError(t('detail.errors.rejectFailed'))
     }
   }
 
   if (isLoading) {
     return (
       <>
-        <PageHeader title="รายละเอียด OT" backHref="/ot" />
+        <PageHeader title={t('detail.title')} backHref="/ot" />
         <div className="flex flex-col gap-3 px-4 pt-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-14 animate-pulse rounded-xl bg-whited" />
@@ -138,9 +107,9 @@ export default function OtDetailPage() {
   if (!ot) {
     return (
       <>
-        <PageHeader title="รายละเอียด OT" backHref="/ot" />
+        <PageHeader title={t('detail.title')} backHref="/ot" />
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-sm text-muted-foreground">ไม่พบคำขอ OT ที่ระบุ</p>
+          <p className="text-sm text-muted-foreground">{t('detail.notFound')}</p>
         </div>
       </>
     )
@@ -150,30 +119,36 @@ export default function OtDetailPage() {
     (ot.status === 'PendingSupervisor' || ot.status === 'PendingHr') &&
     ot.employeeId === employee?.id
 
+  // แต่ละ stage ใช้ permission ตรงกับ endpoint อนุมัติของ stage นั้น
   const canApprove =
-    (ot.status === 'PendingSupervisor' && isSupervisorOrAbove(roles)) ||
-    (ot.status === 'PendingHr' && isHrOrAdmin(roles))
+    (ot.status === 'PendingSupervisor' && hasPermission(employee, 'ot:approve-supervisor', ['Supervisor', 'Hr', 'Admin'])) ||
+    (ot.status === 'PendingHr' && hasPermission(employee, 'ot:approve-hr', ['Hr', 'Admin']))
 
-  const timeline = buildTimeline(ot.status)
+  const currentOrder = STATUS_ORDER[ot.status]
+  const timelineActive = ot.status !== 'Rejected' && ot.status !== 'Cancelled'
+
+  const timeRange = tCommon('time.range', { from: ot.startTime.slice(0, 5), to: ot.endTime.slice(0, 5) })
+  const hoursLabel = tCommon('duration.hoursShort', { count: ot.totalHours })
+  const rateLabel = tRate(ot.rateType)
 
   const rows: { label: string; value: string }[] = [
-    { label: 'ผู้ขอ OT',     value: ot.employeeName },
-    { label: 'วันที่',        value: formatDateTH(ot.date) },
-    { label: 'ช่วงเวลา',     value: `${ot.startTime.slice(0, 5)} – ${ot.endTime.slice(0, 5)} น. (${ot.totalHours} ชม.)` },
-    { label: 'ประเภท OT',    value: RATE_LABEL[ot.rateType] ?? ot.rateType },
-    ...(ot.reason ? [{ label: 'เหตุผล', value: ot.reason }] : []),
-    ...(ot.supervisorName ? [{ label: 'หัวหน้าผู้อนุมัติ', value: ot.supervisorName }] : []),
-    ...(ot.supervisorComment ? [{ label: 'ความเห็นหัวหน้า', value: ot.supervisorComment }] : []),
-    ...(ot.supervisorApprovedAt ? [{ label: 'อนุมัติเมื่อ', value: formatDateTime(ot.supervisorApprovedAt)! }] : []),
-    ...(ot.hrName ? [{ label: 'HR ผู้อนุมัติ', value: ot.hrName }] : []),
-    ...(ot.hrComment ? [{ label: 'ความเห็น HR', value: ot.hrComment }] : []),
-    ...(ot.hrAcknowledgedAt ? [{ label: 'HR บันทึกเมื่อ', value: formatDateTime(ot.hrAcknowledgedAt)! }] : []),
-    { label: 'ยื่นเมื่อ', value: formatDateTime(ot.createdAt)! },
+    { label: t('detail.requester'), value: ot.employeeName },
+    { label: t('detail.date'),      value: formatDateLong(ot.date) },
+    { label: t('detail.timeRange'), value: t('detail.timeRangeWithHours', { range: timeRange, hours: hoursLabel }) },
+    { label: t('detail.type'),      value: rateLabel },
+    ...(ot.reason ? [{ label: t('detail.reason'), value: ot.reason }] : []),
+    ...(ot.supervisorName ? [{ label: t('detail.supervisor'), value: ot.supervisorName }] : []),
+    ...(ot.supervisorComment ? [{ label: t('detail.supervisorComment'), value: ot.supervisorComment }] : []),
+    ...(ot.supervisorApprovedAt ? [{ label: t('detail.approvedAt'), value: formatDateTime(ot.supervisorApprovedAt)! }] : []),
+    ...(ot.hrName ? [{ label: t('detail.hr'), value: ot.hrName }] : []),
+    ...(ot.hrComment ? [{ label: t('detail.hrComment'), value: ot.hrComment }] : []),
+    ...(ot.hrAcknowledgedAt ? [{ label: t('detail.hrAcknowledgedAt'), value: formatDateTime(ot.hrAcknowledgedAt)! }] : []),
+    { label: t('detail.submittedAt'), value: formatDateTime(ot.createdAt)! },
   ]
 
   return (
     <>
-      <PageHeader title="รายละเอียด OT" backHref="/ot" />
+      <PageHeader title={t('detail.title')} backHref="/ot" />
 
       <div className="flex flex-col gap-4 px-4 pb-24 pt-4">
 
@@ -181,46 +156,48 @@ export default function OtDetailPage() {
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-base font-semibold">
-                {ot.startTime.slice(0, 5)} – {ot.endTime.slice(0, 5)} น.
-              </p>
-              <p className="mt-0.5 text-sm text-muted-foreground">{formatDateTH(ot.date)}</p>
+              <p className="text-base font-semibold">{timeRange}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">{formatDateLong(ot.date)}</p>
             </div>
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_COLOR[ot.status]}`}>
-              {STATUS_LABEL[ot.status]}
+              {tStatus(ot.status)}
             </span>
           </div>
           <div className="mt-3 flex items-center gap-2">
             <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700">
-              {ot.totalHours} ชม.
+              {hoursLabel}
             </span>
             <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-              {RATE_LABEL[ot.rateType] ?? ot.rateType}
+              {rateLabel}
             </span>
           </div>
         </div>
 
         {/* Timeline */}
-        {ot.status !== 'Cancelled' && ot.status !== 'Rejected' && (
+        {timelineActive && (
           <div className="rounded-xl border bg-white p-4 shadow-sm">
-            <p className="mb-3 text-sm font-medium">สถานะ</p>
+            <p className="mb-3 text-sm font-medium">{t('detail.status')}</p>
             <div className="flex items-center">
-              {timeline.map((step, idx) => (
-                <div key={idx} className="flex flex-1 flex-col items-center">
-                  <div
-                    className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
-                      step.done    ? 'bg-green-500 text-white'
-                      : step.current ? 'bg-orange-500 text-white'
-                      : 'bg-whited text-muted-foreground'
-                    }`}
-                  >
-                    {step.done ? '✓' : idx + 1}
+              {TIMELINE_KEYS.map((key, idx) => {
+                const done = idx < currentOrder
+                const current = idx === currentOrder
+                return (
+                  <div key={key} className="flex flex-1 flex-col items-center">
+                    <div
+                      className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                        done    ? 'bg-green-500 text-white'
+                        : current ? 'bg-orange-500 text-white'
+                        : 'bg-whited text-muted-foreground'
+                      }`}
+                    >
+                      {done ? '✓' : idx + 1}
+                    </div>
+                    <p className="mt-1 text-center text-xs text-muted-foreground leading-tight">
+                      {t(`detail.timeline.${key}`)}
+                    </p>
                   </div>
-                  <p className="mt-1 text-center text-xs text-muted-foreground leading-tight">
-                    {step.label}
-                  </p>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
@@ -245,12 +222,12 @@ export default function OtDetailPage() {
         {/* Approve / Reject (Supervisor / HR) */}
         {canApprove && (
           <div className="rounded-xl border bg-white p-4 shadow-sm">
-            <p className="mb-2 text-sm font-medium">ดำเนินการ</p>
+            <p className="mb-2 text-sm font-medium">{t('detail.actions')}</p>
             <textarea
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={2}
-              placeholder="ความเห็น (ถ้ามี)..."
+              placeholder={t('detail.commentPlaceholder')}
               className="w-full rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
             />
             <div className="mt-3 flex gap-2">
@@ -259,33 +236,33 @@ export default function OtDetailPage() {
                 disabled={isRejecting || isApproving}
                 className="flex-1 rounded-xl border border-destructive py-2.5 text-sm font-medium text-destructive disabled:opacity-60"
               >
-                ปฏิเสธ
+                {t('detail.reject')}
               </button>
               <button
                 onClick={handleApprove}
                 disabled={isApproving || isRejecting}
                 className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-medium text-white disabled:opacity-60"
               >
-                {isApproving ? 'กำลังอนุมัติ...' : 'อนุมัติ'}
+                {isApproving ? t('detail.approving') : t('detail.approve')}
               </button>
             </div>
 
             {showRejectConfirm && (
               <div className="mt-3 rounded-xl border border-destructive bg-destructive/5 p-3">
-                <p className="text-sm font-medium">ยืนยันการปฏิเสธคำขอ OT?</p>
+                <p className="text-sm font-medium">{t('detail.confirmRejectTitle')}</p>
                 <div className="mt-2 flex gap-2">
                   <button
                     onClick={() => setShowRejectConfirm(false)}
                     className="flex-1 rounded-xl border py-2 text-sm font-medium"
                   >
-                    ยกเลิก
+                    {tCommon('action.cancel')}
                   </button>
                   <button
                     onClick={handleReject}
                     disabled={isRejecting}
                     className="flex-1 rounded-xl bg-destructive py-2 text-sm font-medium text-white disabled:opacity-60"
                   >
-                    {isRejecting ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ'}
+                    {isRejecting ? tCommon('state.processing') : t('detail.confirmReject')}
                   </button>
                 </div>
               </div>
@@ -299,27 +276,27 @@ export default function OtDetailPage() {
             onClick={() => setShowCancelConfirm(true)}
             className="rounded-xl border border-destructive py-3 text-sm font-medium text-destructive"
           >
-            ยกเลิกคำขอ OT
+            {t('detail.cancelRequest')}
           </button>
         )}
 
         {showCancelConfirm && (
           <div className="rounded-xl border border-destructive bg-destructive/5 p-4">
-            <p className="text-sm font-medium">ยืนยันการยกเลิกคำขอ OT?</p>
-            <p className="mt-1 text-xs text-muted-foreground">การกระทำนี้ไม่สามารถย้อนกลับได้</p>
+            <p className="text-sm font-medium">{t('detail.confirmCancelTitle')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('detail.irreversible')}</p>
             <div className="mt-3 flex gap-2">
               <button
                 onClick={() => setShowCancelConfirm(false)}
                 className="flex-1 rounded-xl border py-2 text-sm font-medium"
               >
-                ไม่ยกเลิก
+                {t('detail.keep')}
               </button>
               <button
                 onClick={handleCancel}
                 disabled={isCancelling}
                 className="flex-1 rounded-xl bg-destructive py-2 text-sm font-medium text-white disabled:opacity-60"
               >
-                {isCancelling ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}
+                {isCancelling ? t('detail.cancelling') : t('detail.confirmCancel')}
               </button>
             </div>
           </div>

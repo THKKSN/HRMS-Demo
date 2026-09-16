@@ -6,6 +6,8 @@ public class Location : BaseEntity
 {
     public Guid CompanyId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
+    public string? NameId { get; set; }
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public int RadiusMeters { get; set; }

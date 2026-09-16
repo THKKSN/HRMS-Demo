@@ -1,14 +1,17 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { FilePenLine, FolderTree, Pencil, Plus, Power, PowerOff, Route, Tags } from 'lucide-react'
+import { useLocale, useTranslations } from 'next-intl'
+import { ClipboardCheck, FilePenLine, FolderTree, Pencil, Plus, Power, PowerOff, Route, Tags, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import type { TicketCategoryDto, TicketSubjectDto, TicketTopicDto } from '@hrms/shared-types'
+import { localizedName, type Locale } from '@hrms/i18n'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { LocalizedNameHint } from '@/components/ui/localized-name-hint'
 import { Modal } from '@/components/ui/modal'
 import { Select } from '@/components/ui/select'
 import {
@@ -23,18 +26,16 @@ import {
   useUpdateTicketSubject,
   useUpdateTicketTopic,
 } from '@/hooks/use-ticket-taxonomy'
+import { CloseoutReasonPanel } from '../closeout-reason-panel'
+import { TeamTemplatePanel } from '../team-template-panel'
 import { RoutingPanel } from '../routing-panel'
 import { WorkflowGuidancePanel } from '../workflow-guidance-panel'
+import { useApiError } from '@/hooks/use-api-error'
 
 type TaxonomyItem = TicketCategoryDto | TicketTopicDto | TicketSubjectDto
 type TaxonomyKind = 'category' | 'topic' | 'subject'
 type EditorState = { kind: TaxonomyKind; item?: TaxonomyItem }
 type ToggleState = { kind: TaxonomyKind; item: TaxonomyItem }
-
-function apiMessage(error: unknown) {
-  return (error as { response?: { data?: { message?: string } } })?.response?.data?.message
-    ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-}
 
 function TaxonomyEditor({
   state,
@@ -45,12 +46,16 @@ function TaxonomyEditor({
   onClose: () => void
   onSave: (values: {
     name: string
+    nameEn?: string
+    nameId?: string
     description?: string
     sortOrder: number
     syncToExternalRepairSystem?: boolean
   }) => Promise<void>
 }) {
   const [name, setName] = useState(state.item?.name ?? '')
+  const [nameEn, setNameEn] = useState(state.item?.nameEn ?? '')
+  const [nameId, setNameId] = useState(state.item?.nameId ?? '')
   const [description, setDescription] = useState(state.item?.description ?? '')
   const [sortOrder, setSortOrder] = useState(state.item?.sortOrder ?? 10)
   const [syncToExternalRepairSystem, setSyncToExternalRepairSystem] = useState(
@@ -58,12 +63,15 @@ function TaxonomyEditor({
   )
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const label = state.kind === 'category' ? 'หมวด' : state.kind === 'topic' ? 'หมวดย่อย' : 'หัวข้อ'
+  const t = useTranslations('admin.settings.taxonomy')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!name.trim()) {
-      setError(`กรุณากรอกชื่อ${label}`)
+      setError(t(`${state.kind}.nameRequired`))
       return
     }
 
@@ -72,13 +80,15 @@ function TaxonomyEditor({
     try {
       await onSave({
         name: name.trim(),
+        nameEn: nameEn.trim(),
+        nameId: nameId.trim(),
         description: description.trim() || undefined,
         sortOrder,
         syncToExternalRepairSystem: state.kind === 'topic' ? syncToExternalRepairSystem : undefined,
       })
       onClose()
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiError(err, tCommon('state.error')))
     } finally {
       setSaving(false)
     }
@@ -88,11 +98,11 @@ function TaxonomyEditor({
     <Modal
       open
       onClose={onClose}
-      title={`${state.item ? 'แก้ไข' : 'เพิ่ม'}${label}`}
+      title={state.item ? t(`${state.kind}.editTitle`) : t(`${state.kind}.addTitle`)}
     >
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="taxonomy-name">ชื่อ{label} *</Label>
+          <Label htmlFor="taxonomy-name">{t(`${state.kind}.nameLabel`)} *</Label>
           <Input
             id="taxonomy-name"
             value={name}
@@ -101,8 +111,19 @@ function TaxonomyEditor({
             autoFocus
           />
         </div>
+        {/* ชื่อภาษาอื่นสำหรับหน้าจอที่สลับภาษา — ว่างได้ ระบบจะแสดงชื่อไทยแทน */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="taxonomy-name-en">{tOrg('nameEn')}</Label>
+            <Input id="taxonomy-name-en" value={nameEn} onChange={event => setNameEn(event.target.value)} maxLength={200} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="taxonomy-name-id">{tOrg('nameId')}</Label>
+            <Input id="taxonomy-name-id" value={nameId} onChange={event => setNameId(event.target.value)} maxLength={200} />
+          </div>
+        </div>
         <div className="space-y-1.5">
-          <Label htmlFor="taxonomy-description">คำอธิบาย</Label>
+          <Label htmlFor="taxonomy-description">{t('description')}</Label>
           <textarea
             id="taxonomy-description"
             value={description}
@@ -113,7 +134,7 @@ function TaxonomyEditor({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="taxonomy-order">ลำดับการแสดง</Label>
+          <Label htmlFor="taxonomy-order">{t('sortOrder')}</Label>
           <Input
             id="taxonomy-order"
             type="number"
@@ -133,14 +154,14 @@ function TaxonomyEditor({
               onChange={event => setSyncToExternalRepairSystem(event.target.checked)}
             />
             <Label htmlFor="taxonomy-sync-external-repair" className="text-sm font-normal">
-              ซิงก์ไปยังระบบซ่อมนอก — ใบแจ้งเรื่องที่สร้างใต้หมวดย่อยนี้จะถูกส่ง webhook ไปบันทึกใน DB ระบบซ่อมนอกโดยอัตโนมัติ
+              {t('syncExternalRepair')}
             </Label>
           </div>
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button type="submit" loading={saving}>บันทึก</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{tCommon('action.cancel')}</Button>
+          <Button type="submit" loading={saving}>{tCommon('action.save')}</Button>
         </div>
       </form>
     </Modal>
@@ -152,13 +173,18 @@ function EmptyRow({ text }: { text: string }) {
 }
 
 export default function TicketTaxonomyPage() {
+  const t = useTranslations('admin.settings.taxonomy')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const locale = useLocale() as Locale
   const { data: scope, isLoading: scopeLoading, error: scopeError } = useTicketManagementScope()
   const [companyId, setCompanyId] = useState('')
   const [departmentId, setDepartmentId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [subjectTopicId, setSubjectTopicId] = useState('')
   const [routingTopicId, setRoutingTopicId] = useState('')
-  const [view, setView] = useState<'taxonomy' | 'routing' | 'template'>('taxonomy')
+  const [view, setView] = useState<'taxonomy' | 'routing' | 'template' | 'closeout' | 'team'>('taxonomy')
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [toggleTarget, setToggleTarget] = useState<ToggleState | null>(null)
 
@@ -207,6 +233,8 @@ export default function TicketTaxonomyPage() {
 
   async function saveEditor(values: {
     name: string
+    nameEn?: string
+    nameId?: string
     description?: string
     sortOrder: number
     syncToExternalRepairSystem?: boolean
@@ -239,7 +267,7 @@ export default function TicketTaxonomyPage() {
     } else {
       await createSubject.mutateAsync({ companyId, departmentId, categoryId, topicId: subjectTopicId, ...values })
     }
-    toast.success(`บันทึก${editor.kind === 'category' ? 'หมวด' : editor.kind === 'topic' ? 'หมวดย่อย' : 'หัวข้อ'}สำเร็จ`)
+    toast.success(t(`${editor.kind}.saved`))
   }
 
   async function confirmToggle() {
@@ -260,10 +288,12 @@ export default function TicketTaxonomyPage() {
           syncToExternalRepairSystem: (item as TicketTopicDto).syncToExternalRepairSystem,
         })
       } else await updateSubject.mutateAsync(body)
-      toast.success(`${item.isActive ? 'ปิด' : 'เปิด'}ใช้งาน "${item.name}" สำเร็จ`)
+      toast.success(item.isActive
+        ? t('deactivated', { name: item.name })
+        : t('activated', { name: item.name }))
       setToggleTarget(null)
     } catch (error) {
-      toast.error(apiMessage(error))
+      toast.error(apiError(error, tCommon('state.error')))
     }
   }
 
@@ -272,25 +302,27 @@ export default function TicketTaxonomyPage() {
   }
 
   if (scopeError) {
-    return <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{apiMessage(scopeError)}</div>
+    return <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{apiError(scopeError, tCommon('state.error'))}</div>
   }
 
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">หมวดหมู่แจ้งเรื่อง (ภายใน)</h1>
-        <p className="mt-1 text-sm text-muted-foreground">จัดลำดับและกำหนดหัวข้อที่แสดงในฟอร์มแจ้งเรื่อง</p>
+        <h1 className="text-xl font-semibold text-foreground">{t('internalTitle')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('internalSubtitle')}</p>
       </div>
 
       <div className="flex gap-1 border-b border-border">
-        <Button variant={view === 'taxonomy' ? 'default' : 'ghost'} onClick={() => setView('taxonomy')}><FolderTree className="h-4 w-4" /> หมวด หมวดย่อย และหัวข้อ</Button>
-        <Button variant={view === 'routing' ? 'default' : 'ghost'} onClick={() => setView('routing')}><Route className="h-4 w-4" /> ผู้รับผิดชอบและ Routing</Button>
-        <Button variant={view === 'template' ? 'default' : 'ghost'} onClick={() => setView('template')}><FilePenLine className="h-4 w-4" /> Template และ Suggest</Button>
+        <Button variant={view === 'taxonomy' ? 'default' : 'ghost'} onClick={() => setView('taxonomy')}><FolderTree className="h-4 w-4" /> {t('tabTaxonomy')}</Button>
+        <Button variant={view === 'routing' ? 'default' : 'ghost'} onClick={() => setView('routing')}><Route className="h-4 w-4" /> {t('tabRouting')}</Button>
+        <Button variant={view === 'template' ? 'default' : 'ghost'} onClick={() => setView('template')}><FilePenLine className="h-4 w-4" /> {t('tabTemplate')}</Button>
+        <Button variant={view === 'closeout' ? 'default' : 'ghost'} onClick={() => setView('closeout')}><ClipboardCheck className="h-4 w-4" /> {t('tabCloseout')}</Button>
+        <Button variant={view === 'team' ? 'default' : 'ghost'} onClick={() => setView('team')}><Users className="h-4 w-4" /> {t('tabTeam')}</Button>
       </div>
 
       <div className="grid gap-3 border-y border-border py-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="taxonomy-company">บริษัท</Label>
+          <Label htmlFor="taxonomy-company">{tOrg('company')}</Label>
           <Select
             id="taxonomy-company"
             value={companyId}
@@ -302,14 +334,14 @@ export default function TicketTaxonomyPage() {
               setSubjectTopicId('')
             }}
           >
-            <option value="">— เลือกบริษัท —</option>
+            <option value="">{tOrg('selectCompany')}</option>
             {(scope?.companies ?? []).map(company => (
-              <option key={company.id} value={company.id}>{company.name}</option>
+              <option key={company.id} value={company.id}>{localizedName(company, locale)}</option>
             ))}
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="taxonomy-department">แผนกที่ดูแล</Label>
+          <Label htmlFor="taxonomy-department">{t('department')}</Label>
           <Select
             id="taxonomy-department"
             value={departmentId}
@@ -320,9 +352,9 @@ export default function TicketTaxonomyPage() {
               setSubjectTopicId('')
             }}
           >
-            <option value="">— เลือกแผนก —</option>
+            <option value="">{t('selectDepartment')}</option>
             {departments.map(department => (
-              <option key={department.id} value={department.id}>{department.name}</option>
+              <option key={department.id} value={department.id}>{localizedName(department, locale)}</option>
             ))}
           </Select>
         </div>
@@ -333,18 +365,18 @@ export default function TicketTaxonomyPage() {
             <div className="flex h-14 items-center justify-between border-b border-border px-4">
               <div className="flex items-center gap-2">
                 <FolderTree className="h-4 w-4 text-primary" />
-                <h2 className="text-sm font-semibold">หมวด</h2>
+                <h2 className="text-sm font-semibold">{t('category.heading')}</h2>
               </div>
               <Button size="sm" disabled={!departmentId} onClick={() => setEditor({ kind: 'category' })}>
-                <Plus className="h-4 w-4" /> เพิ่มหมวด
+                <Plus className="h-4 w-4" /> {t('category.add')}
               </Button>
             </div>
             {!departmentId ? (
-              <EmptyRow text="เลือกบริษัทและแผนกก่อนเพิ่มหมวด" />
+              <EmptyRow text={t('category.selectFirst')} />
             ) : categoriesLoading ? (
-              <EmptyRow text="กำลังโหลดหมวด..." />
+              <EmptyRow text={t('category.loading')} />
             ) : categories.length === 0 ? (
-              <EmptyRow text="ยังไม่มีหมวดแจ้งเรื่อง" />
+              <EmptyRow text={t('category.empty')} />
             ) : (
               <div className="divide-y divide-border">
                 {categories.map(category => (
@@ -358,20 +390,23 @@ export default function TicketTaxonomyPage() {
                       className="min-w-0 flex-1 px-2 py-3 text-left"
                     >
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">{category.name}</span>
-                        {!category.isActive && <Badge variant="secondary">ปิดใช้งาน</Badge>}
+                        <span className="truncate text-sm font-medium">{localizedName(category, locale)}</span>
+                        {!category.isActive && <Badge variant="secondary">{t('inactiveBadge')}</Badge>}
                       </div>
+                      <LocalizedNameHint nameEn={category.nameEn} nameId={category.nameId} />
                       <p className="mt-1 truncate text-xs text-muted-foreground">
-                        ลำดับ {category.sortOrder}{category.description ? ` · ${category.description}` : ''}
+                        {category.description
+                          ? t('orderWithDescription', { order: category.sortOrder, description: category.description })
+                          : t('order', { order: category.sortOrder })}
                       </p>
                     </button>
-                    <Button size="icon" variant="ghost" title="แก้ไขหมวด" onClick={() => setEditor({ kind: 'category', item: category })}>
+                    <Button size="icon" variant="ghost" title={t('category.edit')} onClick={() => setEditor({ kind: 'category', item: category })}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       size="icon"
                       variant="ghost"
-                      title={category.isActive ? 'ปิดใช้งานหมวด' : 'เปิดใช้งานหมวด'}
+                      title={category.isActive ? t('category.deactivate') : t('category.activate')}
                       onClick={() => setToggleTarget({ kind: 'category', item: category })}
                     >
                       {category.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
@@ -387,20 +422,24 @@ export default function TicketTaxonomyPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <Tags className="h-4 w-4 text-primary" />
-                  <h2 className="truncate text-sm font-semibold">หมวดย่อย</h2>
+                  <h2 className="truncate text-sm font-semibold">{t('topic.heading')}</h2>
                 </div>
-                {categoryId && <p className="mt-0.5 truncate text-xs text-muted-foreground">{categories.find(c => c.id === categoryId)?.name}</p>}
+                {categoryId && (
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {localizedName(categories.find(c => c.id === categoryId), locale)}
+                  </p>
+                )}
               </div>
               <Button size="sm" disabled={!categoryId} onClick={() => setEditor({ kind: 'topic' })}>
-                <Plus className="h-4 w-4" /> เพิ่มหมวดย่อย
+                <Plus className="h-4 w-4" /> {t('topic.add')}
               </Button>
             </div>
             {!categoryId ? (
-              <EmptyRow text="เลือกหมวดเพื่อดูหมวดย่อย" />
+              <EmptyRow text={t('topic.selectFirst')} />
             ) : topicsLoading ? (
-              <EmptyRow text="กำลังโหลดหมวดย่อย..." />
+              <EmptyRow text={t('topic.loading')} />
             ) : topics.length === 0 ? (
-              <EmptyRow text="ยังไม่มีหมวดย่อยในหมวดนี้" />
+              <EmptyRow text={t('topic.empty')} />
             ) : (
               <div className="divide-y divide-border">
                 {topics.map(topic => (
@@ -410,21 +449,24 @@ export default function TicketTaxonomyPage() {
                   >
                     <button type="button" onClick={() => setSubjectTopicId(topic.id)} className="min-w-0 flex-1 px-2 py-3 text-left">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">{topic.name}</span>
-                        {!topic.isActive && <Badge variant="secondary">ปิดใช้งาน</Badge>}
-                        {topic.syncToExternalRepairSystem && <Badge variant="default">ซ่อมนอก</Badge>}
+                        <span className="truncate text-sm font-medium">{localizedName(topic, locale)}</span>
+                        {!topic.isActive && <Badge variant="secondary">{t('inactiveBadge')}</Badge>}
+                        {topic.syncToExternalRepairSystem && <Badge variant="default">{t('externalRepairBadge')}</Badge>}
                       </div>
+                      <LocalizedNameHint nameEn={topic.nameEn} nameId={topic.nameId} />
                       <p className="mt-1 truncate text-xs text-muted-foreground">
-                        ลำดับ {topic.sortOrder}{topic.description ? ` · ${topic.description}` : ''}
+                        {topic.description
+                          ? t('orderWithDescription', { order: topic.sortOrder, description: topic.description })
+                          : t('order', { order: topic.sortOrder })}
                       </p>
                     </button>
-                    <Button size="icon" variant="ghost" title="แก้ไขหมวดย่อย" onClick={() => setEditor({ kind: 'topic', item: topic })}>
+                    <Button size="icon" variant="ghost" title={t('topic.edit')} onClick={() => setEditor({ kind: 'topic', item: topic })}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       size="icon"
                       variant="ghost"
-                      title={topic.isActive ? 'ปิดใช้งานหมวดย่อย' : 'เปิดใช้งานหมวดย่อย'}
+                      title={topic.isActive ? t('topic.deactivate') : t('topic.activate')}
                       onClick={() => setToggleTarget({ kind: 'topic', item: topic })}
                     >
                       {topic.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
@@ -440,40 +482,47 @@ export default function TicketTaxonomyPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <Tags className="h-4 w-4 text-primary" />
-                  <h2 className="truncate text-sm font-semibold">หัวข้อ</h2>
+                  <h2 className="truncate text-sm font-semibold">{t('subject.heading')}</h2>
                 </div>
-                {subjectTopicId && <p className="mt-0.5 truncate text-xs text-muted-foreground">{topics.find(t => t.id === subjectTopicId)?.name}</p>}
+                {subjectTopicId && (
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {localizedName(topics.find(item => item.id === subjectTopicId), locale)}
+                  </p>
+                )}
               </div>
               <Button size="sm" disabled={!subjectTopicId} onClick={() => setEditor({ kind: 'subject' })}>
-                <Plus className="h-4 w-4" /> เพิ่มหัวข้อ
+                <Plus className="h-4 w-4" /> {t('subject.add')}
               </Button>
             </div>
             {!subjectTopicId ? (
-              <EmptyRow text="เลือกหมวดย่อยเพื่อดูหัวข้อ" />
+              <EmptyRow text={t('subject.selectFirst')} />
             ) : subjectsLoading ? (
-              <EmptyRow text="กำลังโหลดหัวข้อ..." />
+              <EmptyRow text={t('subject.loading')} />
             ) : subjects.length === 0 ? (
-              <EmptyRow text="ยังไม่มีหัวข้อในหมวดย่อยนี้" />
+              <EmptyRow text={t('subject.empty')} />
             ) : (
               <div className="divide-y divide-border">
                 {subjects.map(subject => (
                   <div key={subject.id} className="flex min-h-16 items-center gap-2 px-2 hover:bg-whited/40">
                     <div className="min-w-0 flex-1 px-2 py-3">
                       <div className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">{subject.name}</span>
-                        {!subject.isActive && <Badge variant="secondary">ปิดใช้งาน</Badge>}
+                        <span className="truncate text-sm font-medium">{localizedName(subject, locale)}</span>
+                        {!subject.isActive && <Badge variant="secondary">{t('inactiveBadge')}</Badge>}
                       </div>
+                      <LocalizedNameHint nameEn={subject.nameEn} nameId={subject.nameId} />
                       <p className="mt-1 truncate text-xs text-muted-foreground">
-                        ลำดับ {subject.sortOrder}{subject.description ? ` · ${subject.description}` : ''}
+                        {subject.description
+                          ? t('orderWithDescription', { order: subject.sortOrder, description: subject.description })
+                          : t('order', { order: subject.sortOrder })}
                       </p>
                     </div>
-                    <Button size="icon" variant="ghost" title="แก้ไขหัวข้อ" onClick={() => setEditor({ kind: 'subject', item: subject })}>
+                    <Button size="icon" variant="ghost" title={t('subject.edit')} onClick={() => setEditor({ kind: 'subject', item: subject })}>
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
                       size="icon"
                       variant="ghost"
-                      title={subject.isActive ? 'ปิดใช้งานหัวข้อ' : 'เปิดใช้งานหัวข้อ'}
+                      title={subject.isActive ? t('subject.deactivate') : t('subject.activate')}
                       onClick={() => setToggleTarget({ kind: 'subject', item: subject })}
                     >
                       {subject.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
@@ -492,12 +541,19 @@ export default function TicketTaxonomyPage() {
         topicId={routingTopicId}
         onCategory={id => { setCategoryId(id); setRoutingTopicId('') }}
         onTopic={setRoutingTopicId}
-      /> : <WorkflowGuidancePanel
+      /> : view === 'template' ? <WorkflowGuidancePanel
         companyId={companyId}
         departmentId={departmentId}
         categories={categories}
         topics={topics}
         subjects={subjects}
+      /> : view === 'closeout' ? <CloseoutReasonPanel
+        companyId={companyId}
+        departmentId={departmentId}
+        categories={categories}
+      /> : <TeamTemplatePanel
+        companyId={companyId}
+        departmentId={departmentId}
       />}
 
       {editor && <TaxonomyEditor state={editor} onClose={() => setEditor(null)} onSave={saveEditor} />}
@@ -506,11 +562,13 @@ export default function TicketTaxonomyPage() {
         open={!!toggleTarget}
         onClose={() => setToggleTarget(null)}
         onConfirm={confirmToggle}
-        title={`${toggleTarget?.item.isActive ? 'ปิด' : 'เปิด'}การใช้งาน`}
+        title={toggleTarget?.item.isActive ? t('toggleOffTitle') : t('toggleOnTitle')}
         description={toggleTarget
-          ? `ยืนยัน${toggleTarget.item.isActive ? 'ปิด' : 'เปิด'}ใช้งาน "${toggleTarget.item.name}"?`
+          ? (toggleTarget.item.isActive
+              ? t('confirmDeactivate', { name: toggleTarget.item.name })
+              : t('confirmActivate', { name: toggleTarget.item.name }))
           : undefined}
-        confirmLabel="ยืนยัน"
+        confirmLabel={tCommon('action.confirm')}
         variant={toggleTarget?.item.isActive ? 'destructive' : 'default'}
         loading={updateCategory.isPending || updateTopic.isPending || updateSubject.isPending}
       />

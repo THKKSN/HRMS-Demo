@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
 import Image from 'next/image'
+import { getTranslations } from 'next-intl/server'
 import logo from '@/public/tbg-assistant.jpg'
 
-export default function AuthLayout({ children }: { children: ReactNode }) {
+export default async function AuthLayout({ children }: { children: ReactNode }) {
+  const t = await getTranslations('liff.auth.layout')
   return (
     <div className="flex min-h-screen flex-col">
       {/* ── Brand header ──────────────────────────────────────── */}
@@ -23,7 +25,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           />
         </div>
         <h1 className="mt-4 text-2xl font-bold tracking-tight">TBG Assistant</h1>
-        <p className="mt-1 text-sm text-sky-100">ระบบบริหารจัดการข้อมูลภายใน</p>
+        <p className="mt-1 text-sm text-sky-100">{t('tagline')}</p>
       </div>
 
       {/* ── Content card ──────────────────────────────────────── */}

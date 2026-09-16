@@ -19,7 +19,13 @@ public class GetMemoTypesHandler(IApplicationDbContext db)
         return await query
             .OrderBy(x => x.Name)
             .Select(x => new MemoTypeDto(
-                x.Id, x.Name, x.CompanyId, x.Company.Name, x.DepartmentId, x.Department.Name, x.IsActive))
+                x.Id, x.Name, x.CompanyId, x.Company.Name, x.DepartmentId, x.Department.Name, x.IsActive,
+                x.FirstApproverRoleCode, x.FirstApproverEmployeeId,
+                x.FirstApproverEmployee == null ? null : (x.FirstApproverEmployee.FirstName + " " + x.FirstApproverEmployee.LastName).Trim(),
+                // expression tree ใช้ named argument ไม่ได้ (CS0853) — ลำดับต้องตรงกับ MemoTypeDto
+                x.NameEn, x.NameId,
+                x.Company.NameEn, x.Company.NameId,
+                x.Department.NameEn, x.Department.NameId))
             .ToListAsync(ct);
     }
 }

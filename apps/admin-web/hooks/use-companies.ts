@@ -41,6 +41,7 @@ export function useUpdateCompany() {
       id: string
       name: string
       nameEn?: string
+      nameId?: string
       orgType: string
       parentId?: string
       isActive: boolean

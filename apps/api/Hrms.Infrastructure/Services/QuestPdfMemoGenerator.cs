@@ -81,6 +81,13 @@ public class QuestPdfMemoGenerator : IMemoPdfGenerator
                     col.Item().PaddingTop(14).Text("รายละเอียด/หมายเหตุ").Bold();
                     col.Item().PaddingTop(2).PaddingLeft(10).Text(data.Detail).LineHeight(1.4f);
 
+                    // ── ความเห็นประกอบการอนุมัติ (ถ้ามี) ─────────────
+                    if (!string.IsNullOrWhiteSpace(data.ApproveComment))
+                    {
+                        col.Item().PaddingTop(14).Text("ความเห็นประกอบการอนุมัติ").Bold();
+                        col.Item().PaddingTop(2).PaddingLeft(10).Text(data.ApproveComment).LineHeight(1.4f);
+                    }
+
                     // ── ลงนามผู้ขอ / ผู้อนุมัติ ───────────────────────
                     col.Item().PaddingTop(50).Row(row =>
                     {

@@ -44,7 +44,8 @@ public class CompanyController(IMediator mediator) : ControllerBase
             request.NameEn,
             request.OrgType,
             request.ParentId,
-            request.IsHeadquarters), ct);
+            request.IsHeadquarters,
+            request.NameId), ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -62,21 +63,25 @@ public class CompanyController(IMediator mediator) : ControllerBase
             request.NameEn,
             request.ParentId,
             request.IsActive,
-            request.IsHeadquarters), ct);
+            request.IsHeadquarters,
+            request.NameId), ct);
         return Ok(result);
     }
 }
 
+// NameId = ชื่อภาษาอินโดนีเซีย (i18n Phase M) — ไม่ส่ง = คงค่าเดิม, ส่ง "" = ล้างค่า
 public record CreateCompanyRequest(
     string Name,
     string? NameEn,
     OrgType OrgType,
     Guid? ParentId,
-    bool IsHeadquarters = false);
+    bool IsHeadquarters = false,
+    string? NameId = null);
 
 public record UpdateCompanyRequest(
     string Name,
     string? NameEn,
     Guid? ParentId,
     bool IsActive,
-    bool IsHeadquarters = false);
+    bool IsHeadquarters = false,
+    string? NameId = null);

@@ -23,7 +23,7 @@ public class CreateOtRequestValidator : AbstractValidator<CreateOtRequestCommand
         RuleFor(x => x.StartTime).NotEmpty();
         RuleFor(x => x.EndTime).NotEmpty()
             .Must((cmd, end) => end > cmd.StartTime)
-            .WithMessage("เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น");
+            .WithErrorCode("TIME_RANGE_INVALID").WithMessage("The end time must be later than the start time.");
         RuleFor(x => x.Reason).MaximumLength(500);
     }
 }

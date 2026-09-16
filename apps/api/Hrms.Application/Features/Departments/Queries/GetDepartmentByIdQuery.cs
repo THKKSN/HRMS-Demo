@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Departments.Dtos;
 using MediatR;
@@ -16,7 +17,7 @@ public class GetDepartmentByIdHandler(IApplicationDbContext db)
             .Include(d => d.ManagerEmployee)
             .Include(d => d.Shift)
             .FirstOrDefaultAsync(d => d.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลแผนก");
+            ?? throw new NotFoundException("Department", request.Id, "DEPARTMENT_NOT_FOUND");
 
         return new DepartmentDto(
             dept.Id,
@@ -27,6 +28,8 @@ public class GetDepartmentByIdHandler(IApplicationDbContext db)
             dept.ManagerEmployee is null ? null : $"{dept.ManagerEmployee.FirstName} {dept.ManagerEmployee.LastName}".Trim(),
             dept.ShiftId,
             dept.Shift?.Name,
-            dept.IsActive);
+            dept.IsActive,
+            NameEn: dept.NameEn,
+            NameId: dept.NameId);
     }
 }

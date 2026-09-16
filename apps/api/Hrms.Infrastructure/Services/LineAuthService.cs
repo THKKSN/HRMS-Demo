@@ -24,10 +24,10 @@ public class LineAuthService(HttpClient http, IOptions<LineOptions> options) : I
 
         var verify = await verifyResp.Content.ReadFromJsonAsync<LineVerifyResponse>(ct);
         if (verify is null || verify.ClientId != _opt.ChannelId)
-            throw new AppUnauthorizedException("LINE access token channel mismatch.");
+            throw new AppUnauthorizedException("LINE_TOKEN_CHANNEL_MISMATCH", "LINE access token channel mismatch.");
 
         if (verify.ExpiresIn <= 0)
-            throw new AppUnauthorizedException("LINE access token expired.");
+            throw new AppUnauthorizedException("LINE_TOKEN_EXPIRED", "LINE access token expired.");
 
         // 2) fetch the verified profile (userId guaranteed by LINE)
         using var req = new HttpRequestMessage(HttpMethod.Get, "https://api.line.me/v2/profile");
@@ -35,11 +35,11 @@ public class LineAuthService(HttpClient http, IOptions<LineOptions> options) : I
 
         var profileResp = await http.SendAsync(req, ct);
         if (!profileResp.IsSuccessStatusCode)
-            throw new AppUnauthorizedException("Cannot fetch LINE profile.");
+            throw new AppUnauthorizedException("LINE_PROFILE_FETCH_FAILED", "Cannot fetch LINE profile.");
 
         var profile = await profileResp.Content.ReadFromJsonAsync<LineProfileResponse>(ct);
         if (profile is null || string.IsNullOrEmpty(profile.UserId))
-            throw new AppUnauthorizedException("LINE profile is empty.");
+            throw new AppUnauthorizedException("LINE_PROFILE_EMPTY", "LINE profile is empty.");
 
         return new LineProfile(profile.UserId, profile.DisplayName, profile.PictureUrl);
     }

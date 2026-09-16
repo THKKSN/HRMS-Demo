@@ -27,7 +27,8 @@ public class GetCompaniesHandler(IApplicationDbContext db)
             c.OrgType.ToString(),
             c.IsActive,
             c.IsHeadquarters,
-            lookup[c.Id].Select(BuildTree).ToList());
+            lookup[c.Id].Select(BuildTree).ToList(),
+            c.NameId);
 
         return lookup[(Guid?)null].Select(BuildTree).ToList();
     }

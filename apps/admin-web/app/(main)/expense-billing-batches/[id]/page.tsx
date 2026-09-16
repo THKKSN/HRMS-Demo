@@ -6,6 +6,10 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { ArrowLeft, Ban, Banknote, CalendarDays, ChevronRight, Download, FileSpreadsheet, ReceiptText, type LucideIcon } from 'lucide-react'
 import type { ExpenseBillingBatchStatus, ExpenseClaimStatus, ExpenseClaimType } from '@hrms/shared-types'
+import {
+  EXPENSE_BILLING_BATCH_STATUS_LABEL as STATUS_LABEL,
+  EXPENSE_CLAIM_TYPE_LABEL as TYPE_LABEL,
+} from '@hrms/i18n/labels'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { expenseBillingBatchesApi } from '@/lib/expense-billing-batches.api'
@@ -14,13 +18,7 @@ import {
   useExpenseBillingBatch,
   useMarkExpenseBillingBatchPaid,
 } from '@/hooks/use-expense-billing-batches'
-
-const STATUS_LABEL: Record<ExpenseBillingBatchStatus, string> = {
-  Draft: 'แบบร่าง',
-  Exported: 'Export แล้ว',
-  Paid: 'จ่ายแล้ว',
-  Cancelled: 'ยกเลิก',
-}
+import * as fmt from '@hrms/i18n/format'
 
 const STATUS_VARIANT: Record<ExpenseBillingBatchStatus, 'secondary' | 'info' | 'success' | 'outline'> = {
   Draft: 'secondary',
@@ -49,25 +47,17 @@ const CLAIM_STATUS_VARIANT: Record<ExpenseClaimStatus, 'secondary' | 'warning' |
   Paid: 'success',
 }
 
-const TYPE_LABEL: Record<ExpenseClaimType, string> = {
-  Fuel: 'ค่าน้ำมัน',
-  Toll: 'ค่าทางด่วน',
-  Parking: 'ค่าจอดรถ',
-  Meal: 'ค่าอาหาร',
-  Other: 'อื่น ๆ',
-}
-
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(`${value}T00:00:00`))
+  return fmt.formatDate(new Date(`${value}T00:00:00`), { dateStyle: 'medium' })
 }
 
 function formatDateTime(value?: string) {
   if (!value) return '-'
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  return fmt.formatDateTime(new Date(value))
 }
 
 function formatMoney(value: number) {
-  return new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
+  return fmt.formatMoney(value)
 }
 
 function apiMessage(error: unknown) {
@@ -197,7 +187,7 @@ export default function ExpenseBillingBatchDetailPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <SummaryCard icon={ReceiptText} label="จำนวนรายการ" value={batch.totalClaims.toLocaleString('th-TH')} />
+        <SummaryCard icon={ReceiptText} label="จำนวนรายการ" value={fmt.formatNumber(batch.totalClaims)} />
         <SummaryCard icon={Banknote} label="ยอดรวม" value={formatMoney(batch.totalAmount)} suffix="บาท" />
         <SummaryCard icon={FileSpreadsheet} label="Export ล่าสุด" value={formatDateTime(batch.exportedAt)} compact />
         <SummaryCard icon={CalendarDays} label="จ่ายเงิน" value={formatDateTime(batch.paidAt)} compact />

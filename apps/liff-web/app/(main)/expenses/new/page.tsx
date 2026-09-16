@@ -1,13 +1,12 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { ChangeEvent, FormEvent, InputHTMLAttributes } from 'react'
 import { useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   AlertCircle,
   Banknote,
-  ChevronLeft,
   FileText,
   Loader2,
   Paperclip,
@@ -23,11 +22,11 @@ import type {
   ExpenseClaimType,
 } from '@hrms/shared-types'
 import {
-  EXPENSE_DOCUMENT_LABEL,
   REQUIRED_FUEL_DOCUMENTS,
   hasRequiredExpenseDocuments,
   missingExpenseDocumentLabels,
 } from '@/lib/expense-attachments'
+import { apiMessageDetailed } from '@/lib/api-message'
 import { useCreateExpense } from '@/hooks/use-expenses'
 import { type CreateExpenseBody, expensesApi } from '@/lib/expenses.api'
 import { uploadExpenseAttachment } from '@/lib/upload.api'
@@ -41,12 +40,12 @@ type PendingAttachment = {
   file: File
 }
 
-const TYPE_OPTIONS: { value: ExpenseClaimType; label: string; hint: string; tone: string }[] = [
-  { value: 'Fuel', label: 'ค่าน้ำมัน', hint: 'Fleet card / ใบนำจ่าย', tone: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
-  { value: 'Toll', label: 'ค่าทางด่วน', hint: 'ใบเสร็จค่าผ่านทาง', tone: 'border-sky-200 bg-sky-50 text-sky-800' },
-  { value: 'Parking', label: 'ค่าจอดรถ', hint: 'หลักฐานค่าจอด', tone: 'border-violet-200 bg-violet-50 text-violet-800' },
-  { value: 'Meal', label: 'ค่าอาหาร', hint: 'บิลอาหาร/รับรอง', tone: 'border-amber-200 bg-amber-50 text-amber-800' },
-  { value: 'Other', label: 'อื่น ๆ', hint: 'ค่าใช้จ่ายอื่น', tone: 'border-slate-200 bg-slate-50 text-slate-700' },
+const TYPE_OPTIONS: { value: ExpenseClaimType; tone: string }[] = [
+  { value: 'Fuel', tone: 'border-emerald-200 bg-emerald-50 text-emerald-800' },
+  { value: 'Toll', tone: 'border-sky-200 bg-sky-50 text-sky-800' },
+  { value: 'Parking', tone: 'border-violet-200 bg-violet-50 text-violet-800' },
+  { value: 'Meal', tone: 'border-amber-200 bg-amber-50 text-amber-800' },
+  { value: 'Other', tone: 'border-slate-200 bg-slate-50 text-slate-700' },
 ]
 
 function todayInput() {
@@ -64,16 +63,10 @@ function parsePositiveNumber(value: string) {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : undefined
 }
 
-function apiMessage(error: unknown) {
-  const response = (error as {
-    response?: { data?: { message?: string; error?: string; errors?: string[]; details?: Array<{ error?: string }> } }
-  })?.response?.data
-  return response?.details?.[0]?.error ?? response?.errors?.[0] ?? response?.message
-    ?? response?.error ?? (error instanceof Error ? error.message : undefined)
-    ?? 'ไม่สามารถส่งรายการได้ กรุณาลองใหม่'
-}
-
 export default function NewExpensePage() {
+  const t = useTranslations('liff.expense')
+  const tType = useTranslations('status.expenseType')
+  const tDoc = useTranslations('status.expenseDocument')
   const router = useRouter()
   const { mutateAsync: createExpense } = useCreateExpense()
 
@@ -100,7 +93,6 @@ export default function NewExpensePage() {
   const [submitting, setSubmitting] = useState(false)
   const [checkingOcr, setCheckingOcr] = useState(false)
 
-  const selectedType = TYPE_OPTIONS.find(item => item.value === type)
   const amountNumber = parsePositiveNumber(amount)
   const fuelLitersNumber = parsePositiveNumber(fuelLiters)
   const tripCountNumber = parsePositiveNumber(tripCount)
@@ -112,13 +104,17 @@ export default function NewExpensePage() {
     [type, expenseDate, amountNumber, attachments, submitting, checkingOcr]
   )
 
+  // รายชื่อเอกสารที่ขาด แปลตามภาษา เช่น "ใบสั่งจ่าย และ ใบเสร็จชำระเงิน"
+  const missingDocuments = () =>
+    missingExpenseDocumentLabels(type, attachments, { document: tDoc, anyFile: t('form.atLeastOneFile') }).join(t('form.documentsJoin'))
+
   function handleFileChange(documentType: ExpenseAttachmentDocumentType, event: ChangeEvent<HTMLInputElement>) {
     const incoming = Array.from(event.target.files ?? [])
     event.target.value = ''
 
     const tooBig = incoming.filter(file => file.size > MAX_SIZE)
     if (tooBig.length) {
-      setError(`ไฟล์ใหญ่เกิน 10 MB: ${tooBig.map(file => file.name).join(', ')}`)
+      setError(t('form.fileTooBig', { names: tooBig.map(file => file.name).join(', ') }))
       return
     }
 
@@ -129,7 +125,7 @@ export default function NewExpensePage() {
         .map(file => ({ id: `${documentType}:${file.name}:${file.size}:${Date.now()}:${Math.random()}`, documentType, file }))
       const next = [...prev, ...newItems]
       if (next.length > MAX_FILES) {
-        setError(`แนบไฟล์ได้สูงสุด ${MAX_FILES} ไฟล์`)
+        setError(t('form.tooManyFiles', { max: MAX_FILES }))
         return next.slice(0, MAX_FILES)
       }
       setError(null)
@@ -181,8 +177,8 @@ export default function NewExpensePage() {
     if (checkingOcr) return
 
     if (!canCheckOcr) {
-      const missing = missingExpenseDocumentLabels(type, attachments)
-      setError(missing.length > 0 ? `กรุณาถ่าย/แนบ ${missing.join(' และ ')} ก่อนตรวจ OCR` : 'กรุณาเลือกประเภทและวันที่เอกสารก่อนตรวจ OCR')
+      const missing = missingDocuments()
+      setError(missing ? t('form.errors.attachBeforeOcr', { documents: missing }) : t('form.errors.typeDateBeforeOcr'))
       return
     }
 
@@ -195,7 +191,7 @@ export default function NewExpensePage() {
       await expensesApi.startOcr(result.id)
       router.replace(`/expenses/${result.id}/edit`)
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiMessageDetailed(err, t('form.errors.submitFailed')))
     } finally {
       setCheckingOcr(false)
     }
@@ -205,13 +201,13 @@ export default function NewExpensePage() {
     const isDraft = mode === 'draft'
 
     if (!isDraft && (!canSubmit || !amountNumber)) {
-      const missing = missingExpenseDocumentLabels(type, attachments)
-      setError(missing.length > 0 ? `กรุณาแนบ ${missing.join(' และ ')}` : 'กรุณากรอกข้อมูลที่จำเป็นให้ครบ')
+      const missing = missingDocuments()
+      setError(missing ? t('form.errors.attachRequired', { documents: missing }) : t('form.errors.fillRequired'))
       return
     }
 
     if (isDraft && !canSaveDraft) {
-      setError('กรุณาเลือกประเภทและวันที่เอกสารก่อนบันทึกร่าง')
+      setError(t('form.errors.typeDateBeforeDraft'))
       return
     }
 
@@ -223,7 +219,7 @@ export default function NewExpensePage() {
       const result = await createExpense(buildCreateBody(attachmentFiles, isDraft))
       router.replace(`/expenses/${result.id}`)
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiMessageDetailed(err, t('form.errors.submitFailed')))
     } finally {
       setSubmitting(false)
     }
@@ -238,7 +234,7 @@ export default function NewExpensePage() {
     <section className="rounded-lg border border-emerald-200 bg-background p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
         <Paperclip className="h-4 w-4 text-[#0f8f72]" />
-        <span className="text-sm font-semibold">ตรวจสอบข้อมูล/แนบหลักฐานจากภาพ *</span>
+        <span className="text-sm font-semibold">{t('form.attachmentsFromImage')} *</span>
         <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{attachments.length}/{MAX_FILES}</span>
       </div>
 
@@ -251,13 +247,13 @@ export default function NewExpensePage() {
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold">
-                    {EXPENSE_DOCUMENT_LABEL[documentType]}
+                    {tDoc(documentType)}
                     {required && <span className="ml-1 text-red-600">*</span>}
                   </p>
-                  {documentType !== 'Other' && <p className="mt-0.5 text-xs text-muted-foreground">ถ่ายหรือแนบไฟล์แยกตามประเภทเอกสาร</p>}
+                  {documentType !== 'Other' && <p className="mt-0.5 text-xs text-muted-foreground">{t('form.perDocumentHint')}</p>}
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${files.length ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                  {files.length ? 'แนบแล้ว' : 'ยังไม่มีไฟล์'}
+                  {files.length ? t('form.attached') : t('form.noFile')}
                 </span>
               </div>
 
@@ -287,14 +283,14 @@ export default function NewExpensePage() {
               {attachments.length < MAX_FILES && (
                 <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background text-sm font-medium active:bg-primary/5">
                   <Paperclip className="h-4 w-4 text-muted-foreground" />
-                  {files.length > 0 ? 'เพิ่มไฟล์' : 'ถ่าย/แนบไฟล์'}
+                  {files.length > 0 ? t('form.addFile') : t('form.captureOrAttach')}
                   <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple className="hidden" onChange={(event) => handleFileChange(documentType, event)} />
                 </label>
               )}
             </div>
           )
         })}
-        {attachments.length >= MAX_FILES && <p className="py-2 text-center text-xs text-muted-foreground">แนบครบ {MAX_FILES} ไฟล์แล้ว</p>}
+        {attachments.length >= MAX_FILES && <p className="py-2 text-center text-xs text-muted-foreground">{t('form.filesFull', { max: MAX_FILES })}</p>}
       </div>
 
       <button
@@ -304,7 +300,7 @@ export default function NewExpensePage() {
         className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0f8f72] text-sm font-bold text-white disabled:bg-slate-300"
       >
         {checkingOcr ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-        ตรวจ OCR
+        {t('form.checkOcr')}
       </button>
     </section>
   )
@@ -314,15 +310,9 @@ export default function NewExpensePage() {
       <div className="bg-[#0f8f72] px-4 pb-5 pt-4 text-white">
         <div className="flex items-center gap-3">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold">สร้างบิล</h1>
-            <p className="text-xs text-white/75">กรอกข้อมูลและแนบหลักฐานค่าใช้จ่าย</p>
+            <h1 className="text-lg font-bold">{t('new.title')}</h1>
+            <p className="text-xs text-white/75">{t('new.subtitle')}</p>
           </div>
-          {/* {amountNumber && (
-            <div className="ml-auto rounded-lg bg-white/15 px-3 py-1.5 text-right">
-              <p className="text-[10px] text-white/70">ยอดเงิน</p>
-              <p className="text-sm font-bold tabular-nums">{amountNumber.toLocaleString('th-TH')}</p>
-            </div>
-          )} */}
         </div>
       </div>
 
@@ -336,7 +326,7 @@ export default function NewExpensePage() {
         <section className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <ReceiptText className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">ประเภทค่าใช้จ่าย</span>
+            <span className="text-sm font-semibold">{t('form.typeSection')}</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
             {TYPE_OPTIONS.map(option => {
@@ -350,8 +340,8 @@ export default function NewExpensePage() {
                     active ? option.tone : 'border-border bg-background text-foreground'
                   }`}
                 >
-                  <p className="text-sm font-semibold">{option.label}</p>
-                  <p className="mt-1 text-[11px] opacity-75">{option.hint}</p>
+                  <p className="text-sm font-semibold">{tType(option.value)}</p>
+                  <p className="mt-1 text-[11px] opacity-75">{t(`form.typeHint.${option.value}`)}</p>
                 </button>
               )
             })}
@@ -363,20 +353,20 @@ export default function NewExpensePage() {
         <section className="overflow-hidden rounded-lg border border-border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Banknote className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">ข้อมูลบิล</span>
+            <span className="text-sm font-semibold">{t('form.billInfo')}</span>
           </div>
           <div className="min-w-0 space-y-3">
-            <TextInput label="วันที่เอกสาร *" value={expenseDate} onChange={setExpenseDate} type="date" />
-            <TextInput label="ยอดเงินรวม *" value={amount} onChange={setAmount} type="number" inputMode="decimal" placeholder="เช่น 8605" />
-            <TextInput label="ร้านค้า / ปั๊มน้ำมัน" value={merchantName} onChange={setMerchantName} placeholder="เช่น BSRC-T.P.OIL" maxLength={200} />
-            <TextInput label="เลขที่บิล" value={billNo} onChange={setBillNo} placeholder="เช่น FB-CM6905-02769" maxLength={80} />
+            <TextInput label={`${t('form.documentDate')} *`} value={expenseDate} onChange={setExpenseDate} type="date" />
+            <TextInput label={`${t('form.amount')} *`} value={amount} onChange={setAmount} type="number" inputMode="decimal" placeholder={t('form.amountPlaceholder')} />
+            <TextInput label={t('form.merchant')} value={merchantName} onChange={setMerchantName} placeholder={t('form.merchantPlaceholder')} maxLength={200} />
+            <TextInput label={t('form.billNo')} value={billNo} onChange={setBillNo} placeholder={t('form.billNoPlaceholder')} maxLength={80} />
             <div className="grid grid-cols-2 gap-3">
-              <TextInput label="TID" value={receiptTid} onChange={setReceiptTid} placeholder="เช่น 28257831" maxLength={80} />
-              <TextInput label="BATCH" value={receiptBatch} onChange={setReceiptBatch} placeholder="เช่น 000123" maxLength={80} />
+              <TextInput label="TID" value={receiptTid} onChange={setReceiptTid} placeholder={t('form.tidPlaceholder')} maxLength={80} />
+              <TextInput label="BATCH" value={receiptBatch} onChange={setReceiptBatch} placeholder={t('form.batchPlaceholder')} maxLength={80} />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <TextInput label="MID" value={receiptMid} onChange={setReceiptMid} placeholder="เลข MID" maxLength={80} />
-              <TextInput label="TRACE" value={receiptTrace} onChange={setReceiptTrace} placeholder="เช่น 002795" maxLength={80} />
+              <TextInput label="MID" value={receiptMid} onChange={setReceiptMid} placeholder={t('form.midPlaceholder')} maxLength={80} />
+              <TextInput label="TRACE" value={receiptTrace} onChange={setReceiptTrace} placeholder={t('form.tracePlaceholder')} maxLength={80} />
             </div>
           </div>
         </section>
@@ -384,29 +374,29 @@ export default function NewExpensePage() {
         <section className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Truck className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">ข้อมูลรถและงานขนส่ง</span>
-            {selectedType?.value !== 'Fuel' && <span className="ml-auto text-xs text-muted-foreground">ถ้ามี</span>}
+            <span className="text-sm font-semibold">{t('form.vehicleInfo')}</span>
+            {type !== 'Fuel' && <span className="ml-auto text-xs text-muted-foreground">{t('form.ifAny')}</span>}
           </div>
           <div className="space-y-3">
-            <TextInput label="ชื่อพนักงานขับรถ" value={driverName} onChange={setDriverName} placeholder="ชื่อในเอกสาร" maxLength={160} />
+            <TextInput label={t('form.driver')} value={driverName} onChange={setDriverName} placeholder={t('form.driverPlaceholder')} maxLength={160} />
             <div className="grid grid-cols-2 gap-3">
-              <TextInput label="เบอร์รถ" value={vehicleNo} onChange={setVehicleNo} placeholder="272-131" maxLength={80} />
-              <TextInput label="ทะเบียนรถ" value={plateNo} onChange={setPlateNo} placeholder="76-9442" maxLength={80} />
+              <TextInput label={t('form.vehicleNo')} value={vehicleNo} onChange={setVehicleNo} placeholder="272-131" maxLength={80} />
+              <TextInput label={t('form.plateNo')} value={plateNo} onChange={setPlateNo} placeholder="76-9442" maxLength={80} />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <TextInput label="จำนวนลิตร" value={fuelLiters} onChange={setFuelLiters} type="number" inputMode="decimal" placeholder="104" />
-              <TextInput label="จำนวนเที่ยว" value={tripCount} onChange={setTripCount} type="number" inputMode="numeric" placeholder="1" />
+              <TextInput label={t('form.fuelLiters')} value={fuelLiters} onChange={setFuelLiters} type="number" inputMode="decimal" placeholder="104" />
+              <TextInput label={t('form.tripCount')} value={tripCount} onChange={setTripCount} type="number" inputMode="numeric" placeholder="1" />
             </div>
-            <TextInput label="เลขที่ใบขนส่ง" value={transportNo} onChange={setTransportNo} placeholder="เช่น 249842118" maxLength={100} />
-            <TextInput label="ต้นทาง / สถานที่" value={origin} onChange={setOrigin} placeholder="เช่น รง. ปูนพงแก่งคอย" maxLength={200} />
-            <TextInput label="ลูกค้า" value={customerName} onChange={setCustomerName} placeholder="ชื่อลูกค้าหรือปลายทาง" maxLength={200} />
+            <TextInput label={t('form.transportNo')} value={transportNo} onChange={setTransportNo} placeholder={t('form.transportNoPlaceholder')} maxLength={100} />
+            <TextInput label={t('form.origin')} value={origin} onChange={setOrigin} placeholder={t('form.originPlaceholder')} maxLength={200} />
+            <TextInput label={t('form.customer')} value={customerName} onChange={setCustomerName} placeholder={t('form.customerPlaceholder')} maxLength={200} />
           </div>
         </section>
 
         <section className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <FileText className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">หมายเหตุ</span>
+            <span className="text-sm font-semibold">{t('form.note')}</span>
             <span className="ml-auto text-xs text-muted-foreground">{note.length}/500</span>
           </div>
           <textarea
@@ -414,7 +404,7 @@ export default function NewExpensePage() {
             onChange={event => setNote(event.target.value)}
             rows={3}
             maxLength={500}
-            placeholder="รายละเอียดเพิ่มเติมสำหรับบัญชี"
+            placeholder={t('form.notePlaceholder')}
             className="w-full resize-none rounded-lg border border-border bg-whited px-3 py-2.5 text-sm outline-none focus:border-[#0f8f72]"
           />
         </section>
@@ -427,7 +417,7 @@ export default function NewExpensePage() {
             className="flex h-12 items-center justify-center gap-2 rounded-lg border border-[#0f8f72] bg-white text-sm font-bold text-[#0f8f72] shadow-lg disabled:border-slate-200 disabled:text-slate-300"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-            บันทึกร่าง
+            {t('form.saveDraft')}
           </button>
           <button
             type="submit"
@@ -435,7 +425,7 @@ export default function NewExpensePage() {
             className="flex h-12 items-center justify-center gap-2 rounded-lg bg-[#0f8f72] text-sm font-bold text-white shadow-lg disabled:bg-slate-300"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            ส่งรายการ
+            {t('form.submit')}
           </button>
         </div>
       </form>

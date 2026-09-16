@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { Loader2, RefreshCcw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth.store'
@@ -9,6 +10,8 @@ import type { AuthResultDto, ApiError } from '@hrms/shared-types'
 import { isAxiosError } from 'axios'
 
 export default function AlreadyLinkedPage() {
+  const t = useTranslations('liff.auth.alreadyLinked')
+  const tCommon = useTranslations('common')
   const router = useRouter()
   const setAuth = useAuthStore((s) => s.setAuth)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -41,14 +44,14 @@ export default function AlreadyLinkedPage() {
             router.replace('/auth/link')
             return
           }
-          setErrorMsg(data?.message ?? 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่')
+          setErrorMsg(data?.message ?? t('failed'))
         }
       }
     }
 
     autoLogin()
     return () => { cancelled = true }
-  }, [router, setAuth])
+  }, [router, setAuth, t])
 
   if (errorMsg) {
     return (
@@ -57,14 +60,14 @@ export default function AlreadyLinkedPage() {
           <RefreshCcw className="h-7 w-7 text-destructive" />
         </div>
         <div className="space-y-1">
-          <p className="font-semibold text-foreground">เข้าสู่ระบบไม่สำเร็จ</p>
+          <p className="font-semibold text-foreground">{t('failedTitle')}</p>
           <p className="text-sm text-destructive">{errorMsg}</p>
         </div>
         <button
           onClick={() => router.replace('/auth/link')}
           className="rounded-xl bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground shadow-sm shadow-primary/25 transition-colors hover:bg-primary/90"
         >
-          ลองใหม่อีกครั้ง
+          {tCommon('action.retry')}
         </button>
       </div>
     )
@@ -80,8 +83,8 @@ export default function AlreadyLinkedPage() {
         </div>
       </div>
       <div className="space-y-1">
-        <p className="font-semibold text-foreground">กำลังเข้าสู่ระบบ</p>
-        <p className="text-sm text-muted-foreground">พบบัญชีที่ผูกไว้แล้ว กำลังดำเนินการ...</p>
+        <p className="font-semibold text-foreground">{t('loggingIn')}</p>
+        <p className="text-sm text-muted-foreground">{t('found')}</p>
       </div>
     </div>
   )

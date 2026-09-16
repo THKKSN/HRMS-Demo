@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type CreateMemoBody, memoApi } from '@/lib/memo.api'
-import type { MemoStatus } from '@hrms/shared-types'
+import type { MemoAttachmentInput, MemoStatus } from '@hrms/shared-types'
 
 export const memoKeys = {
   all: ['memos'] as const,
@@ -96,7 +96,7 @@ export function useApproveMemo() {
 export function useRejectMemo() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, reason }: { id: string; reason: string }) => memoApi.reject(id, reason),
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) => memoApi.reject(id, reason),
     onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
   })
 }
@@ -114,5 +114,79 @@ export function useDeliverMemo() {
   return useMutation({
     mutationFn: (id: string) => memoApi.deliver(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+// ── ขั้นตอนที่ตั้งค่าไว้ ────────────────────────────────────────────────────────
+// ทุกตัว invalidate ทั้ง memoKeys.all เพราะการปิดขั้นตอนเปลี่ยนทั้ง detail และรายการ inbox/approval
+
+export function useCompleteMemoStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, stepId, note, attachments }: {
+      memoId: string; stepId: string; note?: string; attachments?: MemoAttachmentInput[]
+    }) => memoApi.completeStep(memoId, stepId, { note, attachments }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useApproveMemoStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, stepId, comment }: { memoId: string; stepId: string; comment?: string }) =>
+      memoApi.approveStep(memoId, stepId, comment),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useRejectMemoStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, stepId, reason }: { memoId: string; stepId: string; reason: string }) =>
+      memoApi.rejectStep(memoId, stepId, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useReturnMemoStep() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, stepId, ...body }: {
+      memoId: string; stepId: string; reason: string
+      targetStepInstanceId?: string; toRequester?: boolean
+    }) => memoApi.returnStep(memoId, stepId, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+export function useResubmitMemo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, note }: { memoId: string; note?: string }) =>
+      memoApi.resubmit(memoId, note),
+    onSuccess: () => qc.invalidateQueries({ queryKey: memoKeys.all }),
+  })
+}
+
+// ── บันทึกความคืบหน้า ──────────────────────────────────────────────────────────
+// ไม่เปลี่ยนสถานะเรื่อง จึง invalidate แค่ detail ใบนั้น
+
+export function useAddMemoActivity() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, message, attachments }: {
+      memoId: string; message: string; attachments?: MemoAttachmentInput[]
+    }) => memoApi.addActivity(memoId, { message, attachments }),
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: memoKeys.detail(vars.memoId) }),
+  })
+}
+
+export function useUpdateMemoActivity() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ memoId, activityId, message }: {
+      memoId: string; activityId: string; message: string
+    }) => memoApi.updateActivity(memoId, activityId, message),
+    onSuccess: (_, vars) => qc.invalidateQueries({ queryKey: memoKeys.detail(vars.memoId) }),
   })
 }

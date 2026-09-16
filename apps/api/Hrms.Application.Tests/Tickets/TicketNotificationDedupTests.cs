@@ -17,9 +17,9 @@ public class TicketNotificationDedupTests
         var occurrenceId = Guid.NewGuid();
 
         TicketCommandSupport.QueueNotification(
-            fixture.Db, "TicketResolved", occurrenceId, fixture.SupervisorId, "line-supervisor", "msg", ticket);
+            fixture.Db, "TicketResolved", occurrenceId, fixture.SupervisorId, "line-supervisor", "ticket.resolved.toReviewer", null, ticket);
         TicketCommandSupport.QueueNotification(
-            fixture.Db, "TicketResolved", occurrenceId, fixture.SupervisorId, "line-supervisor", "msg", ticket);
+            fixture.Db, "TicketResolved", occurrenceId, fixture.SupervisorId, "line-supervisor", "ticket.resolved.toReviewer", null, ticket);
 
         fixture.Db.NotificationOutboxes.Local.Count.Should().Be(1);
         await fixture.Db.SaveChangesAsync();
@@ -34,9 +34,9 @@ public class TicketNotificationDedupTests
         var occurrenceId = Guid.NewGuid();
 
         TicketCommandSupport.QueueNotification(
-            fixture.Db, "TicketResolved", occurrenceId, fixture.RequesterId, "line-requester", "msg", ticket);
+            fixture.Db, "TicketResolved", occurrenceId, fixture.RequesterId, "line-requester", "ticket.resolved.toReviewer", null, ticket);
         TicketCommandSupport.QueueNotification(
-            fixture.Db, "TicketResolved", occurrenceId, fixture.SupervisorId, "line-supervisor", "msg", ticket);
+            fixture.Db, "TicketResolved", occurrenceId, fixture.SupervisorId, "line-supervisor", "ticket.resolved.toReviewer", null, ticket);
 
         fixture.Db.NotificationOutboxes.Local.Count.Should().Be(2);
     }

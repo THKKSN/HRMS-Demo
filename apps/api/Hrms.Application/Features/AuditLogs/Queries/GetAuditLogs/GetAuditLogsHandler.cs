@@ -61,6 +61,10 @@ public class GetAuditLogsHandler(
                 l.NewValues,
                 l.PerformedByEmployeeId,
                 l.PerformedByName,
+                db.Employees
+                    .Where(e => e.Id == l.PerformedByEmployeeId)
+                    .Select(e => e.AvatarUrl)
+                    .FirstOrDefault(),
                 l.CreatedAt))
             .ToListAsync(ct);
 

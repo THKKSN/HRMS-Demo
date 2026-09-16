@@ -6,6 +6,7 @@ import { useMyAttendanceHistory } from '@/hooks/use-attendance'
 import { useHolidays } from '@/hooks/use-holidays'
 import { useMyLeaves } from '@/hooks/use-leaves'
 import type { AttendanceRecordDto } from '@hrms/shared-types'
+import * as fmt from '@hrms/i18n/format'
 
 // ── constants ──────────────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ function toDateStr(y: number, m: number, d: number) { return `${y}-${pad(m)}-${p
 
 function formatTime(iso?: string) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleTimeString('th-TH', {
+  return fmt.formatTime(new Date(iso), {
     hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok',
   })
 }

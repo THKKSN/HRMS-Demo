@@ -7,4 +7,5 @@ public record LeaveTypeDto(
     string? NameEn,
     int DefaultDaysPerYear,
     bool RequiresAttachment,
-    bool IsActive);
+    bool IsActive,
+    string? NameId = null);

@@ -1,0 +1,59 @@
+{
+  "greeting": "Hello, {name} 👋",
+  "defaultName": "there",
+  "links": {
+    "newTicket": "Report an issue",
+    "myTickets": "My tickets",
+    "newMemo": "New memo",
+    "myMemos": "My memos",
+    "externalTicket": "External ticket",
+    "assignedTickets": "Assigned to me",
+    "ticketInbox": "Team inbox",
+    "newLeave": "Request leave",
+    "myExpenses": "My expenses",
+    "newOt": "Request OT"
+  },
+  "quickActions": {
+    "newLeave": "Request leave",
+    "attendance": "Check in",
+    "history": "History",
+    "profile": "Profile"
+  },
+  "attendance": {
+    "title": "Today's attendance",
+    "checkIn": "Check in",
+    "checkOut": "Check out",
+    "noShift": "No shift today",
+    "checkInAction": "Check in",
+    "checkOutAction": "Check out",
+    "lateBy": "Late by {minutes} min"
+  },
+  "leaveBalance": {
+    "title": "Leave balance",
+    "empty": "No leave data yet",
+    "ofTotal": "/{total} days"
+  },
+  "holidays": {
+    "title": "Upcoming holidays",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "inDays": "in {count, plural, one {# day} other {# days}}"
+  },
+  "pendingApproval": {
+    "title": "Pending approvals",
+    "count": "{count, plural, one {# item} other {# items}} waiting for action",
+    "empty": "Nothing waiting for approval"
+  },
+  "pendingWork": {
+    "title": "My pending work",
+    "empty": "All caught up 🎉",
+    "assignedActive": "Tickets I am working on",
+    "assignedWaitingInfo": "Tickets waiting for info",
+    "claimable": "New tickets to pick up",
+    "awaitingMyConfirmation": "My tickets awaiting acceptance",
+    "inboxUntriaged": "New tickets to triage",
+    "cancellationPending": "Cancellation requests to decide",
+    "memoAwaitingAck": "Memos to acknowledge",
+    "memoAwaitingApproval": "Memos to approve"
+  }
+}

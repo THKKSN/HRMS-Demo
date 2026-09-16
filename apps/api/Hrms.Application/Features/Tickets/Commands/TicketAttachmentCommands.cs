@@ -43,35 +43,35 @@ public class AddTicketAttachmentHandler(
     {
         await currentUser.ThrowIfNoPermissionAsync(permissions, "ticket:add-attachment", ct);
         var ticket = await db.Tickets.FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketAccess.EnsureCanViewAsync(db, currentUser, permissions, ticket, ct);
         if (ticket.Status is TicketStatus.Closed or TicketStatus.Rejected or TicketStatus.Cancelled or TicketStatus.Resolved)
-            throw new ConflictException("INVALID_TICKET_STATUS", "สถานะปัจจุบันไม่อนุญาตให้เพิ่มหลักฐาน");
+            throw new ConflictException("TICKET_ATTACHMENT_ADD_NOT_ALLOWED", "The current ticket status does not allow adding attachments.");
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
-        var isAssignee = await TicketAccess.IsActiveAssigneeAsync(db, actorId, ticket.Id, ct);
+        var isAssignee = await TicketTeam.CanWorkAsync(db, currentUser, permissions, ticket.Id, ct);
         var isManager = await TicketAccess.IsDepartmentManagerAsync(db, currentUser, ticket, ct);
         var isActivityAttachment = request.TicketProgressEntryId.HasValue;
         if (!isActivityAttachment &&
             request.Stage is TicketAttachmentStage.Progress or TicketAttachmentStage.Resolved &&
             !isAssignee && !currentUser.HasRole(RoleType.Admin))
-            throw new AppForbiddenException("เฉพาะผู้รับผิดชอบปัจจุบันที่เพิ่มหลักฐานการทำงานได้");
+            throw new AppForbiddenException("TICKET_ASSIGNEE_ONLY", "Only the current assignee can add work attachments.");
         if (request.Stage == TicketAttachmentStage.Created)
-            throw new ValidationException("ไม่สามารถเพิ่มหลักฐานขั้นเปิดเรื่องจากหน้านี้ได้");
+            throw new BadRequestException("TICKET_ATTACHMENT_STAGE_INVALID", "Attachments for the created stage cannot be added from here.");
         if (request.Visibility == TicketAttachmentVisibility.Internal)
         {
             if (!isManager || actorId == ticket.RequesterEmployeeId)
-                throw new AppForbiddenException("เฉพาะ Supervisor/Admin ฝั่งผู้รับที่เพิ่มไฟล์ภายในได้");
+                throw new AppForbiddenException("TICKET_INTERNAL_ATTACHMENT_FORBIDDEN", "Only a supervisor or admin on the receiving side can add internal files.");
         }
 
         if (isActivityAttachment)
         {
             if (request.Stage != TicketAttachmentStage.Progress)
-                throw new ValidationException("รูปกิจกรรมต้องใช้ขั้น Progress");
+                throw new BadRequestException("TICKET_PROGRESS_PHOTO_STAGE_INVALID", "Activity photos must use the Progress stage.");
             var entry = await db.TicketProgressEntries.FirstOrDefaultAsync(progress =>
                 progress.Id == request.TicketProgressEntryId && progress.TicketId == ticket.Id, ct)
-                ?? throw new ValidationException("ไม่พบกิจกรรมที่ต้องการแนบรูป");
+                ?? throw new NotFoundException("TicketProgressEntry", request.TicketProgressEntryId!.Value, "TICKET_PROGRESS_ENTRY_NOT_FOUND");
             if (!isAssignee && !isManager && !currentUser.HasRole(RoleType.Admin))
-                throw new AppForbiddenException("ไม่มีสิทธิ์แนบรูปในกิจกรรมนี้");
+                throw new AppForbiddenException("TICKET_PROGRESS_PHOTO_FORBIDDEN", "You are not allowed to attach photos to this activity.");
         }
 
         var uploadId = ParseUploadId(request.Url);
@@ -79,12 +79,12 @@ public class AddTicketAttachmentHandler(
             upload.Id == uploadId &&
             upload.UploadedByEmployeeId == actorId &&
             upload.LinkedAt == null, ct)
-            ?? throw new ValidationException("ไฟล์อัปโหลดไม่ถูกต้อง ถูกใช้งานแล้ว หรือไม่ใช่ของผู้ใช้");
+            ?? throw new BadRequestException("UPLOAD_TOKEN_INVALID", "The uploaded file is invalid, already used, or belongs to another user.");
         var stageCount = await db.TicketAttachments.CountAsync(a =>
             a.TicketId == ticket.Id && a.Stage == request.Stage, ct);
         var totalCount = await db.TicketAttachments.CountAsync(a => a.TicketId == ticket.Id, ct);
         if (stageCount >= 10 || totalCount >= 30)
-            throw new ValidationException("หลักฐานเกินจำนวนที่กำหนด (ไม่เกิน 10 ไฟล์ต่อขั้น และ 30 ไฟล์ต่อ Ticket)");
+            throw new BadRequestException("TICKET_ATTACHMENT_LIMIT_EXCEEDED", "Attachment limit reached (10 per stage, 30 per ticket).");
 
         var attachment = new TicketAttachment
         {
@@ -117,7 +117,7 @@ public class AddTicketAttachmentHandler(
         var token = value.Trim();
         if (!token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
             !Guid.TryParse(token[prefix.Length..], out var uploadId))
-            throw new ValidationException("ไฟล์แนบต้องอัปโหลดผ่านระบบ Ticket");
+            throw new BadRequestException("TICKET_ATTACHMENT_SOURCE_INVALID", "Attachments must be uploaded through the ticket upload endpoint.");
         return uploadId;
     }
 
@@ -141,20 +141,20 @@ public class DeleteTicketAttachmentHandler(
     {
         await currentUser.ThrowIfNoPermissionAsync(permissions, "ticket:add-attachment", ct);
         var ticket = await db.Tickets.FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketAccess.EnsureCanViewAsync(db, currentUser, permissions, ticket, ct);
         if (ticket.Status is TicketStatus.Resolved or TicketStatus.Closed)
-            throw new ConflictException("INVALID_TICKET_STATUS", "ไม่สามารถลบหลักฐานหลังส่งงานแล้ว");
+            throw new ConflictException("TICKET_ATTACHMENT_DELETE_NOT_ALLOWED", "Attachments cannot be deleted after the ticket has been submitted for review.");
         var attachment = await db.TicketAttachments.FirstOrDefaultAsync(a =>
             a.Id == request.AttachmentId && a.TicketId == ticket.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบไฟล์แนบ");
+            ?? throw new NotFoundException("TicketAttachment", request.AttachmentId, "TICKET_ATTACHMENT_NOT_FOUND");
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
-        var isActiveAssignee = await TicketAccess.IsActiveAssigneeAsync(db, actorId, ticket.Id, ct);
+        var isActiveAssignee = await TicketTeam.CanWorkAsync(db, currentUser, permissions, ticket.Id, ct);
         var isWorkEvidence = attachment.Stage is TicketAttachmentStage.Progress or TicketAttachmentStage.Resolved;
         if (attachment.UploadedByEmployeeId != actorId &&
             !(isWorkEvidence && isActiveAssignee) &&
             !currentUser.HasRole(RoleType.Admin))
-            throw new AppForbiddenException("ไม่มีสิทธิ์ลบหลักฐานนี้");
+            throw new AppForbiddenException("TICKET_ATTACHMENT_DELETE_FORBIDDEN", "You are not allowed to delete this attachment.");
 
         var pending = await db.TicketPendingUploads.FirstOrDefaultAsync(
             upload => upload.TicketAttachmentId == attachment.Id, ct);

@@ -1,30 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { LogOut, User, Building2, Users, Briefcase, CalendarDays, Phone, Mail, CreditCard, Type, MonitorSmartphone } from 'lucide-react'
+import { useTranslations } from 'next-intl'
+import { LogOut, User, Building2, Users, Briefcase, CalendarDays, Phone, Mail, CreditCard, ChevronRight, Settings } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { useAuthStore } from '@/stores/auth.store'
-import { useSettingsStore, type FontSize, type ThemeMode } from '@/stores/settings.store'
 import { useMe } from '@/hooks/use-employee'
 import { api } from '@/lib/api'
-
-const FONT_SIZE_OPTIONS: { value: FontSize; label: string }[] = [
-  { value: 'small', label: 'เล็ก' },
-  { value: 'medium', label: 'กลาง' },
-  { value: 'large', label: 'ใหญ่' },
-]
-
-const THEME_OPTIONS: { value: ThemeMode; label: string }[] = [
-  { value: 'system', label: 'ตามระบบ' },
-  { value: 'light', label: 'สว่าง' },
-  { value: 'dark', label: 'มืด' },
-]
+import * as fmt from '@hrms/i18n/format'
 
 function formatDate(dateStr?: string) {
   if (!dateStr) return '—'
   const d = new Date(dateStr)
-  return d.toLocaleDateString('th-TH', {
+  return fmt.formatDate(d, {
     year: 'numeric', month: 'long', day: 'numeric',
     timeZone: 'Asia/Bangkok',
   })
@@ -47,9 +37,9 @@ function InfoRow({ icon: Icon, label, value }: {
 }
 
 export default function ProfilePage() {
+  const t = useTranslations('liff.profile')
   const router = useRouter()
   const { employee: authEmployee, clearAuth } = useAuthStore()
-  const { fontSize, setFontSize, theme, setTheme } = useSettingsStore()
   const { data: profile, isLoading } = useMe()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -66,7 +56,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title="โปรไฟล์" />
+      <PageHeader title={t('title')} />
       <div className="px-4 py-6 space-y-5">
 
         {/* Avatar + name */}
@@ -96,7 +86,7 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {/* ข้อมูลส่วนตัว */}
+        {/* ข้อมูลส่วนตัว — companyName/departmentName/roleLabelName เป็นชื่อไทยจาก API รอปรับ DTO ฝั่งผู้บริโภค (ดูแผน Phase 1) */}
         {isLoading ? (
           <div className="rounded-2xl border border-border divide-y divide-border">
             {Array.from({ length: 5 }).map((_, i) => (
@@ -109,56 +99,30 @@ export default function ProfilePage() {
         ) : (
           <>
             <div className="rounded-2xl border border-border divide-y divide-border">
-              <InfoRow icon={Building2} label="บริษัท"   value={profile?.companyName} />
-              <InfoRow icon={Users}     label="แผนก"     value={profile?.departmentName} />
-              <InfoRow icon={Briefcase} label="ตำแหน่ง"  value={profile?.roleLabelName} />
+              <InfoRow icon={Building2} label={t('company')}    value={profile?.companyName} />
+              <InfoRow icon={Users}     label={t('department')} value={profile?.departmentName} />
+              <InfoRow icon={Briefcase} label={t('roleLabel')}  value={profile?.roleLabelName} />
             </div>
             <div className="rounded-2xl border border-border divide-y divide-border">
-              <InfoRow icon={CreditCard} label="รหัสพนักงาน" value={profile?.employeeCode} />
-              <InfoRow icon={Phone}      label="เบอร์โทรศัพท์" value={profile?.phone} />
-              <InfoRow icon={Mail}       label="อีเมล"          value={profile?.email} />
-              <InfoRow icon={CalendarDays} label="วันที่เริ่มงาน" value={formatDate(profile?.hireDate)} />
+              <InfoRow icon={CreditCard}   label={t('employeeCode')} value={profile?.employeeCode} />
+              <InfoRow icon={Phone}        label={t('phone')}        value={profile?.phone} />
+              <InfoRow icon={Mail}         label={t('email')}        value={profile?.email} />
+              <InfoRow icon={CalendarDays} label={t('hireDate')}     value={formatDate(profile?.hireDate)} />
             </div>
           </>
         )}
 
-        {/* ตั้งค่าขนาดตัวอักษร */}
-        <div className="rounded-2xl border border-border p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Type className="h-4 w-4 text-muted-foreground" />
-              ขนาดตัวอักษร
-            </div>
-            <select
-              value={fontSize}
-              onChange={(e) => setFontSize(e.target.value as FontSize)}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium"
-            >
-              {FONT_SIZE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* ตั้งค่าโหมดสี — ไว้สำหรับทดสอบ dark mode */}
-        <div className="rounded-2xl border border-border p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <MonitorSmartphone className="h-4 w-4 text-muted-foreground" />
-              โหมดสี
-            </div>
-            <select
-              value={theme}
-              onChange={(e) => setTheme(e.target.value as ThemeMode)}
-              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium"
-            >
-              {THEME_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        {/* ตั้งค่า (ภาษา/ขนาดตัวอักษร/โหมดสี) แยกไปหน้า /profile/settings */}
+        <Link
+          href="/profile/settings"
+          className="flex w-full items-center gap-3 rounded-2xl border border-border px-4 py-3 transition-colors active:bg-muted"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Settings className="h-4 w-4" />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium">{t('settings.title')}</span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </Link>
 
         {/* Logout */}
         <button
@@ -167,14 +131,8 @@ export default function ProfilePage() {
           className="flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/40 py-3 text-sm font-medium text-destructive disabled:opacity-60"
         >
           <LogOut className="h-4 w-4" />
-          {isLoggingOut ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
+          {isLoggingOut ? t('loggingOut') : t('logout')}
         </button>
-
-        <div>
-          <p className="text-xs text-muted-foreground text-center">
-            Version {process.env.NEXT_PUBLIC_APP_VERSION}
-          </p>
-        </div>
 
       </div>
     </>

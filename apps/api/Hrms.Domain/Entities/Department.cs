@@ -6,6 +6,8 @@ public class Department : BaseEntity
 {
     public Guid CompanyId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
+    public string? NameId { get; set; }
     public string? DeptType { get; set; }
     public Guid? ParentDeptId { get; set; }
     public Guid? ManagerEmployeeId { get; set; }

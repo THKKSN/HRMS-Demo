@@ -14,4 +14,6 @@ public record LocationDto(
     string? DistrictName,
     int? SubDistrictId,
     string? SubDistrictName,
-    bool IsActive);
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null);

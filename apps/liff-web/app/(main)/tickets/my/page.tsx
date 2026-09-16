@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   AlertCircle,
   Building2,
@@ -18,17 +19,11 @@ import {
 import type { MyTicketItemDto, TicketPriority, TicketStatus } from '@hrms/shared-types'
 import { PageHeader } from '@/components/layout/page-header'
 import { TicketListTabs } from '@/components/tickets/ticket-list-tabs'
+import { useFmt } from '@/hooks/use-fmt'
 import { useMyTickets } from '@/hooks/use-tickets'
 import { TICKET_STATUS_CLASS, TICKET_STATUS_LABEL } from '@/lib/ticket-status'
 
 const PAGE_SIZE = 10
-
-const PRIORITY_LABEL: Record<TicketPriority, string> = {
-  Low: 'ปกติ',
-  Medium: 'ปานกลาง',
-  High: 'เร่งด่วน',
-  Critical: 'ด่วนมาก',
-}
 
 const PRIORITY_TONE: Record<TicketPriority, string> = {
   Low: 'text-muted-foreground',
@@ -37,20 +32,13 @@ const PRIORITY_TONE: Record<TicketPriority, string> = {
   Critical: 'text-red-600 dark:text-red-300',
 }
 
-const QUICK_STATUSES: Array<{ value?: TicketStatus; label: string }> = [
-  { label: 'ทั้งหมด' },
-  ...(Object.entries(TICKET_STATUS_LABEL) as Array<[TicketStatus, string]>)
-    .map(([value, label]) => ({ value, label })),
+// undefined = ทั้งหมด · ป้ายสถานะมาจาก status.ticket
+const QUICK_STATUSES: (TicketStatus | undefined)[] = [
+  undefined,
+  ...(Object.keys(TICKET_STATUS_LABEL) as TicketStatus[]),
 ]
 
-const STATIONS = ['รับเรื่อง', 'มอบหมาย', 'ดำเนินการ', 'ตรวจรับ', 'ปิดงาน']
-
-function thaiDate(value: string) {
-  return new Intl.DateTimeFormat('th-TH', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(value))
-}
+const STATIONS = ['received', 'assigned', 'inProgress', 'review', 'closed'] as const
 
 function activeStation(status: TicketStatus) {
   if (status === 'Open') return 0
@@ -62,11 +50,13 @@ function activeStation(status: TicketStatus) {
 }
 
 function StatusStation({ status }: { status: TicketStatus }) {
+  const t = useTranslations('liff.ticket.list')
+  const tStatus = useTranslations('status.ticket')
   const active = activeStation(status)
   if (active < 0) {
     return (
       <div className={`mt-4 rounded-md border px-3 py-2 text-center text-xs font-semibold ${TICKET_STATUS_CLASS[status]}`}>
-        สิ้นสุดรายการ: {TICKET_STATUS_LABEL[status]}
+        {t('endedWith', { status: tStatus(status) })}
       </div>
     )
   }
@@ -89,7 +79,7 @@ function StatusStation({ status }: { status: TicketStatus }) {
             <span className={`mt-1.5 w-full truncate text-center text-[9px] ${
               index === active ? 'font-semibold text-primary' : 'text-muted-foreground'
             }`}>
-              {station}
+              {t(`stations.${station}`)}
             </span>
           </div>
         ))}
@@ -99,6 +89,10 @@ function StatusStation({ status }: { status: TicketStatus }) {
 }
 
 function TicketCard({ ticket }: { ticket: MyTicketItemDto }) {
+  const t = useTranslations('liff.ticket.list')
+  const tStatus = useTranslations('status.ticket')
+  const tPriority = useTranslations('status.ticketPriority')
+  const fmt = useFmt()
   return (
     <Link
       href={`/tickets/${ticket.id}`}
@@ -109,17 +103,18 @@ function TicketCard({ ticket }: { ticket: MyTicketItemDto }) {
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="text-xs font-bold text-primary">{ticket.ticketNo}</span>
             <span className={`text-[10px] font-semibold ${PRIORITY_TONE[ticket.priority]}`}>
-              {PRIORITY_LABEL[ticket.priority]}
+              {tPriority(ticket.priority)}
             </span>
           </div>
           {/* title = ชื่อหัวข้อ (subject) — เคส "อื่น ๆ" แสดงข้อความที่ผู้แจ้งระบุแทน */}
           <h2 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{ticket.otherTopicText ?? ticket.title}</h2>
         </div>
         <span className={`shrink-0 rounded-md border px-2 py-1 text-[10px] font-semibold ${TICKET_STATUS_CLASS[ticket.status]}`}>
-          {TICKET_STATUS_LABEL[ticket.status]}
+          {tStatus(ticket.status)}
         </span>
       </div>
 
+      {/* ชื่อบริษัท/แผนก/หมวด เป็น snapshot ไทยจาก API — รอปรับ DTO ฝั่งผู้บริโภค (ดูแผน Phase 1) */}
       <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
         <p className="flex items-start gap-2">
           <Building2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -137,18 +132,18 @@ function TicketCard({ ticket }: { ticket: MyTicketItemDto }) {
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3 text-[11px] text-muted-foreground">
         <span className="flex items-center gap-1">
           <UserRound className="h-3.5 w-3.5" />
-          {ticket.currentAssigneeName ?? 'รอผู้รับผิดชอบ'}
+          {ticket.currentAssigneeName ?? t('awaitingAssignee')}
         </span>
         <span className="flex items-center gap-1">
           <Clock3 className="h-3.5 w-3.5" />
-          {thaiDate(ticket.updatedAt)}
+          {fmt.formatDateTime(new Date(ticket.updatedAt))}
         </span>
       </div>
 
       {ticket.hasPendingCancellation && (
         <div className="mt-3 flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
           <AlertCircle className="h-4 w-4 shrink-0" />
-          กำลังรอพิจารณาคำขอยกเลิก
+          {t('cancellationPending')}
         </div>
       )}
     </Link>
@@ -156,6 +151,9 @@ function TicketCard({ ticket }: { ticket: MyTicketItemDto }) {
 }
 
 export default function MyTicketsPage() {
+  const t = useTranslations('liff.ticket.list')
+  const tStatus = useTranslations('status.ticket')
+  const tCommon = useTranslations('common')
   const [status, setStatus] = useState<TicketStatus | undefined>()
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
@@ -190,8 +188,8 @@ export default function MyTicketsPage() {
   return (
     <div className="min-h-screen bg-muted/30 pb-24">
       <PageHeader
-        title="เรื่องที่แจ้ง"
-        subtitle={`${totalCount} รายการ`}
+        title={t('myTitle')}
+        subtitle={t('count', { count: totalCount })}
       />
       <TicketListTabs />
 
@@ -209,13 +207,13 @@ export default function MyTicketsPage() {
             <input
               value={searchInput}
               onChange={event => setSearchInput(event.target.value)}
-              placeholder="ค้นหาเลข Ticket หรือชื่อเรื่อง"
+              placeholder={t('searchPlaceholder')}
               className="h-10 w-full rounded-md border border-border bg-muted/30 pl-9 pr-3 text-sm outline-none focus:border-primary"
             />
           </form>
           <button
             type="button"
-            title="กรองวันที่"
+            title={t('filterDate')}
             onClick={() => setShowFilters(true)}
             className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-background"
           >
@@ -230,19 +228,19 @@ export default function MyTicketsPage() {
 
         <div className="scrollbar-none flex gap-2 overflow-x-auto px-4 pb-3">
           {QUICK_STATUSES.map(item => {
-            const active = status === item.value
+            const active = status === item
             return (
               <button
-                key={item.label}
+                key={item ?? 'all'}
                 type="button"
-                onClick={() => selectStatus(item.value)}
+                onClick={() => selectStatus(item)}
                 className={`h-8 shrink-0 rounded-md border px-3 text-xs font-semibold ${
                   active
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-border bg-background text-muted-foreground'
                 }`}
               >
-                {item.label}
+                {item ? tStatus(item) : t('all')}
               </button>
             )
           })}
@@ -259,15 +257,15 @@ export default function MyTicketsPage() {
 
         {query.isError && (
           <div className="m-4 rounded-md border border-red-200 bg-red-50 p-4 text-center text-sm text-red-700">
-            โหลดรายการไม่สำเร็จ กรุณาลองใหม่
+            {t('loadFailed')}
           </div>
         )}
 
         {!query.isLoading && !query.isError && (query.data?.items.length ?? 0) === 0 && (
           <div className="px-6 py-16 text-center">
             <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground/40" />
-            <p className="mt-3 text-sm font-semibold">ไม่พบรายการแจ้งเรื่อง</p>
-            <p className="mt-1 text-xs text-muted-foreground">ลองเปลี่ยนตัวกรองหรือแจ้งเรื่องใหม่</p>
+            <p className="mt-3 text-sm font-semibold">{t('empty')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('emptyHint')}</p>
           </div>
         )}
 
@@ -276,11 +274,11 @@ export default function MyTicketsPage() {
 
       {totalCount > 0 && (
         <div className="flex items-center justify-between border-t border-border bg-background px-4 py-3">
-          <p className="text-xs text-muted-foreground">หน้า {page} จาก {totalPages}</p>
+          <p className="text-xs text-muted-foreground">{t('pageOf', { page, total: totalPages })}</p>
           <div className="flex gap-1">
             <button
               type="button"
-              title="หน้าก่อน"
+              title={t('prevPage')}
               disabled={page <= 1}
               onClick={() => setPage(value => value - 1)}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-border disabled:opacity-40"
@@ -289,7 +287,7 @@ export default function MyTicketsPage() {
             </button>
             <button
               type="button"
-              title="หน้าถัดไป"
+              title={t('nextPage')}
               disabled={page >= totalPages}
               onClick={() => setPage(value => value + 1)}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-border disabled:opacity-40"
@@ -303,8 +301,8 @@ export default function MyTicketsPage() {
       <div className="pointer-events-none fixed bottom-20 left-1/2 z-20 flex w-full max-w-107.5 -translate-x-1/2 justify-end px-4">
         <Link
           href="/tickets/new"
-          title="แจ้งเรื่องใหม่"
-          aria-label="แจ้งเรื่องใหม่"
+          title={t('newTicket')}
+          aria-label={t('newTicket')}
           className="pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-background/80 active:scale-95"
         >
           <Plus className="h-6 w-6" />
@@ -318,10 +316,10 @@ export default function MyTicketsPage() {
             onClick={event => event.stopPropagation()}
           >
             <div className="flex h-14 items-center justify-between border-b border-border px-4">
-              <h2 className="text-base font-semibold">กรองตามวันที่เปิดเรื่อง</h2>
+              <h2 className="text-base font-semibold">{t('filterTitle')}</h2>
               <button
                 type="button"
-                title="ปิด"
+                title={tCommon('action.close')}
                 onClick={() => setShowFilters(false)}
                 className="flex h-9 w-9 items-center justify-center rounded-md"
               >
@@ -331,7 +329,7 @@ export default function MyTicketsPage() {
             <div className="space-y-4 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
               <div className="grid grid-cols-2 gap-2">
                 <label className="text-xs text-muted-foreground">
-                  ตั้งแต่
+                  {t('from')}
                   <input
                     type="date"
                     value={dateFrom}
@@ -340,7 +338,7 @@ export default function MyTicketsPage() {
                   />
                 </label>
                 <label className="text-xs text-muted-foreground">
-                  ถึง
+                  {t('to')}
                   <input
                     type="date"
                     value={dateTo}
@@ -355,14 +353,14 @@ export default function MyTicketsPage() {
                   onClick={clearDateFilters}
                   className="h-11 rounded-md border border-border text-sm font-semibold"
                 >
-                  ล้างตัวกรอง
+                  {t('clearFilters')}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowFilters(false)}
                   className="h-11 rounded-md bg-primary text-sm font-semibold text-primary-foreground"
                 >
-                  ดูผลลัพธ์
+                  {t('showResults')}
                 </button>
               </div>
             </div>

@@ -8,6 +8,8 @@ import type {
 
 export type ExternalTicketCategoryBody = {
   name: string
+  nameEn?: string
+  nameId?: string
   description?: string
   sortOrder: number
 }
@@ -15,6 +17,8 @@ export type ExternalTicketCategoryBody = {
 export type ExternalTicketTopicBody = {
   externalTicketCategoryId: string
   name: string
+  nameEn?: string
+  nameId?: string
   description?: string
   sortOrder: number
 }
@@ -22,6 +26,8 @@ export type ExternalTicketTopicBody = {
 export type ExternalTicketSubjectBody = {
   externalTicketTopicId: string
   name: string
+  nameEn?: string
+  nameId?: string
   description?: string
   template?: string
   suggestions?: string[]

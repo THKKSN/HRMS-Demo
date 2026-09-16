@@ -18,10 +18,10 @@ public class CheckInCommandValidator : AbstractValidator<CheckInCommand>
 
         RuleFor(x => x.Latitude)
             .InclusiveBetween(-90, 90)
-            .WithMessage("Latitude ต้องอยู่ระหว่าง -90 ถึง 90");
+            .WithErrorCode("LATITUDE_OUT_OF_RANGE").WithMessage("Latitude must be between -90 and 90.");
 
         RuleFor(x => x.Longitude)
             .InclusiveBetween(-180, 180)
-            .WithMessage("Longitude ต้องอยู่ระหว่าง -180 ถึง 180");
+            .WithErrorCode("LONGITUDE_OUT_OF_RANGE").WithMessage("Longitude must be between -180 and 180.");
     }
 }

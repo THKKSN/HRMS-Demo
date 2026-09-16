@@ -48,7 +48,10 @@ public class GetCancellationPendingHandler(
                 r.DateTo,
                 r.TotalDays,
                 r.Status,
-                r.UpdatedAt))
+                r.UpdatedAt,
+                // expression tree ใช้ named argument ไม่ได้ (CS0853) — ลำดับต้องตรงกับ PendingLeaveItemDto
+                r.LeaveType.NameEn,
+                r.LeaveType.NameId))
             .ToListAsync(ct);
 
         return new PagedResult<PendingLeaveItemDto>(items, totalCount, page, pageSize);

@@ -12,10 +12,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { useLeaveTypes, useUpdateLeaveType, useToggleLeaveTypeStatus } from '@/hooks/use-leave-types'
+import { useApiError } from '@/hooks/use-api-error'
 
 const schema = z.object({
   nameTh: z.string().min(1, 'กรุณากรอกชื่อภาษาไทย'),
   nameEn: z.string().optional(),
+  nameId: z.string().optional(),
   defaultDaysPerYear: z.number().int().min(0).max(365),
   requiresAttachment: z.boolean(),
 })
@@ -31,6 +33,7 @@ export default function EditLeaveTypePage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const apiError = useApiError()
   const { id } = use(params)
   const router = useRouter()
   const { data: leaveTypes, isLoading } = useLeaveTypes()
@@ -51,6 +54,7 @@ export default function EditLeaveTypePage({
       ? {
           nameTh: lt.nameTh,
           nameEn: lt.nameEn ?? '',
+          nameId: lt.nameId ?? '',
           defaultDaysPerYear: lt.defaultDaysPerYear,
           requiresAttachment: lt.requiresAttachment,
         }
@@ -62,6 +66,7 @@ export default function EditLeaveTypePage({
       await updateLeaveType.mutateAsync({
         nameTh: values.nameTh,
         nameEn: values.nameEn || undefined,
+        nameId: values.nameId ?? '',
         defaultDaysPerYear: values.defaultDaysPerYear,
         requiresAttachment: values.requiresAttachment,
       })
@@ -79,8 +84,7 @@ export default function EditLeaveTypePage({
     try {
       await toggle.mutateAsync({ id, isActive: !lt.isActive })
     } catch (err: unknown) {
-      const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
-      alert(apiErr?.error === 'IN_USE' ? 'มีคำขอลาที่ยังรออนุมัติอยู่ ไม่สามารถปิดได้' : 'เกิดข้อผิดพลาด')
+      alert(apiError(err, 'เกิดข้อผิดพลาด'))
     }
   }
 
@@ -131,6 +135,11 @@ export default function EditLeaveTypePage({
         <div className="space-y-1.5">
           <Label htmlFor="nameEn">ชื่อภาษาอังกฤษ</Label>
           <Input id="nameEn" {...register('nameEn')} />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="nameId">ชื่อภาษาอินโดนีเซีย</Label>
+          <Input id="nameId" {...register('nameId')} />
         </div>
 
         <div className="space-y-1.5">

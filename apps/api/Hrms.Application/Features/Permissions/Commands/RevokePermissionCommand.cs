@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,7 @@ public class RevokePermissionHandler(
         var role = await db.SystemRoles
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Id == request.RoleId && r.IsActive, cancellationToken)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูล role");
+            ?? throw new NotFoundException("SystemRole", request.RoleId, "ROLE_NOT_FOUND");
 
         var rp = await db.RolePermissions.FirstOrDefaultAsync(
             x => x.RoleId == request.RoleId && x.PermissionId == request.PermissionId,

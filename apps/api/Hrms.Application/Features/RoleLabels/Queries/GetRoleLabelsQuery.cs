@@ -19,7 +19,7 @@ public class GetRoleLabelsHandler(IApplicationDbContext db)
 
         return await query
             .OrderBy(r => r.Name)
-            .Select(r => new RoleLabelDto(r.Id, r.CompanyId, r.Name, r.IsActive))
+            .Select(r => new RoleLabelDto(r.Id, r.CompanyId, r.Name, r.IsActive, r.NameEn, r.NameId))
             .ToListAsync(ct);
     }
 }

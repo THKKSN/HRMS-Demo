@@ -13,6 +13,8 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.CompanyId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.NameEn).HasMaxLength(200);
+        builder.Property(x => x.NameId).HasMaxLength(200);
         builder.Property(x => x.Latitude).HasColumnType("double").IsRequired();
         builder.Property(x => x.Longitude).HasColumnType("double").IsRequired();
         builder.Property(x => x.RadiusMeters).IsRequired();

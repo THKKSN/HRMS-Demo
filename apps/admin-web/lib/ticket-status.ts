@@ -1,16 +1,7 @@
 import type { TicketStatus } from '@hrms/shared-types'
 
-export const TICKET_STATUS_LABEL: Record<TicketStatus, string> = {
-  AwaitingRequesterConfirmation: 'รอผู้แจ้งบันทึกจบงานตรวจรับ',
-  Open: 'เรื่องใหม่',
-  Assigned: 'มอบหมายแล้ว',
-  InProgress: 'กำลังดำเนินการ',
-  WaitingInfo: 'รอข้อมูล',
-  Resolved: 'รอตรวจรับ',
-  Closed: 'ปิดงานแล้ว',
-  Rejected: 'ปฏิเสธ',
-  Cancelled: 'ยกเลิก',
-}
+// ป้ายสถานะภาษาไทยย้ายไปรวมที่ @hrms/i18n (ใช้ร่วมกับ liff-web) — re-export ให้ import path เดิมใช้ต่อได้
+export { TICKET_STATUS_LABEL } from '@hrms/i18n/labels'
 
 export const TICKET_STATUS_CLASS: Record<TicketStatus, string> = {
   AwaitingRequesterConfirmation: 'border border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/40 dark:bg-violet-600/60 dark:text-violet-200',

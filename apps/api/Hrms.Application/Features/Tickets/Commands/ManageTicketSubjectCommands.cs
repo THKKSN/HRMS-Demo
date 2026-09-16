@@ -15,7 +15,9 @@ public record CreateTicketSubjectCommand(
     Guid TopicId,
     string Name,
     string? Description,
-    int SortOrder) : IRequest<TicketSubjectDto>;
+    int SortOrder,
+    string? NameEn = null,
+    string? NameId = null) : IRequest<TicketSubjectDto>;
 
 public class CreateTicketSubjectValidator : AbstractValidator<CreateTicketSubjectCommand>
 {
@@ -26,6 +28,8 @@ public class CreateTicketSubjectValidator : AbstractValidator<CreateTicketSubjec
         RuleFor(x => x.CategoryId).NotEmpty();
         RuleFor(x => x.TopicId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.NameEn).MaximumLength(200).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(200).When(x => x.NameId is not null);
         RuleFor(x => x.Description).MaximumLength(500);
         RuleFor(x => x.SortOrder).InclusiveBetween(0, 9999);
     }
@@ -48,11 +52,11 @@ public class CreateTicketSubjectHandler(
             t.CategoryId == request.CategoryId &&
             t.CompanyId == request.CompanyId &&
             t.DepartmentId == request.DepartmentId, ct);
-        if (!topicExists) throw new KeyNotFoundException("ไม่พบหมวดย่อยที่ระบุ");
+        if (!topicExists) throw new NotFoundException("TicketTopic", request.TopicId, "TICKET_TOPIC_NOT_FOUND");
 
         var name = request.Name.Trim();
         if (await db.TicketSubjects.AnyAsync(s => s.TopicId == request.TopicId && s.Name == name, ct))
-            throw new ConflictException("DUPLICATE_TICKET_SUBJECT", $"หัวข้อ '{name}' มีอยู่แล้วในหมวดย่อยนี้");
+            throw new ConflictException("DUPLICATE_TICKET_SUBJECT", $"Subject '{name}' already exists in this topic.");
 
         var subject = new TicketSubject
         {
@@ -61,6 +65,8 @@ public class CreateTicketSubjectHandler(
             CategoryId = request.CategoryId,
             TopicId = request.TopicId,
             Name = name,
+            NameEn = Common.Helpers.NameText.Normalize(request.NameEn),
+            NameId = Common.Helpers.NameText.Normalize(request.NameId),
             Description = TrimOrNull(request.Description),
             SortOrder = request.SortOrder,
             IsActive = true,
@@ -78,11 +84,14 @@ public class CreateTicketSubjectHandler(
     }
 
     private static string? TrimOrNull(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    // NameEn/NameId เป็น optional parameter ท้าย record — ต้องส่งชื่อ argument เสมอ ไม่งั้นตอบกลับเป็น null ทั้งที่บันทึกแล้ว
     private static TicketSubjectDto ToDto(TicketSubject s) =>
-        new(s.Id, s.CompanyId, s.DepartmentId, s.CategoryId, s.TopicId, s.Name, s.Description, s.SortOrder, s.IsActive);
+        new(s.Id, s.CompanyId, s.DepartmentId, s.CategoryId, s.TopicId, s.Name, s.Description, s.SortOrder, s.IsActive,
+            NameEn: s.NameEn, NameId: s.NameId);
 }
 
-public record UpdateTicketSubjectCommand(Guid Id, string Name, string? Description, int SortOrder, bool IsActive)
+public record UpdateTicketSubjectCommand(Guid Id, string Name, string? Description, int SortOrder, bool IsActive,
+    string? NameEn = null, string? NameId = null)
     : IRequest<TicketSubjectDto>;
 
 public class UpdateTicketSubjectValidator : AbstractValidator<UpdateTicketSubjectCommand>
@@ -91,6 +100,8 @@ public class UpdateTicketSubjectValidator : AbstractValidator<UpdateTicketSubjec
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.NameEn).MaximumLength(200).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(200).When(x => x.NameId is not null);
         RuleFor(x => x.Description).MaximumLength(500);
         RuleFor(x => x.SortOrder).InclusiveBetween(0, 9999);
     }
@@ -106,16 +117,18 @@ public class UpdateTicketSubjectHandler(
     public async Task<TicketSubjectDto> Handle(UpdateTicketSubjectCommand request, CancellationToken ct)
     {
         var subject = await db.TicketSubjects.FirstOrDefaultAsync(s => s.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบหัวข้อที่ระบุ");
+            ?? throw new NotFoundException("TicketSubject", request.Id, "TICKET_SUBJECT_NOT_FOUND");
         await TicketManagementAccess.EnsureDepartmentAsync(
             db, currentUser, permissionService, "ticket:manage-topics", subject.CompanyId, subject.DepartmentId, ct);
 
         var name = request.Name.Trim();
         if (await db.TicketSubjects.AnyAsync(s => s.TopicId == subject.TopicId && s.Name == name && s.Id != subject.Id, ct))
-            throw new ConflictException("DUPLICATE_TICKET_SUBJECT", $"หัวข้อ '{name}' มีอยู่แล้วในหมวดย่อยนี้");
+            throw new ConflictException("DUPLICATE_TICKET_SUBJECT", $"Subject '{name}' already exists in this topic.");
 
         var oldValues = new { subject.Name, subject.Description, subject.SortOrder, subject.IsActive };
         subject.Name = name;
+        subject.NameEn = Common.Helpers.NameText.Apply(subject.NameEn, request.NameEn);
+        subject.NameId = Common.Helpers.NameText.Apply(subject.NameId, request.NameId);
         subject.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         subject.SortOrder = request.SortOrder;
         subject.IsActive = request.IsActive;
@@ -128,6 +141,7 @@ public class UpdateTicketSubjectHandler(
             new { subject.Name, subject.Description, subject.SortOrder, subject.IsActive }, ct);
 
         return new TicketSubjectDto(subject.Id, subject.CompanyId, subject.DepartmentId, subject.CategoryId,
-            subject.TopicId, subject.Name, subject.Description, subject.SortOrder, subject.IsActive);
+            subject.TopicId, subject.Name, subject.Description, subject.SortOrder, subject.IsActive,
+            subject.NameEn, subject.NameId);
     }
 }

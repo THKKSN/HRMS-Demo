@@ -40,7 +40,9 @@ public class DepartmentController(IMediator mediator) : ControllerBase
             request.CompanyId,
             request.Name,
             request.DeptType,
-            request.ManagerEmployeeId), ct);
+            request.ManagerEmployeeId,
+            request.NameEn,
+            request.NameId), ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -57,7 +59,9 @@ public class DepartmentController(IMediator mediator) : ControllerBase
             request.DeptType,
             request.ManagerEmployeeId,
             request.ShiftId,
-            request.IsActive), ct);
+            request.IsActive,
+            request.NameEn,
+            request.NameId), ct);
         return Ok(result);
     }
 
@@ -69,28 +73,36 @@ public class DepartmentController(IMediator mediator) : ControllerBase
         CancellationToken ct)
     {
         var dept = await mediator.Send(new GetDepartmentByIdQuery(id), ct);
+        // ส่งชื่อหลายภาษาเดิมกลับไปด้วย เพื่อไม่ต้องพึ่งพฤติกรรม "null = คงค่าเดิม" ของ NameText.Apply
         var result = await mediator.Send(new UpdateDepartmentCommand(
             id,
             dept.Name,
             dept.DeptType,
             dept.ManagerEmployeeId,
             dept.ShiftId,
-            request.IsActive), ct);
+            request.IsActive,
+            dept.NameEn,
+            dept.NameId), ct);
         return Ok(result);
     }
 }
 
+// NameEn/NameId = ชื่อหลายภาษาของ master data (i18n Phase M) — ไม่ส่ง = คงค่าเดิม, ส่ง "" = ล้างค่า
 public record CreateDepartmentRequest(
     Guid CompanyId,
     string Name,
     string? DeptType,
-    Guid? ManagerEmployeeId);
+    Guid? ManagerEmployeeId,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record UpdateDepartmentRequest(
     string Name,
     string? DeptType,
     Guid? ManagerEmployeeId,
     Guid? ShiftId,
-    bool IsActive);
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record ToggleDepartmentStatusRequest(bool IsActive);

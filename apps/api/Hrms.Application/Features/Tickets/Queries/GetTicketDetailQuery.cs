@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Features.Tickets.Dtos;
@@ -43,25 +44,41 @@ public class GetTicketDetailHandler(
             .Include(t => t.CancelledByEmployee)
             .Include(t => t.Attachments)
             .Include(t => t.Assignments).ThenInclude(a => a.AssignedToEmployee)
+                .ThenInclude(e => e.Department)
             .Include(t => t.Assignments).ThenInclude(a => a.AssignedByEmployee)
             .Include(t => t.Assignments).ThenInclude(a => a.EndedByEmployee)
             .Include(t => t.CancellationRequests).ThenInclude(c => c.RequestedByEmployee)
             .Include(t => t.CancellationRequests).ThenInclude(c => c.ReviewedByEmployee)
             .Include(t => t.ProgressEntries).ThenInclude(p => p.OwnerEmployee)
             .Include(t => t.ProgressEntries).ThenInclude(p => p.CreatedByEmployee)
+            .Include(t => t.ProgressEntries).ThenInclude(p => p.PinnedByEmployee)
             .Include(t => t.ProgressEntries).ThenInclude(p => p.Attachments)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
 
         await TicketAccess.EnsureCanViewAsync(db, currentUser, permissionService, ticket, ct);
         var actions = await TicketAccess.GetActionFlagsAsync(db, currentUser, permissionService, ticket, ct);
-        var canViewManagementAudit = !actions.IsRequester &&
-            (currentUser.HasRole(Hrms.Domain.Enums.RoleType.Admin) ||
-                await TicketAccess.IsDepartmentManagerAsync(db, currentUser, ticket, ct));
-        var canSeeInternalAttachments = !actions.IsRequester &&
-            await permissionService.HasPermissionAsync(currentUser, "ticket:add-internal-note", ct) &&
-            (currentUser.HasRole(Hrms.Domain.Enums.RoleType.Admin) ||
-                await TicketAccess.IsDepartmentManagerAsync(db, currentUser, ticket, ct));
+        var employeeId = currentUser.EmployeeId;
+        var isAdmin = currentUser.HasRole(Hrms.Domain.Enums.RoleType.Admin);
+        var isManager = isAdmin || await TicketAccess.IsDepartmentManagerAsync(db, currentUser, ticket, ct);
+        // เกณฑ์เดียวกับ GetTicketComments/Timeline — หัวหน้าแผนกเห็นของแผนกตัวเองแม้เป็นผู้แจ้งเอง
+        var canViewManagementAudit = isManager;
+        var canSeeInternalAttachments = isManager &&
+            await permissionService.HasPermissionAsync(currentUser, "ticket:add-internal-note", ct);
+        // flag ต่อการ์ด ต้องสะท้อนกติกาเดียวกับ UpdateTicketProgressEntryHandler / PinTicketProgressEntryHandler:
+        // permission (ตั้งค่าได้) + เกี่ยวข้องกับ ticket (worker/manager) + ticket ยังดำเนินงานอยู่
+        var isAssignee = employeeId.HasValue &&
+            await TicketTeam.IsActiveWorkerAsync(db, employeeId.Value, ticket.Id, ct);
+        var isRelatedWorker = isManager || isAssignee;
+        var progressBoardOpen = ticket.Status is Hrms.Domain.Enums.TicketStatus.InProgress
+            or Hrms.Domain.Enums.TicketStatus.WaitingInfo;
+        var canEditAnyProgressEntry = await permissionService.HasPermissionAsync(
+            currentUser, TicketAccess.EditAnyProgressEntryPermission, ct);
+        var canEditOwnProgressEntry = canEditAnyProgressEntry ||
+            await permissionService.HasPermissionAsync(currentUser, TicketAccess.EditProgressEntryPermission, ct);
+        var canEditProgressEntries = isRelatedWorker && progressBoardOpen && canEditOwnProgressEntry;
+        var canPinProgressEntries = isRelatedWorker && progressBoardOpen &&
+            await permissionService.HasPermissionAsync(currentUser, TicketAccess.PinProgressEntryPermission, ct);
 
         var auditEvents = await db.AuditLogs
             .AsNoTracking()
@@ -83,6 +100,25 @@ public class GetTicketDetailHandler(
             .OrderByDescending(a => a.IsActive)
             .ThenByDescending(a => a.AssignedAt)
             .FirstOrDefault();
+        // ทีมงานที่ยัง active — Owner มาก่อน แล้วผู้ร่วมงานเรียงตามเวลาที่ถูกดึงเข้า
+        var teamMembers = ticket.Assignments
+            .Where(assignment => assignment.IsActive)
+            .OrderByDescending(assignment => assignment.IsPrimary)
+            .ThenBy(assignment => assignment.AssignedAt)
+            .Select(assignment => new TicketTeamMemberDto(
+                assignment.Id,
+                assignment.AssignedToEmployeeId,
+                FullName(assignment.AssignedToEmployee),
+                assignment.AssignedToEmployee.EmployeeCode,
+                assignment.AssignedToEmployee.Department?.Name,
+                assignment.MemberRole,
+                assignment.AssignedAt,
+                assignment.AssignedByEmployeeId,
+                assignment.AssignedByEmployee is null ? null : FullName(assignment.AssignedByEmployee),
+                assignment.Note,
+                // ผู้รับผิดชอบหลักถอนออกตรง ๆ ไม่ได้ ต้องใช้เมนูเปลี่ยนผู้รับผิดชอบเพื่อให้มีเจ้าภาพเสมอ
+                actions.CanManageTeam && !assignment.IsPrimary))
+            .ToList();
         var latestCancellation = ticket.CancellationRequests
             .OrderByDescending(c => c.RequestedAt)
             .FirstOrDefault();
@@ -151,6 +187,8 @@ public class GetTicketDetailHandler(
             ticket.WaitingInfoByEmployee is null ? null : FullName(ticket.WaitingInfoByEmployee),
             ticket.WaitingInfoAt,
             ticket.ProblemType,
+            ticket.CloseoutReasonId,
+            ticket.CloseoutReasonNameSnapshot,
             ticket.InitialInspectionNote,
             ticket.ResolutionNote,
             ticket.ResolvedByEmployeeId,
@@ -171,8 +209,12 @@ public class GetTicketDetailHandler(
             ticket.CancelledAt,
             ticket.CancellationReason,
             current is null ? null : ToAssignmentDto(current),
+            teamMembers,
             ticket.ProgressEntries
-                .OrderByDescending(entry => entry.CreatedAt)
+                // การ์ดที่ปักหมุดขึ้นก่อน (ปักล่าสุดอยู่บน) ตามด้วยการ์ดอื่นเรียงจากใหม่ไปเก่า
+                .OrderByDescending(entry => entry.PinnedAt.HasValue)
+                .ThenByDescending(entry => entry.PinnedAt)
+                .ThenByDescending(entry => entry.CreatedAt)
                 .Select(entry => new TicketProgressEntryDto(
                     entry.Id,
                     entry.WorkflowStepKey,
@@ -203,7 +245,13 @@ public class GetTicketDetailHandler(
                             attachment.SizeBytes,
                             attachment.Stage,
                             attachment.Visibility))
-                        .ToList()))
+                        .ToList(),
+                    canEditProgressEntries &&
+                        entry.WorkflowStepKey == TicketCommandSupport.InProgressStepKey &&
+                        (canEditAnyProgressEntry || entry.CreatedByEmployeeId == employeeId),
+                    entry.PinnedAt,
+                    entry.PinnedByEmployee is null ? null : FullName(entry.PinnedByEmployee),
+                    canPinProgressEntries))
                 .ToList(),
             ticket.Attachments
                 .Where(a => canSeeInternalAttachments ||

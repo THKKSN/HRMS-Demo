@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "next-intl";
 import { Globe, Monitor } from "lucide-react";
 import type { TicketSourceChannel } from "@hrms/shared-types";
 
@@ -9,14 +12,15 @@ function LineIcon({ className }: { className?: string }) {
   );
 }
 
+// คำอธิบายช่องทางอยู่ที่ admin.ticket.source.<channel> — ที่นี่เหลือแค่ไอคอนกับสี
 function sourceChannelMeta(channel: TicketSourceChannel) {
   if (channel === "LineLiff") {
-    return { icon: LineIcon, label: "แจ้งผ่าน LINE (LIFF)", className: "text-[#06C755]" };
+    return { icon: LineIcon, className: "text-[#06C755]" };
   }
   if (channel === "ExternalPortal") {
-    return { icon: Globe, label: "แจ้งผ่านช่องทางบุคคลภายนอก", className: "text-sky-600" };
+    return { icon: Globe, className: "text-sky-600" };
   }
-  return { icon: Monitor, label: "แจ้งผ่าน Admin Web", className: "text-muted-foreground" };
+  return { icon: Monitor, className: "text-muted-foreground" };
 }
 
 export function SourceChannelIcon({
@@ -26,6 +30,7 @@ export function SourceChannelIcon({
   channel: TicketSourceChannel;
   className?: string;
 }) {
-  const { icon: Icon, label, className: colorClassName } = sourceChannelMeta(channel);
-  return <Icon className={`${className} ${colorClassName}`} aria-label={label} />;
+  const t = useTranslations("admin.ticket.source");
+  const { icon: Icon, className: colorClassName } = sourceChannelMeta(channel);
+  return <Icon className={`${className} ${colorClassName}`} aria-label={t(channel)} />;
 }

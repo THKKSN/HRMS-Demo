@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -17,6 +18,8 @@ import {
   useAttendanceViolations,
 } from '@/hooks/use-attendance-policy'
 import type { CompanyTreeDto, AttendanceMonthlyViolationDto } from '@hrms/shared-types'
+import { localizedName, type Locale } from '@hrms/i18n'
+import * as fmt from '@hrms/i18n/format'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -24,19 +27,17 @@ function flattenCompanies(nodes: CompanyTreeDto[]): CompanyTreeDto[] {
   return nodes.flatMap((n) => [n, ...flattenCompanies(n.children)])
 }
 
-const MONTHS = [
-  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
-]
-
 // ── Schema ────────────────────────────────────────────────────────────────────
+// ข้อความ validation มาจาก useTranslations จึงสร้าง schema ใน component
 
-const policySchema = z.object({
-  maxLateMinutesPerMonth: z.number().int().min(0, 'ต้องไม่ติดลบ').max(1440, 'ไม่เกิน 1440 นาที'),
-  maxLateCountPerMonth: z.number().int().min(0, 'ต้องไม่ติดลบ').max(31, 'ไม่เกิน 31 ครั้ง'),
-  maxAbsenceCountPerMonth: z.number().int().min(0, 'ต้องไม่ติดลบ').max(31, 'ไม่เกิน 31 ครั้ง'),
-})
-type PolicyValues = z.infer<typeof policySchema>
+function buildPolicySchema(t: (key: string) => string) {
+  return z.object({
+    maxLateMinutesPerMonth: z.number().int().min(0, t('validation.notNegative')).max(1440, t('validation.maxMinutes')),
+    maxLateCountPerMonth: z.number().int().min(0, t('validation.notNegative')).max(31, t('validation.maxTimes')),
+    maxAbsenceCountPerMonth: z.number().int().min(0, t('validation.notNegative')).max(31, t('validation.maxTimes')),
+  })
+}
+type PolicyValues = z.infer<ReturnType<typeof buildPolicySchema>>
 
 // ── Policy Form Modal ─────────────────────────────────────────────────────────
 
@@ -51,7 +52,10 @@ function PolicyModal({
   companyId: string
   defaultValues: PolicyValues
 }) {
+  const t = useTranslations('admin.settings.attendancePolicy')
+  const tCommon = useTranslations('common')
   const upsert = useUpsertAttendancePolicy(companyId)
+  const schema = useMemo(() => buildPolicySchema(t), [t])
 
   const {
     register,
@@ -59,7 +63,7 @@ function PolicyModal({
     reset,
     formState: { errors },
   } = useForm<PolicyValues>({
-    resolver: zodResolver(policySchema),
+    resolver: zodResolver(schema),
     defaultValues,
   })
 
@@ -70,10 +74,10 @@ function PolicyModal({
   const onSubmit = async (values: PolicyValues) => {
     try {
       await upsert.mutateAsync({ companyId, ...values })
-      toast.success('บันทึกกฎการเข้างานแล้ว')
+      toast.success(t('saved'))
       onClose()
     } catch {
-      toast.error('บันทึกไม่สำเร็จ กรุณาลองใหม่')
+      toast.error(t('saveFailed'))
     }
   }
 
@@ -92,7 +96,7 @@ function PolicyModal({
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
               <ShieldAlert className="h-5 w-5 text-primary" />
             </div>
-            <h2 className="text-base font-semibold text-foreground">กฎการเข้างานรายเดือน</h2>
+            <h2 className="text-base font-semibold text-foreground">{t('cardTitle')}</h2>
           </div>
           <button
             onClick={onClose}
@@ -105,14 +109,16 @@ function PolicyModal({
         {/* Body */}
         <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-5 space-y-5">
           <p className="text-sm text-muted-foreground">
-            กำหนดเกณฑ์สายและขาดงาน — ค่า <span className="font-medium text-foreground">0</span> = ไม่จำกัด (ปิดเงื่อนไขนั้น)
+            {t.rich('modalHint', {
+              b: (chunks) => <span className="font-medium text-foreground">{chunks}</span>,
+            })}
           </p>
 
           <div className="space-y-4">
             {/* นาทีสาย */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">
-                นาทีสายสะสมสูงสุด / เดือน
+                {t('maxLateMinutes')}
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -122,7 +128,7 @@ function PolicyModal({
                   className="w-full rounded-xl border border-border bg-whited px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   {...register('maxLateMinutesPerMonth', { valueAsNumber: true })}
                 />
-                <span className="shrink-0 text-sm text-muted-foreground w-12">นาที</span>
+                <span className="shrink-0 text-sm text-muted-foreground w-12">{t('unitMinutes')}</span>
               </div>
               {errors.maxLateMinutesPerMonth && (
                 <p className="text-xs text-destructive">{errors.maxLateMinutesPerMonth.message}</p>
@@ -132,7 +138,7 @@ function PolicyModal({
             {/* ครั้งสาย */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">
-                จำนวนครั้งสายสูงสุด / เดือน
+                {t('maxLateCount')}
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -142,7 +148,7 @@ function PolicyModal({
                   className="w-full rounded-xl border border-border bg-whited px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   {...register('maxLateCountPerMonth', { valueAsNumber: true })}
                 />
-                <span className="shrink-0 text-sm text-muted-foreground w-12">ครั้ง</span>
+                <span className="shrink-0 text-sm text-muted-foreground w-12">{t('unitTimes')}</span>
               </div>
               {errors.maxLateCountPerMonth && (
                 <p className="text-xs text-destructive">{errors.maxLateCountPerMonth.message}</p>
@@ -152,7 +158,7 @@ function PolicyModal({
             {/* ครั้งขาด */}
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">
-                จำนวนครั้งขาดงานสูงสุด / เดือน
+                {t('maxAbsenceCount')}
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -162,7 +168,7 @@ function PolicyModal({
                   className="w-full rounded-xl border border-border bg-whited px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   {...register('maxAbsenceCountPerMonth', { valueAsNumber: true })}
                 />
-                <span className="shrink-0 text-sm text-muted-foreground w-12">ครั้ง</span>
+                <span className="shrink-0 text-sm text-muted-foreground w-12">{t('unitTimes')}</span>
               </div>
               {errors.maxAbsenceCountPerMonth && (
                 <p className="text-xs text-destructive">{errors.maxAbsenceCountPerMonth.message}</p>
@@ -177,7 +183,7 @@ function PolicyModal({
               onClick={onClose}
               className="rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:bg-whited transition-colors"
             >
-              ยกเลิก
+              {tCommon('action.cancel')}
             </button>
             <button
               type="submit"
@@ -185,7 +191,7 @@ function PolicyModal({
               className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               <Save className="h-4 w-4" />
-              {upsert.isPending ? 'กำลังบันทึก...' : 'บันทึก'}
+              {upsert.isPending ? tCommon('state.saving') : tCommon('action.save')}
             </button>
           </div>
         </form>
@@ -197,6 +203,8 @@ function PolicyModal({
 // ── Policy Card ───────────────────────────────────────────────────────────────
 
 function PolicyCard({ companyId }: { companyId: string }) {
+  const t = useTranslations('admin.settings.attendancePolicy')
+  const tCommon = useTranslations('common')
   const { data: policy, isLoading } = useAttendancePolicy(companyId)
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -223,8 +231,8 @@ function PolicyCard({ companyId }: { companyId: string }) {
                 <ShieldAlert className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <h2 className="text-base font-semibold text-foreground">กฎการเข้างานรายเดือน</h2>
-                <p className="text-xs text-muted-foreground">ค่า 0 = ไม่จำกัด</p>
+                <h2 className="text-base font-semibold text-foreground">{t('cardTitle')}</h2>
+                <p className="text-xs text-muted-foreground">{t('cardHint')}</p>
               </div>
             </div>
             <button
@@ -232,7 +240,7 @@ function PolicyCard({ companyId }: { companyId: string }) {
               className="flex items-center gap-1.5 rounded-xl border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-whited hover:text-foreground transition-colors"
             >
               <Pencil className="h-3.5 w-3.5" />
-              แก้ไข
+              {tCommon('action.edit')}
             </button>
           </div>
 
@@ -241,19 +249,19 @@ function PolicyCard({ companyId }: { companyId: string }) {
               <p className="text-2xl font-bold text-foreground">
                 {policy.maxLateMinutesPerMonth === 0 ? '∞' : policy.maxLateMinutesPerMonth}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">นาทีสาย / เดือน</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('statLateMinutes')}</p>
             </div>
             <div className="rounded-xl bg-whited/60 p-4 text-center">
               <p className="text-2xl font-bold text-foreground">
                 {policy.maxLateCountPerMonth === 0 ? '∞' : policy.maxLateCountPerMonth}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">ครั้งสาย / เดือน</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('statLateCount')}</p>
             </div>
             <div className="rounded-xl bg-whited/60 p-4 text-center">
               <p className="text-2xl font-bold text-foreground">
                 {policy.maxAbsenceCountPerMonth === 0 ? '∞' : policy.maxAbsenceCountPerMonth}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">ครั้งขาด / เดือน</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('statAbsenceCount')}</p>
             </div>
           </div>
         </div>
@@ -263,16 +271,14 @@ function PolicyCard({ companyId }: { companyId: string }) {
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-whited">
             <ShieldAlert className="h-7 w-7 text-muted-foreground" />
           </div>
-          <p className="mt-4 font-semibold text-foreground">ยังไม่มีกฎการเข้างาน</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            กำหนดเกณฑ์สายและขาดงานรายเดือนสำหรับบริษัทนี้
-          </p>
+          <p className="mt-4 font-semibold text-foreground">{t('emptyTitle')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('emptyHint')}</p>
           <button
             onClick={() => setModalOpen(true)}
             className="mt-5 flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            เพิ่มกฎการเข้างาน
+            {t('addPolicy')}
           </button>
         </div>
       )}
@@ -290,6 +296,7 @@ function PolicyCard({ companyId }: { companyId: string }) {
 // ── Violations Table ──────────────────────────────────────────────────────────
 
 function ViolationRow({ item }: { item: AttendanceMonthlyViolationDto }) {
+  const t = useTranslations('admin.settings.attendancePolicy')
   return (
     <tr className="border-b border-border last:border-0 hover:bg-whited/40 transition-colors">
       <td className="px-4 py-3">
@@ -321,11 +328,11 @@ function ViolationRow({ item }: { item: AttendanceMonthlyViolationDto }) {
       <td className="px-4 py-3 text-center">
         {item.isViolated ? (
           <span className="inline-flex items-center rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-medium text-destructive">
-            ละเมิด
+            {t('violated')}
           </span>
         ) : (
           <span className="inline-flex items-center rounded-full bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-600">
-            ปกติ
+            {t('normal')}
           </span>
         )}
       </td>
@@ -334,19 +341,29 @@ function ViolationRow({ item }: { item: AttendanceMonthlyViolationDto }) {
 }
 
 function ViolationsTable({ companyId }: { companyId: string }) {
+  const t = useTranslations('admin.settings.attendancePolicy')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const locale = useLocale()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
 
   const { data, isLoading } = useAttendanceViolations(companyId, year, month)
   const years = Array.from({ length: 3 }, (_, i) => now.getFullYear() - i)
+  // ชื่อเดือนตามภาษาที่เลือก — เดิม hardcode ชื่อเดือนไทยไว้ในไฟล์
+  const months = useMemo(
+    () => Array.from({ length: 12 }, (_, i) =>
+      fmt.formatDate(new Date(now.getFullYear(), i, 1), { month: 'long' })),
+    [locale], // eslint-disable-line react-hooks/exhaustive-deps
+  )
 
   return (
     <div className="rounded-2xl border border-border bg-background shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
         <div>
-          <h2 className="text-base font-semibold text-foreground">รายงานการละเมิดกฎ</h2>
-          <p className="text-sm text-muted-foreground">สรุปสถิติสายและขาดงานรายบุคคล</p>
+          <h2 className="text-base font-semibold text-foreground">{t('violationsTitle')}</h2>
+          <p className="text-sm text-muted-foreground">{t('violationsSubtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -354,7 +371,7 @@ function ViolationsTable({ companyId }: { companyId: string }) {
             onChange={(e) => setMonth(Number(e.target.value))}
             className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            {MONTHS.map((m, i) => (
+            {months.map((m, i) => (
               <option key={i} value={i + 1}>{m}</option>
             ))}
           </select>
@@ -364,7 +381,7 @@ function ViolationsTable({ companyId }: { companyId: string }) {
             className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           >
             {years.map((y) => (
-              <option key={y} value={y}>{y}</option>
+              <option key={y} value={y}>{fmt.formatYear(y)}</option>
             ))}
           </select>
         </div>
@@ -379,19 +396,19 @@ function ViolationsTable({ companyId }: { companyId: string }) {
       ) : !data?.items.length ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <ShieldCheck className="h-10 w-10 text-green-500" />
-          <p className="mt-3 font-medium text-foreground">ไม่พบข้อมูล</p>
-          <p className="mt-1 text-sm text-muted-foreground">ยังไม่มีข้อมูลการเข้างานในเดือนนี้</p>
+          <p className="mt-3 font-medium text-foreground">{tCommon('state.noData')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('noViolationData')}</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-border bg-whited/40">
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">พนักงาน</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">สาย (ครั้ง)</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">สาย (นาที)</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">ขาด (ครั้ง)</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">สถานะ</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('colEmployee')}</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('colLateCount')}</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('colLateMinutes')}</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t('colAbsenceCount')}</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">{tOrg('colStatus')}</th>
               </tr>
             </thead>
             <tbody>
@@ -402,10 +419,10 @@ function ViolationsTable({ companyId }: { companyId: string }) {
           </table>
           <div className="border-t border-border px-5 py-3">
             <p className="text-xs text-muted-foreground">
-              ทั้งหมด {data.totalCount} คน ·{' '}
-              <span className="font-medium text-destructive">
-                ละเมิด {data.items.filter((i) => i.isViolated).length} คน
-              </span>
+              {t.rich('summary', {
+                total: data.totalCount,
+                violated: data.items.filter((i) => i.isViolated).length,
+              })}
             </p>
           </div>
         </div>
@@ -417,6 +434,8 @@ function ViolationsTable({ companyId }: { companyId: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AttendancePolicyPage() {
+  const t = useTranslations('admin.settings.attendancePolicy')
+  const locale = useLocale() as Locale
   const employee = useAuthStore((s) => s.employee)
   const { data: companiesTree } = useCompanies()
 
@@ -430,10 +449,8 @@ export default function AttendancePolicyPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold text-foreground">นโยบายการเข้างาน</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            ตั้งค่าเกณฑ์สายและขาดงานรายเดือนต่อบริษัท
-          </p>
+          <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
 
         {companies.length > 1 && (
@@ -443,7 +460,7 @@ export default function AttendancePolicyPage() {
             className="rounded-xl border border-border bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           >
             {companies.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+              <option key={c.id} value={c.id}>{localizedName(c, locale)}</option>
             ))}
           </select>
         )}
@@ -456,7 +473,7 @@ export default function AttendancePolicyPage() {
         </>
       ) : (
         <div className="flex h-40 items-center justify-center rounded-2xl border border-border bg-background text-sm text-muted-foreground">
-          กำลังโหลดข้อมูลบริษัท...
+          {t('loadingCompanies')}
         </div>
       )}
     </div>

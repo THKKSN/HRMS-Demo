@@ -40,7 +40,7 @@ public sealed class ExternalLineLoginHandler(
             .Select(c => c.RequireOaFriendship)
             .FirstOrDefaultAsync(ct);
         if (requireOaFriendship && !await line.GetFriendshipStatusAsync(request.AccessToken, ct))
-            throw new AppForbiddenException("LINE_OA_FRIEND_REQUIRED");
+            throw new AppForbiddenException("LINE_OA_FRIEND_REQUIRED", "The reporter must add the LINE official account as a friend.");
 
         var reporter = await db.ExternalReporters
             .SingleOrDefaultAsync(x => x.LineUserId == profile.UserId, ct);
@@ -58,7 +58,7 @@ public sealed class ExternalLineLoginHandler(
         else
         {
             if (!reporter.IsActive)
-                throw new AppForbiddenException("EXTERNAL_REPORTER_INACTIVE");
+                throw new AppForbiddenException("EXTERNAL_REPORTER_INACTIVE", "This reporter account is disabled.");
             reporter.LineDisplayName = profile.DisplayName;
             reporter.PictureUrl = profile.PictureUrl;
             reporter.LastLoginAt = DateTime.UtcNow.AddHours(7);

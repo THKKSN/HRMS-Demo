@@ -9,7 +9,8 @@ import { Select } from '@/components/ui/select'
 import { useDepartments } from '@/hooks/use-departments'
 import { useRoleLabels } from '@/hooks/use-role-labels'
 import { companyOptionLabel, useCompanyOptions } from '@/hooks/use-company-options'
-import { ROLE_LABEL_TH, ROLE_TYPES } from '@/lib/employee-roles'
+import { useTranslations } from 'next-intl'
+import { ROLE_TYPES } from '@/lib/employee-roles'
 
 export type EmployeeStatusFilter = 'active' | 'inactive' | 'all'
 
@@ -26,10 +27,11 @@ export const EMPTY_FILTERS: EmployeeFilters = {
   search: '', companyId: '', departmentId: '', roleLabelId: '', role: '', status: 'active',
 }
 
-const STATUS_OPTIONS: { value: EmployeeStatusFilter; label: string }[] = [
-  { value: 'active',   label: 'ปฏิบัติงาน' },
-  { value: 'inactive', label: 'พ้นสภาพ' },
-  { value: 'all',      label: 'ทั้งหมด' },
+// key ตรงกับคีย์ข้อความใน messages (admin.employees.search.status*)
+const STATUS_OPTIONS: { value: EmployeeStatusFilter; labelKey: string }[] = [
+  { value: 'active',   labelKey: 'statusActive' },
+  { value: 'inactive', labelKey: 'statusInactive' },
+  { value: 'all',      labelKey: 'statusAll' },
 ]
 
 /** นับตัวกรองที่ถูกใช้งาน (ไม่นับช่องค้นหา และไม่นับสถานะค่าเริ่มต้น) */
@@ -43,6 +45,7 @@ export function countActiveFilters(f: EmployeeFilters) {
 type ChipProps = { label: string; value: string; onClear: () => void }
 
 function FilterChip({ label, value, onClear }: ChipProps) {
+  const t = useTranslations('admin.employees.search')
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 py-1 pl-3 pr-1.5 text-xs text-foreground">
       <span className="text-muted-foreground">{label}:</span>
@@ -50,7 +53,7 @@ function FilterChip({ label, value, onClear }: ChipProps) {
       <button
         type="button"
         onClick={onClear}
-        aria-label={`ล้างตัวกรอง ${label}`}
+        aria-label={t('clearFilter', { label })}
         className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-foreground"
       >
         <X className="h-3 w-3" />
@@ -69,6 +72,8 @@ type Props = {
 }
 
 export function EmployeeSearchPanel({ filters, onChange, onReset, resultLabel, isFetching }: Props) {
+  const t = useTranslations('admin.employees.search')
+  const tRole = useTranslations('status.roleType')
   const activeCount = countActiveFilters(filters)
   const [expanded, setExpanded] = useState(activeCount > 0)
 
@@ -83,7 +88,8 @@ export function EmployeeSearchPanel({ filters, onChange, onReset, resultLabel, i
   const companyName    = companies.find((c) => c.id === filters.companyId)?.name
   const departmentName = departments.find((d) => d.id === filters.departmentId)?.name
   const roleLabelName  = roleLabels.find((r) => r.id === filters.roleLabelId)?.name
-  const statusLabel    = STATUS_OPTIONS.find((s) => s.value === filters.status)?.label
+  const statusOption   = STATUS_OPTIONS.find((s) => s.value === filters.status)
+  const statusLabel    = statusOption ? t(statusOption.labelKey) : undefined
 
   const scopedDisabled = !filters.companyId
 
@@ -102,15 +108,15 @@ export function EmployeeSearchPanel({ filters, onChange, onReset, resultLabel, i
             value={searchInput}
             onChange={(e) => updateSearch(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Escape' && searchInput) updateSearch('') }}
-            placeholder="ค้นหา รหัสพนักงาน / ชื่อ-นามสกุล / อีเมล / เบอร์โทร"
-            aria-label="ค้นหาพนักงาน"
+            placeholder={t('placeholder')}
+            aria-label={t('ariaLabel')}
             className="h-10 pl-9 pr-9"
           />
           {searchInput && (
             <button
               type="button"
               onClick={() => updateSearch('')}
-              aria-label="ล้างคำค้นหา"
+              aria-label={t('clearQuery')}
               className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:bg-whited hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
@@ -133,7 +139,7 @@ export function EmployeeSearchPanel({ filters, onChange, onReset, resultLabel, i
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {opt.label}
+                {t(opt.labelKey)}
               </button>
             ))}
           </div>
@@ -146,7 +152,7 @@ export function EmployeeSearchPanel({ filters, onChange, onReset, resultLabel, i
             aria-expanded={expanded}
           >
             <SlidersHorizontal className="h-4 w-4" />
-            ตัวกรอง
+            {t('filters')}
             {activeCount > 0 && (
               <span className={`ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
                 expanded ? 'bg-primary-foreground/20' : 'bg-primary/10 text-primary'
@@ -162,13 +168,13 @@ export function EmployeeSearchPanel({ filters, onChange, onReset, resultLabel, i
       {expanded && (
         <div className="grid grid-cols-1 gap-3 border-t border-border px-4 py-4 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1.5">
-            <Label htmlFor="f-company" className="text-xs text-muted-foreground">บริษัท</Label>
+            <Label htmlFor="f-company" className="text-xs text-muted-foreground">{t('company')}</Label>
             <Select
               id="f-company"
               value={filters.companyId}
               onChange={(e) => onChange({ companyId: e.target.value, departmentId: '', roleLabelId: '' })}
             >
-              <option value="">ทุกบริษัท</option>
+              <option value="">{t('allCompanies')}</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>{companyOptionLabel(c)}</option>
               ))}
@@ -176,14 +182,14 @@ export function EmployeeSearchPanel({ filters, onChange, onReset, resultLabel, i
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="f-dept" className="text-xs text-muted-foreground">แผนก</Label>
+            <Label htmlFor="f-dept" className="text-xs text-muted-foreground">{t('department')}</Label>
             <Select
               id="f-dept"
               value={filters.departmentId}
               onChange={(e) => onChange({ departmentId: e.target.value })}
               disabled={scopedDisabled}
             >
-              <option value="">{scopedDisabled ? 'เลือกบริษัทก่อน' : 'ทุกแผนก'}</option>
+              <option value="">{scopedDisabled ? t('selectCompanyFirst') : t('allDepartments')}</option>
               {departments.filter((d) => d.isActive).map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
@@ -191,14 +197,14 @@ export function EmployeeSearchPanel({ filters, onChange, onReset, resultLabel, i
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="f-rlabel" className="text-xs text-muted-foreground">ตำแหน่ง</Label>
+            <Label htmlFor="f-rlabel" className="text-xs text-muted-foreground">{t('position')}</Label>
             <Select
               id="f-rlabel"
               value={filters.roleLabelId}
               onChange={(e) => onChange({ roleLabelId: e.target.value })}
               disabled={scopedDisabled}
             >
-              <option value="">{scopedDisabled ? 'เลือกบริษัทก่อน' : 'ทุกตำแหน่ง'}</option>
+              <option value="">{scopedDisabled ? t('selectCompanyFirst') : t('allPositions')}</option>
               {roleLabels.filter((r) => r.isActive).map((r) => (
                 <option key={r.id} value={r.id}>{r.name}</option>
               ))}
@@ -206,11 +212,11 @@ export function EmployeeSearchPanel({ filters, onChange, onReset, resultLabel, i
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="f-role" className="text-xs text-muted-foreground">สิทธิ์การใช้งาน</Label>
+            <Label htmlFor="f-role" className="text-xs text-muted-foreground">{t('role')}</Label>
             <Select id="f-role" value={filters.role} onChange={(e) => onChange({ role: e.target.value })}>
-              <option value="">ทุกสิทธิ์</option>
+              <option value="">{t('allRoles')}</option>
               {ROLE_TYPES.map((r) => (
-                <option key={r} value={r}>{ROLE_LABEL_TH[r]} ({r})</option>
+                <option key={r} value={r}>{tRole(r)} ({r})</option>
               ))}
             </Select>
           </div>
@@ -226,24 +232,24 @@ export function EmployeeSearchPanel({ filters, onChange, onReset, resultLabel, i
             </span>
           )}
           {filters.search && (
-            <FilterChip label="ค้นหา" value={filters.search} onClear={() => onChange({ search: '' })} />
+            <FilterChip label={t('searchChip')} value={filters.search} onClear={() => onChange({ search: '' })} />
           )}
           {filters.companyId && companyName && (
-            <FilterChip label="บริษัท" value={companyName}
+            <FilterChip label={t('company')} value={companyName}
               onClear={() => onChange({ companyId: '', departmentId: '', roleLabelId: '' })} />
           )}
           {filters.departmentId && departmentName && (
-            <FilterChip label="แผนก" value={departmentName} onClear={() => onChange({ departmentId: '' })} />
+            <FilterChip label={t('department')} value={departmentName} onClear={() => onChange({ departmentId: '' })} />
           )}
           {filters.roleLabelId && roleLabelName && (
-            <FilterChip label="ตำแหน่ง" value={roleLabelName} onClear={() => onChange({ roleLabelId: '' })} />
+            <FilterChip label={t('position')} value={roleLabelName} onClear={() => onChange({ roleLabelId: '' })} />
           )}
           {filters.role && (
-            <FilterChip label="สิทธิ์" value={ROLE_LABEL_TH[filters.role] ?? filters.role}
+            <FilterChip label={t('roleChip')} value={tRole(filters.role)}
               onClear={() => onChange({ role: '' })} />
           )}
           {filters.status !== 'active' && statusLabel && (
-            <FilterChip label="สถานะ" value={statusLabel} onClear={() => onChange({ status: 'active' })} />
+            <FilterChip label={t('statusChip')} value={statusLabel} onClear={() => onChange({ status: 'active' })} />
           )}
           {(activeCount > 0 || filters.search) && (
             <button
@@ -251,7 +257,7 @@ export function EmployeeSearchPanel({ filters, onChange, onReset, resultLabel, i
               onClick={onReset}
               className="ml-auto text-xs font-medium text-primary hover:underline"
             >
-              ล้างทั้งหมด
+              {t('clearAll')}
             </button>
           )}
         </div>

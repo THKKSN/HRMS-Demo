@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import type { ExpenseAttachmentFileDto, ExpenseClaimDto, ExpenseClaimStatus, ExpenseClaimType } from '@hrms/shared-types'
+import { EXPENSE_CLAIM_TYPE_LABEL as TYPE_LABEL } from '@hrms/i18n/labels'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +29,7 @@ import { useExpenses } from '@/hooks/use-expenses'
 import { EXPENSE_DOCUMENT_LABEL, isImageAttachmentUrl } from '@/lib/expense-attachments'
 import { expensesApi } from '@/lib/expenses.api'
 import { publicFileUrl } from '@/lib/public-file-url'
+import * as fmt from '@hrms/i18n/format'
 
 const PAGE_SIZE = 20
 const EMPTY_EXPENSE_ITEMS: ExpenseClaimDto[] = []
@@ -52,20 +54,12 @@ const STATUS_VARIANT: Record<ExpenseClaimStatus, 'secondary' | 'warning' | 'succ
   Paid: 'success',
 }
 
-const TYPE_LABEL: Record<ExpenseClaimType, string> = {
-  Fuel: 'ค่าน้ำมัน',
-  Toll: 'ค่าทางด่วน',
-  Parking: 'ค่าจอดรถ',
-  Meal: 'ค่าอาหาร',
-  Other: 'อื่น ๆ',
-}
-
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(`${value}T00:00:00`))
+  return fmt.formatDate(new Date(`${value}T00:00:00`), { dateStyle: 'medium' })
 }
 
 function formatMoney(value: number) {
-  return new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
+  return fmt.formatMoney(value)
 }
 
 function apiMessage(error: unknown) {
@@ -83,9 +77,9 @@ function ExpenseSummary({ items }: { items: ExpenseClaimDto[] }) {
 
   return (
     <div className="grid gap-3 md:grid-cols-4">
-      <SummaryCard icon={ReceiptText} label="รายการในหน้า" value={items.length.toLocaleString('th-TH')} />
-      <SummaryCard icon={FileText} label="รอตรวจ" value={pending.length.toLocaleString('th-TH')} tone="text-amber-600" />
-      <SummaryCard icon={Banknote} label="อนุมัติแล้ว" value={approved.length.toLocaleString('th-TH')} tone="text-emerald-600" />
+      <SummaryCard icon={ReceiptText} label="รายการในหน้า" value={fmt.formatNumber(items.length)} />
+      <SummaryCard icon={FileText} label="รอตรวจ" value={fmt.formatNumber(pending.length)} tone="text-amber-600" />
+      <SummaryCard icon={Banknote} label="อนุมัติแล้ว" value={fmt.formatNumber(approved.length)} tone="text-emerald-600" />
       <SummaryCard icon={Banknote} label="ยอดรวมในหน้า" value={formatMoney(totalAmount)} suffix="บาท" />
     </div>
   )
@@ -411,7 +405,7 @@ export default function AdminExpensesPage() {
       {selectedItems.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
           <div>
-            <div className="text-sm font-semibold">เลือกแล้ว {selectedItems.length.toLocaleString('th-TH')} รายการ</div>
+            <div className="text-sm font-semibold">เลือกแล้ว {fmt.formatNumber(selectedItems.length)} รายการ</div>
             <div className="text-sm text-muted-foreground">ยอดรวม {formatMoney(selectedTotal)} บาท</div>
           </div>
           <div className="flex items-center gap-2">
@@ -545,7 +539,7 @@ export default function AdminExpensesPage() {
       <Modal open={batchModalOpen} onClose={() => setBatchModalOpen(false)} title="สร้างรอบวางบิล" size="lg">
         <form className="space-y-4" onSubmit={createBatch}>
           <div className="rounded-md border border-border bg-muted/20 p-3 text-sm">
-            <div className="font-medium">รายการที่เลือก {selectedItems.length.toLocaleString('th-TH')} รายการ</div>
+            <div className="font-medium">รายการที่เลือก {fmt.formatNumber(selectedItems.length)} รายการ</div>
             <div className="mt-1 text-muted-foreground">ยอดรวม {formatMoney(selectedTotal)} บาท</div>
           </div>
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, type ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -20,6 +21,7 @@ const sizeClass = {
 }
 
 export function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
+  const tCommon = useTranslations('common')
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -42,7 +44,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
             type="button"
             onClick={onClose}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md hover:bg-whited transition-colors"
-            aria-label="ปิด"
+            aria-label={tCommon('action.close')}
           >
             <X className="h-4 w-4 text-muted-foreground" />
           </button>

@@ -51,6 +51,7 @@ export type LeaveTypeAdminDto = {
   code: string
   nameTh: string
   nameEn?: string
+  nameId?: string | null
   defaultDaysPerYear: number
   requiresAttachment: boolean
   isActive: boolean
@@ -76,6 +77,8 @@ export type ShiftDto = {
   companyId: string
   companyName: string
   name: string
+  nameEn?: string | null
+  nameId?: string | null
   startTime: string
   endTime: string
   gracePeriodMinutes: number

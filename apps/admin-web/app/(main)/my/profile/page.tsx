@@ -12,10 +12,11 @@ import {
 } from 'lucide-react'
 import { useMe } from '@/hooks/use-me'
 import { useAuthStore } from '@/stores/auth.store'
+import * as fmt from '@hrms/i18n/format'
 
 function formatDate(dateStr?: string | null) {
   if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('th-TH', {
+  return fmt.formatDate(new Date(dateStr), {
     year: 'numeric',
     month: 'long',
     day: 'numeric',

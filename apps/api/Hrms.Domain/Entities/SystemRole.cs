@@ -7,6 +7,8 @@ public class SystemRole : BaseEntity
 {
     public RoleType Code { get; set; }
     public string NameTh { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
+    public string? NameId { get; set; }
     public bool IsSystem { get; set; } = true;
     public bool IsActive { get; set; } = true;
 

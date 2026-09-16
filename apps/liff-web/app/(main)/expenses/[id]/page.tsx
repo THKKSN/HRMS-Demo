@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import type { ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Banknote,
   ChevronLeft,
@@ -15,20 +16,11 @@ import {
   ReceiptText,
   Truck,
 } from 'lucide-react'
-import type { ExpenseClaimStatus, ExpenseClaimType } from '@hrms/shared-types'
+import type { ExpenseClaimStatus } from '@hrms/shared-types'
 import { useExpense } from '@/hooks/use-expenses'
-import { EXPENSE_DOCUMENT_LABEL, isImageAttachmentUrl } from '@/lib/expense-attachments'
+import { useFmt } from '@/hooks/use-fmt'
+import { isImageAttachmentUrl } from '@/lib/expense-attachments'
 import { publicFileUrl } from '@/lib/public-file-url'
-
-const STATUS_LABEL: Record<ExpenseClaimStatus, string> = {
-  Draft: 'แบบร่าง',
-  Pending: 'รอตรวจ',
-  Approved: 'อนุมัติแล้ว',
-  Rejected: 'ไม่อนุมัติ',
-  Cancelled: 'ยกเลิก',
-  Batched: 'เข้ารอบวางบิล',
-  Paid: 'จ่ายแล้ว',
-}
 
 const STATUS_TONE: Record<ExpenseClaimStatus, string> = {
   Draft: 'border-slate-200 bg-slate-50 text-slate-700',
@@ -38,29 +30,6 @@ const STATUS_TONE: Record<ExpenseClaimStatus, string> = {
   Cancelled: 'border-slate-200 bg-slate-100 text-slate-600',
   Batched: 'border-blue-200 bg-blue-50 text-blue-700',
   Paid: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-}
-
-const TYPE_LABEL: Record<ExpenseClaimType, string> = {
-  Fuel: 'ค่าน้ำมัน',
-  Toll: 'ค่าทางด่วน',
-  Parking: 'ค่าจอดรถ',
-  Meal: 'ค่าอาหาร',
-  Other: 'อื่น ๆ',
-}
-
-function formatDate(value?: string) {
-  if (!value) return '-'
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(`${value}T00:00:00`))
-}
-
-function formatDateTime(value?: string) {
-  if (!value) return '-'
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
-}
-
-function formatMoney(value?: number) {
-  if (value == null) return '-'
-  return new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
 }
 
 function Section({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: ReactNode }) {
@@ -86,9 +55,19 @@ function InfoRow({ label, value }: { label: string; value?: string | number | nu
 }
 
 export default function ExpenseDetailPage() {
+  const t = useTranslations('liff.expense.detail')
+  const tType = useTranslations('status.expenseType')
+  const tStatus = useTranslations('status.expenseClaim')
+  const tDoc = useTranslations('status.expenseDocument')
+  const fmt = useFmt()
   const params = useParams<{ id: string }>()
   const id = params.id
   const { data, isLoading, error } = useExpense(id)
+
+  const formatDate = (value?: string) =>
+    value ? fmt.formatDate(new Date(`${value}T00:00:00`), { dateStyle: 'medium' }) : '-'
+  const formatDateTime = (value?: string) => (value ? fmt.formatDateTime(new Date(value)) : '-')
+  const formatMoney = (value?: number) => (value == null ? '-' : fmt.formatMoney(value))
 
   if (isLoading) {
     return (
@@ -105,12 +84,12 @@ export default function ExpenseDetailPage() {
           <Link href="/expenses" className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground">
             <ChevronLeft className="h-5 w-5" />
           </Link>
-          <h1 className="text-base font-semibold">รายละเอียดบิล</h1>
+          <h1 className="text-base font-semibold">{t('title')}</h1>
         </div>
         <div className="px-4 py-10 text-center">
           <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-          <p className="mt-4 font-semibold">ไม่พบรายการ</p>
-          <p className="mt-1 text-sm text-muted-foreground">รายการนี้อาจถูกลบหรือคุณไม่มีสิทธิ์ดู</p>
+          <p className="mt-4 font-semibold">{t('notFound')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('notFoundHint')}</p>
         </div>
       </div>
     )
@@ -121,21 +100,21 @@ export default function ExpenseDetailPage() {
       <div className="bg-[#0f8f72] px-4 pb-5 pt-4 text-white">
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-white/75">{TYPE_LABEL[data.type]}</p>
-            <h1 className="truncate text-lg font-bold">{data.billNo || 'รายการสร้างบิล'}</h1>
+            <p className="text-xs text-white/75">{tType(data.type)}</p>
+            <h1 className="truncate text-lg font-bold">{data.billNo || t('untitled')}</h1>
           </div>
           <span className={`shrink-0 rounded-lg border px-2.5 py-1 text-xs font-semibold ${STATUS_TONE[data.status]}`}>
-            {STATUS_LABEL[data.status]}
+            {tStatus(data.status)}
           </span>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-white/15 px-3 py-2">
-            <p className="text-[10px] text-white/70">ยอดเงิน</p>
+            <p className="text-[10px] text-white/70">{t('amount')}</p>
             <p className="text-lg font-bold tabular-nums">{formatMoney(data.amount)}</p>
           </div>
           <div className="rounded-lg bg-white/15 px-3 py-2">
-            <p className="text-[10px] text-white/70">วันที่เอกสาร</p>
+            <p className="text-[10px] text-white/70">{t('documentDate')}</p>
             <p className="text-sm font-semibold">{formatDate(data.expenseDate)}</p>
           </div>
         </div>
@@ -146,7 +125,7 @@ export default function ExpenseDetailPage() {
             className="mt-4 flex h-11 items-center justify-center gap-2 rounded-lg bg-white text-sm font-bold text-[#0f8f72]"
           >
             <Edit3 className="h-4 w-4" />
-            แก้ไขแบบร่าง
+            {t('editDraft')}
           </Link>
         )}
       </div>
@@ -154,41 +133,41 @@ export default function ExpenseDetailPage() {
       <div className="space-y-3 px-4 pt-3">
         {data.status === 'Draft' && (
           <div className="rounded-lg border border-slate-200 bg-background p-3 text-sm text-slate-700 shadow-sm">
-            รายการนี้ยังเป็นแบบร่าง สามารถแก้ไขข้อมูลและแนบหลักฐานเพิ่มก่อนส่งเข้าตรวจได้
+            {t('draftNotice')}
           </div>
         )}
 
-        <Section title="ข้อมูลบิล" icon={ReceiptText}>
-          <InfoRow label="ประเภท" value={TYPE_LABEL[data.type]} />
-          <InfoRow label="ร้านค้า / ปั๊มน้ำมัน" value={data.merchantName} />
-          <InfoRow label="เลขที่บิล" value={data.billNo} />
+        <Section title={t('billInfo')} icon={ReceiptText}>
+          <InfoRow label={t('type')} value={tType(data.type)} />
+          <InfoRow label={t('merchant')} value={data.merchantName} />
+          <InfoRow label={t('billNo')} value={data.billNo} />
           <InfoRow label="TID" value={data.receiptTid} />
           <InfoRow label="BATCH" value={data.receiptBatch} />
           <InfoRow label="MID" value={data.receiptMid} />
           <InfoRow label="TRACE" value={data.receiptTrace} />
-          <InfoRow label="วันที่ส่งรายการ" value={formatDateTime(data.createdAt)} />
+          <InfoRow label={t('submittedAt')} value={formatDateTime(data.createdAt)} />
         </Section>
 
-        <Section title="ข้อมูลรถและงานขนส่ง" icon={Truck}>
-          <InfoRow label="พนักงานขับรถ" value={data.driverName} />
-          <InfoRow label="เบอร์รถ" value={data.vehicleNo} />
-          <InfoRow label="ทะเบียนรถ" value={data.plateNo} />
-          <InfoRow label="จำนวนลิตร" value={data.fuelLiters ? `${data.fuelLiters} ลิตร` : undefined} />
-          <InfoRow label="เลขที่ใบขนส่ง" value={data.transportNo} />
-          <InfoRow label="ต้นทาง / สถานที่" value={data.origin} />
-          <InfoRow label="ลูกค้า" value={data.customerName} />
-          <InfoRow label="จำนวนเที่ยว" value={data.tripCount ? `${data.tripCount} เที่ยว` : undefined} />
+        <Section title={t('vehicleInfo')} icon={Truck}>
+          <InfoRow label={t('driver')} value={data.driverName} />
+          <InfoRow label={t('vehicleNo')} value={data.vehicleNo} />
+          <InfoRow label={t('plateNo')} value={data.plateNo} />
+          <InfoRow label={t('fuelLiters')} value={data.fuelLiters ? t('liters', { count: data.fuelLiters }) : undefined} />
+          <InfoRow label={t('transportNo')} value={data.transportNo} />
+          <InfoRow label={t('origin')} value={data.origin} />
+          <InfoRow label={t('customer')} value={data.customerName} />
+          <InfoRow label={t('tripCount')} value={data.tripCount ? t('trips', { count: data.tripCount }) : undefined} />
         </Section>
 
         {data.note && (
-          <Section title="หมายเหตุ" icon={FileText}>
+          <Section title={t('note')} icon={FileText}>
             <p className="whitespace-pre-wrap text-sm leading-6">{data.note}</p>
           </Section>
         )}
 
-        <Section title={`หลักฐานแนบ (${data.attachmentFiles.length})`} icon={Paperclip}>
+        <Section title={t('attachments', { count: data.attachmentFiles.length })} icon={Paperclip}>
           {data.attachmentFiles.length === 0 ? (
-            <p className="text-sm text-muted-foreground">ไม่มีหลักฐานแนบ</p>
+            <p className="text-sm text-muted-foreground">{t('noAttachments')}</p>
           ) : (
             <div className="space-y-4">
               {(['PaymentOrder', 'Receipt', 'Other'] as const).map(documentType => {
@@ -196,11 +175,11 @@ export default function ExpenseDetailPage() {
                 if (files.length === 0) return null
                 return (
                   <div key={documentType}>
-                    <p className="mb-2 text-xs font-semibold text-muted-foreground">{EXPENSE_DOCUMENT_LABEL[documentType]}</p>
+                    <p className="mb-2 text-xs font-semibold text-muted-foreground">{tDoc(documentType)}</p>
                     <div className="grid grid-cols-2 gap-3">
                       {files.map((file, index) => {
                         const href = publicFileUrl(file.url)
-                        const label = file.fileName || `${EXPENSE_DOCUMENT_LABEL[file.documentType]} ${index + 1}`
+                        const label = file.fileName || `${tDoc(file.documentType)} ${index + 1}`
                         return (
                           <a
                             key={`${file.url}-${index}`}
@@ -234,13 +213,11 @@ export default function ExpenseDetailPage() {
           )}
         </Section>
 
-        <Section title="การตรวจรายการ" icon={Banknote}>
+        <Section title={t('review')} icon={Banknote}>
           <div className="rounded-lg border border-dashed border-border bg-muted/40 p-3">
-            <p className="text-sm font-semibold">{STATUS_LABEL[data.status]}</p>
+            <p className="text-sm font-semibold">{tStatus(data.status)}</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              {data.status === 'Draft'
-                ? 'ยังไม่ส่งเข้าตรวจ กดแก้ไขแบบร่างแล้วเลือกส่งรายการเมื่อข้อมูลครบ'
-                : 'รายการถูกส่งให้ผู้ดูแลตรวจสอบแล้ว หากข้อมูลไม่ครบให้ส่งรายการใหม่พร้อมหลักฐานที่ถูกต้อง'}
+              {data.status === 'Draft' ? t('reviewDraft') : t('reviewSubmitted')}
             </p>
           </div>
         </Section>

@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Companies.Dtos;
 using MediatR;
@@ -15,7 +16,7 @@ public class GetCompanyByIdHandler(IApplicationDbContext db)
         var company = await db.Companies
             .Include(c => c.Parent)
             .FirstOrDefaultAsync(c => c.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลบริษัท");
+            ?? throw new NotFoundException("Company", request.Id, "COMPANY_NOT_FOUND");
 
         return new CompanyDto(
             company.Id,
@@ -25,6 +26,7 @@ public class GetCompanyByIdHandler(IApplicationDbContext db)
             company.ParentId,
             company.Parent?.Name,
             company.IsActive,
-            company.IsHeadquarters);
+            company.IsHeadquarters,
+            NameId: company.NameId);
     }
 }

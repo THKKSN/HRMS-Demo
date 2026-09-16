@@ -2,23 +2,26 @@
 
 import { useParams } from 'next/navigation'
 import { useState } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
+import { localizedName, type Locale } from '@hrms/i18n'
 import { PageHeader } from '@/components/layout/page-header'
 import { LeaveStatusBadge } from '@/components/shared/leave-status-badge'
+import { useFmt } from '@/hooks/use-fmt'
 import {
   useApproveLeave, useCancelLeave, useLeaveById,
   useRejectLeave, useRequestCancelLeave,
 } from '@/hooks/use-leaves'
-import { isHrOrAdmin, isSupervisorOrAbove } from '@/lib/auth-utils'
-import { formatDate } from '@/lib/utils'
+import { apiErrorText } from '@/lib/api-message'
+import { hasPermission } from '@/lib/auth-utils'
 import { useAuthStore } from '@/stores/auth.store'
 import type { LeaveStatus } from '@hrms/shared-types'
 import { FileText, ExternalLink, Clock } from 'lucide-react'
 
-const TIMELINE_STEPS: { status: LeaveStatus; label: string }[] = [
-  { status: 'PendingSupervisor', label: 'ยื่นคำขอแล้ว' },
-  { status: 'PendingHr',        label: 'หัวหน้าอนุมัติ' },
-  { status: 'Approved',         label: 'HR อนุมัติ' },
-]
+const TIMELINE_STEPS = [
+  { status: 'PendingSupervisor', key: 'submitted' },
+  { status: 'PendingHr',        key: 'supervisorApproved' },
+  { status: 'Approved',         key: 'hrApproved' },
+] as const
 
 const STATUS_ORDER: Record<LeaveStatus, number> = {
   Draft:                 -1,
@@ -30,13 +33,13 @@ const STATUS_ORDER: Record<LeaveStatus, number> = {
   Cancelled:              2,
 }
 
-const HALF_DAY_LABEL: Record<string, string> = {
-  Full: 'เต็มวัน',
-  Morning: 'ครึ่งเช้า',
-  Afternoon: 'ครึ่งบ่าย',
-}
-
 export default function LeaveDetailPage() {
+  const t = useTranslations('liff.leave.detail')
+  const tCommon = useTranslations('common')
+  const tErrors = useTranslations('errors')
+  const tHalfDay = useTranslations('status.leaveHalfDay')
+  const locale = useLocale() as Locale
+  const fmt = useFmt()
   const { id } = useParams<{ id: string }>()
   const employee = useAuthStore(s => s.employee)
   const { data: leave, isLoading } = useLeaveById(id)
@@ -52,14 +55,13 @@ export default function LeaveDetailPage() {
   const [comment,            setComment]            = useState('')
   const [error,              setError]              = useState<string | null>(null)
 
-  const roles = employee?.roles ?? []
 
   async function handleCancel() {
     try {
       await cancelLeave(id)
       setShowCancelConfirm(false)
     } catch {
-      setError('ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+      setError(t('errors.cancelFailed'))
     }
   }
 
@@ -70,9 +72,8 @@ export default function LeaveDetailPage() {
       setShowRequestCancel(false)
       setCancelReason('')
     } catch (err: unknown) {
-      const code = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      if (code === 'LEAVE_ALREADY_STARTED') setError('ไม่สามารถยกเลิกการลาที่เริ่มต้นหรือผ่านไปแล้ว กรุณาติดต่อ HR')
-      else setError('ส่งคำขอยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+      // LEAVE_ALREADY_STARTED แปลจาก errors.<code>
+      setError(apiErrorText(err, tErrors, t('errors.requestCancelFailed')))
     }
   }
 
@@ -82,7 +83,7 @@ export default function LeaveDetailPage() {
       await approveLeave({ id, comment: comment.trim() || undefined })
       setComment('')
     } catch {
-      setError('อนุมัติไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+      setError(t('errors.approveFailed'))
     }
   }
 
@@ -93,14 +94,14 @@ export default function LeaveDetailPage() {
       setComment('')
       setShowRejectConfirm(false)
     } catch {
-      setError('ปฏิเสธไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+      setError(t('errors.rejectFailed'))
     }
   }
 
   if (isLoading) {
     return (
       <>
-        <PageHeader title="รายละเอียดการลา" backHref="/leaves" />
+        <PageHeader title={t('title')} backHref="/leaves" />
         <div className="flex flex-col gap-3 px-4 pt-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-14 animate-pulse rounded-xl bg-whited" />
@@ -113,9 +114,9 @@ export default function LeaveDetailPage() {
   if (!leave) {
     return (
       <>
-        <PageHeader title="รายละเอียดการลา" backHref="/leaves" />
+        <PageHeader title={t('title')} backHref="/leaves" />
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-sm text-muted-foreground">ไม่พบคำขอลาที่ระบุ</p>
+          <p className="text-sm text-muted-foreground">{t('notFound')}</p>
         </div>
       </>
     )
@@ -125,29 +126,45 @@ export default function LeaveDetailPage() {
   const isOwner   = leave.employeeId === employee?.id
   const canCancel = isOwner && (leave.status === 'PendingSupervisor' || leave.status === 'PendingHr')
   const canRequestCancel = isOwner && leave.status === 'Approved'
+  // แต่ละ stage ใช้ permission ตรงกับ endpoint อนุมัติของ stage นั้น
   const canApprove =
-    (leave.status === 'PendingSupervisor' && isSupervisorOrAbove(roles)) ||
-    (leave.status === 'PendingHr' && isHrOrAdmin(roles))
+    (leave.status === 'PendingSupervisor' && hasPermission(employee, 'leave:approve-supervisor', ['Supervisor', 'Hr', 'Admin'])) ||
+    (leave.status === 'PendingHr' && hasPermission(employee, 'leave:approve-hr', ['Hr', 'Admin']))
 
   const terminalStatuses: LeaveStatus[] = ['Cancelled', 'Rejected', 'CancellationRequested']
 
+  const detailRows = [
+    { label: t('requester'), value: leave.employeeName },
+    leave.reason            && { label: t('reason'), value: leave.reason },
+    leave.supervisorName    && { label: t('supervisor'), value: leave.supervisorName },
+    leave.supervisorComment && { label: t('supervisorComment'), value: leave.supervisorComment },
+    leave.hrName            && { label: t('hr'), value: leave.hrName },
+    leave.hrComment         && { label: t('hrComment'), value: leave.hrComment },
+    { label: t('submittedAt'), value: fmt.formatDate(leave.createdAt) },
+  ].filter((row): row is { label: string; value: string } => Boolean(row))
+
   return (
     <>
-      <PageHeader title="รายละเอียดการลา" backHref="/leaves" />
+      <PageHeader title={t('title')} backHref="/leaves" />
 
       <div className="flex flex-col gap-4 px-4 pb-24 pt-4">
         {/* Header card */}
         <div className="rounded-xl border bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-lg font-semibold">{leave.leaveTypeName}</p>
+            <p className="text-lg font-semibold">
+              {localizedName(
+                { name: leave.leaveTypeName, nameEn: leave.leaveTypeNameEn, nameId: leave.leaveTypeNameId },
+                locale,
+              )}
+            </p>
             <LeaveStatusBadge status={leave.status} />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            {formatDate(leave.dateFrom)}
-            {leave.dateFrom !== leave.dateTo && ` – ${formatDate(leave.dateTo)}`}
+            {fmt.formatDate(leave.dateFrom)}
+            {leave.dateFrom !== leave.dateTo && ` – ${fmt.formatDate(leave.dateTo)}`}
           </p>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {HALF_DAY_LABEL[leave.halfDay]} · {leave.totalDays} วัน
+            {tHalfDay(leave.halfDay)} · {tCommon('duration.days', { count: leave.totalDays })}
           </p>
         </div>
 
@@ -156,8 +173,8 @@ export default function LeaveDetailPage() {
           <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
             <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
             <div>
-              <p className="text-sm font-semibold text-amber-800">รอ HR ดำเนินการยกเลิก</p>
-              <p className="mt-0.5 text-xs text-amber-700">คำขอยกเลิกถูกส่งแล้ว HR กำลังพิจารณา</p>
+              <p className="text-sm font-semibold text-amber-800">{t('cancellationPendingTitle')}</p>
+              <p className="mt-0.5 text-xs text-amber-700">{t('cancellationPendingBody')}</p>
             </div>
           </div>
         )}
@@ -165,7 +182,7 @@ export default function LeaveDetailPage() {
         {/* Status timeline */}
         {!terminalStatuses.includes(leave.status) && (
           <div className="rounded-xl border bg-white p-4 shadow-sm">
-            <p className="mb-3 text-sm font-medium">สถานะ</p>
+            <p className="mb-3 text-sm font-medium">{t('status')}</p>
             <div className="flex items-center gap-0">
               {TIMELINE_STEPS.map((step, idx) => {
                 const isDone    = currentOrder > idx
@@ -180,7 +197,7 @@ export default function LeaveDetailPage() {
                       {isDone ? '✓' : idx + 1}
                     </div>
                     <p className="mt-1 text-center text-xs text-muted-foreground leading-tight">
-                      {step.label}
+                      {t(`timeline.${step.key}`)}
                     </p>
                   </div>
                 )
@@ -191,31 +208,21 @@ export default function LeaveDetailPage() {
 
         {/* Detail rows */}
         <div className="rounded-xl border bg-white shadow-sm divide-y">
-          {[
-            { label: 'ผู้ขอลา',          value: leave.employeeName },
-            leave.reason                && { label: 'เหตุผล',              value: leave.reason },
-            leave.supervisorName        && { label: 'หัวหน้าผู้อนุมัติ',  value: leave.supervisorName },
-            leave.supervisorComment     && { label: 'ความเห็นหัวหน้า',    value: leave.supervisorComment },
-            leave.hrName                && { label: 'HR ผู้อนุมัติ',      value: leave.hrName },
-            leave.hrComment             && { label: 'ความเห็น HR',         value: leave.hrComment },
-            { label: 'ยื่นเมื่อ',        value: formatDate(leave.createdAt) },
-          ]
-            .filter(Boolean)
-            .map((row) => (
-              <div key={(row as { label: string }).label} className="flex justify-between gap-2 px-4 py-3">
-                <p className="text-sm text-muted-foreground">{(row as { label: string }).label}</p>
-                <p className="text-sm font-medium text-right">{(row as { value: string }).value}</p>
-              </div>
-            ))}
+          {detailRows.map((row) => (
+            <div key={row.label} className="flex justify-between gap-2 px-4 py-3">
+              <p className="text-sm text-muted-foreground">{row.label}</p>
+              <p className="text-sm font-medium text-right">{row.value}</p>
+            </div>
+          ))}
         </div>
 
         {/* เอกสารแนบ */}
         {leave.attachmentUrls.length > 0 && (
           <div className="rounded-xl border bg-white shadow-sm">
-            <p className="border-b px-4 py-3 text-sm font-medium">เอกสารแนบ ({leave.attachmentUrls.length})</p>
+            <p className="border-b px-4 py-3 text-sm font-medium">{t('attachments', { count: leave.attachmentUrls.length })}</p>
             <div className="divide-y">
               {leave.attachmentUrls.map((url, idx) => {
-                const name    = url.split('/').pop() ?? `ไฟล์ ${idx + 1}`
+                const name    = url.split('/').pop() ?? t('fileN', { n: idx + 1 })
                 const isImage = /\.(jpg|jpeg|png)$/i.test(url)
                 const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace('/v1', '') ?? ''
                 const fullUrl = url.startsWith('http') ? url : `${apiBase}${url}`
@@ -253,12 +260,12 @@ export default function LeaveDetailPage() {
         {/* Approve / Reject (Supervisor / HR) */}
         {canApprove && (
           <div className="rounded-xl border bg-white p-4 shadow-sm">
-            <p className="mb-2 text-sm font-medium">ดำเนินการ</p>
+            <p className="mb-2 text-sm font-medium">{t('actions')}</p>
             <textarea
               value={comment}
               onChange={e => setComment(e.target.value)}
               rows={2}
-              placeholder="ความเห็น (ถ้ามี)..."
+              placeholder={t('commentPlaceholder')}
               className="w-full rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
             />
             <div className="mt-3 flex gap-2">
@@ -267,33 +274,33 @@ export default function LeaveDetailPage() {
                 disabled={isRejecting || isApproving}
                 className="flex-1 rounded-xl border border-destructive py-2.5 text-sm font-medium text-destructive disabled:opacity-60"
               >
-                ปฏิเสธ
+                {t('reject')}
               </button>
               <button
                 onClick={handleApprove}
                 disabled={isApproving || isRejecting}
                 className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-medium text-white disabled:opacity-60"
               >
-                {isApproving ? 'กำลังอนุมัติ...' : 'อนุมัติ'}
+                {isApproving ? t('approving') : t('approve')}
               </button>
             </div>
 
             {showRejectConfirm && (
               <div className="mt-3 rounded-xl border border-destructive bg-destructive/5 p-3">
-                <p className="text-sm font-medium">ยืนยันการปฏิเสธคำขอลา?</p>
+                <p className="text-sm font-medium">{t('confirmRejectTitle')}</p>
                 <div className="mt-2 flex gap-2">
                   <button
                     onClick={() => setShowRejectConfirm(false)}
                     className="flex-1 rounded-xl border py-2 text-sm font-medium"
                   >
-                    ยกเลิก
+                    {tCommon('action.cancel')}
                   </button>
                   <button
                     onClick={handleReject}
                     disabled={isRejecting}
                     className="flex-1 rounded-xl bg-destructive py-2 text-sm font-medium text-white disabled:opacity-60"
                   >
-                    {isRejecting ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ'}
+                    {isRejecting ? tCommon('state.processing') : t('confirmReject')}
                   </button>
                 </div>
               </div>
@@ -307,27 +314,27 @@ export default function LeaveDetailPage() {
             onClick={() => setShowCancelConfirm(true)}
             className="rounded-xl border border-destructive py-3 text-sm font-medium text-destructive"
           >
-            ยกเลิกคำขอลา
+            {t('cancelRequest')}
           </button>
         )}
 
         {canCancel && showCancelConfirm && (
           <div className="rounded-xl border border-destructive bg-destructive/5 p-4">
-            <p className="text-sm font-medium">ยืนยันการยกเลิกคำขอลา?</p>
-            <p className="mt-1 text-xs text-muted-foreground">การกระทำนี้ไม่สามารถย้อนกลับได้</p>
+            <p className="text-sm font-medium">{t('confirmCancelTitle')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('irreversible')}</p>
             <div className="mt-3 flex gap-2">
               <button
                 onClick={() => setShowCancelConfirm(false)}
                 className="flex-1 rounded-xl border py-2 text-sm font-medium"
               >
-                ไม่ยกเลิก
+                {t('keep')}
               </button>
               <button
                 onClick={handleCancel}
                 disabled={isCancelling}
                 className="flex-1 rounded-xl bg-destructive py-2 text-sm font-medium text-white disabled:opacity-60"
               >
-                {isCancelling ? 'กำลังยกเลิก...' : 'ยืนยันยกเลิก'}
+                {isCancelling ? t('cancelling') : t('confirmCancel')}
               </button>
             </div>
           </div>
@@ -339,19 +346,19 @@ export default function LeaveDetailPage() {
             onClick={() => setShowRequestCancel(true)}
             className="rounded-xl border border-amber-400 py-3 text-sm font-medium text-amber-700"
           >
-            ขอยกเลิกการลา (รอ HR อนุมัติ)
+            {t('requestCancel')}
           </button>
         )}
 
         {canRequestCancel && showRequestCancel && (
           <div className="rounded-xl border border-amber-300 bg-amber-50 p-4">
-            <p className="text-sm font-semibold text-amber-800">ขอยกเลิกการลา</p>
-            <p className="mt-0.5 text-xs text-amber-700">คำขอนี้จะถูกส่งให้ HR พิจารณา ยังไม่ยกเลิกทันที</p>
+            <p className="text-sm font-semibold text-amber-800">{t('requestCancelTitle')}</p>
+            <p className="mt-0.5 text-xs text-amber-700">{t('requestCancelBody')}</p>
             <textarea
               value={cancelReason}
               onChange={e => setCancelReason(e.target.value)}
               rows={2}
-              placeholder="เหตุผลที่ต้องการยกเลิก (ถ้ามี)..."
+              placeholder={t('cancelReasonPlaceholder')}
               className="mt-3 w-full resize-none rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
             <div className="mt-3 flex gap-2">
@@ -359,14 +366,14 @@ export default function LeaveDetailPage() {
                 onClick={() => { setShowRequestCancel(false); setCancelReason('') }}
                 className="flex-1 rounded-xl border py-2.5 text-sm font-medium"
               >
-                ยกเลิก
+                {tCommon('action.cancel')}
               </button>
               <button
                 onClick={handleRequestCancel}
                 disabled={isRequesting}
                 className="flex-1 rounded-xl bg-amber-500 py-2.5 text-sm font-medium text-white disabled:opacity-60"
               >
-                {isRequesting ? 'กำลังส่ง...' : 'ส่งคำขอยกเลิก'}
+                {isRequesting ? tCommon('state.sending') : t('sendCancelRequest')}
               </button>
             </div>
           </div>

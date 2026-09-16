@@ -13,7 +13,9 @@ public record UpdateShiftCommand(
     TimeOnly StartTime,
     TimeOnly EndTime,
     int GracePeriodMinutes,
-    bool IsActive) : IRequest<ShiftDto>;
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null) : IRequest<ShiftDto>;
 
 public class UpdateShiftCommandValidator : AbstractValidator<UpdateShiftCommand>
 {
@@ -21,10 +23,12 @@ public class UpdateShiftCommandValidator : AbstractValidator<UpdateShiftCommand>
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.NameEn).MaximumLength(100).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(100).When(x => x.NameId is not null);
         RuleFor(x => x.GracePeriodMinutes).InclusiveBetween(0, 120);
         RuleFor(x => x).Must(x => x.StartTime.CompareTo(x.EndTime) < 0)
             .WithName("StartTime")
-            .WithMessage("เวลาเข้างานต้องน้อยกว่าเวลาเลิกงาน");
+            .WithErrorCode("SHIFT_TIME_RANGE_INVALID").WithMessage("The shift start time must be earlier than the end time.");
     }
 }
 
@@ -36,7 +40,7 @@ public class UpdateShiftHandler(IApplicationDbContext db, IScopeGuard scope, IAu
         var shift = await db.Shifts
             .Include(s => s.Company)
             .FirstOrDefaultAsync(s => s.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException($"ไม่พบ Shift Id '{request.Id}'");
+            ?? throw new NotFoundException("Shift", request.Id, "SHIFT_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(shift.CompanyId, ct);
 
@@ -46,11 +50,13 @@ public class UpdateShiftHandler(IApplicationDbContext db, IScopeGuard scope, IAu
                         && s.Id != request.Id
                         && s.IsActive, ct);
         if (duplicate)
-            throw new ConflictException("DUPLICATE_SHIFT", $"ชื่อกะ '{request.Name}' มีอยู่แล้วใน company นี้");
+            throw new ConflictException("DUPLICATE_SHIFT", $"Shift '{request.Name}' already exists in this company.");
 
         var oldValues = new { shift.Name, shift.StartTime, shift.EndTime, shift.GracePeriodMinutes, shift.IsActive };
 
         shift.Name               = request.Name;
+        shift.NameEn             = Common.Helpers.NameText.Apply(shift.NameEn, request.NameEn);
+        shift.NameId             = Common.Helpers.NameText.Apply(shift.NameId, request.NameId);
         shift.StartTime          = request.StartTime;
         shift.EndTime            = request.EndTime;
         shift.GracePeriodMinutes = request.GracePeriodMinutes;

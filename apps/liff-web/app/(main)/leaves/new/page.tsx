@@ -2,39 +2,48 @@
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { useLocale, useTranslations } from 'next-intl'
 import { z } from 'zod'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/style.css'
+import { localizedName } from '@hrms/i18n'
 import { useCreateLeave, useLeaveBalance, useLeaveTypes } from '@/hooks/use-leaves'
 import { useAttendanceToday } from '@/hooks/use-attendance'
+import { useFmt } from '@/hooks/use-fmt'
 import { ChevronLeft, CalendarDays, Clock, FileText, AlertCircle, Paperclip, X } from 'lucide-react'
 import Link from 'next/link'
+import { apiErrorText } from '@/lib/api-message'
 import { uploadLeaveAttachment } from '@/lib/upload.api'
 
 const today = new Date()
 today.setHours(0, 0, 0, 0)
 
-const schema = z
-  .object({
-    leaveTypeId: z.string({ error: 'กรุณาเลือกประเภทการลา' }).min(1, 'กรุณาเลือกประเภทการลา'),
-    dateFrom: z.date({ error: 'กรุณาเลือกวันเริ่มต้น' }),
-    dateTo: z.date({ error: 'กรุณาเลือกวันสิ้นสุด' }),
-    timeFrom: z.string().optional(),
-    timeTo: z.string().optional(),
-    reason: z.string().max(500).optional(),
-  })
-  .refine(d => d.dateTo >= d.dateFrom, {
-    message: 'วันสิ้นสุดต้องไม่ก่อนวันเริ่มต้น',
-    path: ['dateTo'],
-  })
-  .refine(
-    d => !d.timeFrom || !d.timeTo || d.timeTo > d.timeFrom,
-    { message: 'เวลาสิ้นสุดต้องหลังเวลาเริ่มต้น', path: ['timeTo'] }
-  )
+type NewLeaveTranslator = ReturnType<typeof useTranslations<'liff.leave.new'>>
 
-type FormValues = z.infer<typeof schema>
+// ข้อความ validation มาจากไฟล์ภาษา จึงสร้าง schema ในคอมโพเนนต์ (แผน i18n งาน 1.14)
+function buildSchema(t: NewLeaveTranslator) {
+  return z
+    .object({
+      leaveTypeId: z.string({ error: t('validation.leaveTypeRequired') }).min(1, t('validation.leaveTypeRequired')),
+      dateFrom: z.date({ error: t('validation.dateFromRequired') }),
+      dateTo: z.date({ error: t('validation.dateToRequired') }),
+      timeFrom: z.string().optional(),
+      timeTo: z.string().optional(),
+      reason: z.string().max(500).optional(),
+    })
+    .refine(d => d.dateTo >= d.dateFrom, {
+      message: t('validation.dateOrder'),
+      path: ['dateTo'],
+    })
+    .refine(
+      d => !d.timeFrom || !d.timeTo || d.timeTo > d.timeFrom,
+      { message: t('validation.timeOrder'), path: ['timeTo'] }
+    )
+}
+
+type FormValues = z.infer<ReturnType<typeof buildSchema>>
 
 function toISODate(d: Date) {
   const y = d.getFullYear()
@@ -43,28 +52,16 @@ function toISODate(d: Date) {
   return `${y}-${m}-${day}`
 }
 
-function calcDisplay(from?: Date, to?: Date, timeFrom?: string, timeTo?: string) {
-  if (!from || !to) return null
-  if (timeFrom && timeTo) {
-    const [fh, fm] = timeFrom.split(':').map(Number)
-    const [th, tm] = timeTo.split(':').map(Number)
-    const hours = (th * 60 + tm - fh * 60 - fm) / 60
-    return hours > 0 ? `${hours} ชั่วโมง` : null
-  }
-  const days = Math.round((to.getTime() - from.getTime()) / 86400000) + 1
-  return `${days} วัน`
-}
-
 const DURATION_OPTIONS = [
-  { label: '30 นาที', minutes: 30 },
-  { label: '1 ชม.',   minutes: 60 },
-  { label: '1.5 ชม.', minutes: 90 },
-  { label: '2 ชม.',   minutes: 120 },
-  { label: '3 ชม.',   minutes: 180 },
-  { label: '4 ชม.',   minutes: 240 },
-  { label: 'ครึ่งวัน', minutes: 240 },
-  { label: 'เต็มวัน',  minutes: 480 },
-]
+  { key: 'm30', minutes: 30 },
+  { key: 'h1', minutes: 60 },
+  { key: 'h1_5', minutes: 90 },
+  { key: 'h2', minutes: 120 },
+  { key: 'h3', minutes: 180 },
+  { key: 'h4', minutes: 240 },
+  { key: 'halfDay', minutes: 240 },
+  { key: 'fullDay', minutes: 480 },
+] as const
 
 function addMinutes(time: string, mins: number): string {
   const [h, m] = time.split(':').map(Number)
@@ -77,6 +74,11 @@ function addMinutes(time: string, mins: number): string {
 const LEAVE_COLORS = ['#0ea5e9', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#06b6d4']
 
 export default function NewLeavePage() {
+  const t = useTranslations('liff.leave.new')
+  const tCommon = useTranslations('common')
+  const tErrors = useTranslations('errors')
+  const locale = useLocale()
+  const fmt = useFmt()
   const router = useRouter()
   const { data: leaveTypes, isLoading: typesLoading } = useLeaveTypes()
   const { data: balances } = useLeaveBalance()
@@ -90,6 +92,7 @@ export default function NewLeavePage() {
   const [apiError, setApiError] = useState<string | null>(null)
   const [attachFiles, setAttachFiles] = useState<File[]>([])
 
+  const schema = useMemo(() => buildSchema(t), [t])
   const {
     register,
     handleSubmit,
@@ -106,6 +109,19 @@ export default function NewLeavePage() {
   const timeFrom = watch('timeFrom')
   const timeTo = watch('timeTo')
   const reason = watch('reason') ?? ''
+
+  // จำนวนที่ลา — เป็นชั่วโมงถ้าระบุเวลาในวันเดียว ไม่งั้นเป็นวัน
+  const calcDisplay = (from?: Date, to?: Date, tFrom?: string, tTo?: string) => {
+    if (!from || !to) return null
+    if (tFrom && tTo) {
+      const [fh, fm] = tFrom.split(':').map(Number)
+      const [th, tm] = tTo.split(':').map(Number)
+      const hours = (th * 60 + tm - fh * 60 - fm) / 60
+      return hours > 0 ? tCommon('duration.hours', { count: hours }) : null
+    }
+    const days = Math.round((to.getTime() - from.getTime()) / 86400000) + 1
+    return tCommon('duration.days', { count: days })
+  }
 
   const isSingleDay = dateFrom && dateTo && dateFrom.getTime() === dateTo.getTime()
   const displayDuration = calcDisplay(dateFrom, dateTo, timeFrom, timeTo)
@@ -135,14 +151,14 @@ export default function NewLeavePage() {
     e.target.value = ''
     const tooBig = incoming.filter(f => f.size > MAX_SIZE)
     if (tooBig.length) {
-      setApiError(`ไฟล์ต่อไปนี้ใหญ่เกิน 10 MB: ${tooBig.map(f => f.name).join(', ')}`)
+      setApiError(t('fileTooBig', { names: tooBig.map(f => f.name).join(', ') }))
       return
     }
     setAttachFiles(prev => {
       const existing = new Set(prev.map(f => f.name + f.size))
       const added = [...prev, ...incoming.filter(f => !existing.has(f.name + f.size))]
       if (added.length > MAX_FILES) {
-        setApiError(`แนบได้สูงสุด ${MAX_FILES} ไฟล์`)
+        setApiError(t('tooManyFiles', { max: MAX_FILES }))
         return prev.length < MAX_FILES ? added.slice(0, MAX_FILES) : prev
       }
       setApiError(null)
@@ -172,12 +188,12 @@ export default function NewLeavePage() {
       })
       router.replace(`/leaves/${result.id}`)
     } catch (err: unknown) {
-      const code = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      if (code === 'OVERLAPPING_LEAVE') setApiError('มีวันลาที่ทับซ้อนกับช่วงเวลาที่เลือกอยู่แล้ว')
-      else if (code === 'INSUFFICIENT_BALANCE') setApiError('วันลาคงเหลือไม่เพียงพอ')
-      else setApiError('เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง')
+      // OVERLAPPING_LEAVE / INSUFFICIENT_BALANCE แปลจาก errors.<code>
+      setApiError(apiErrorText(err, tErrors, tCommon('state.error')))
     }
   }
+
+  const optionalHint = <span className="font-normal text-muted-foreground">{tCommon('field.optional')}</span>
 
   return (
     <div className="min-h-screen bg-[#f0f6ff]">
@@ -189,12 +205,12 @@ export default function NewLeavePage() {
             <ChevronLeft className="h-5 w-5" />
           </Link>
           <div>
-            <h1 className="text-lg font-bold text-white">ขอลางาน</h1>
-            <p className="text-xs text-white/70">เลือกประเภทและช่วงวันที่ลา</p>
+            <h1 className="text-lg font-bold text-white">{t('title')}</h1>
+            <p className="text-xs text-white/70">{t('subtitle')}</p>
           </div>
           {displayDuration && (
             <div className="ml-auto rounded-xl bg-white/20 px-3 py-1.5 text-right">
-              <p className="text-[10px] text-white/70">จำนวน</p>
+              <p className="text-[10px] text-white/70">{t('amount')}</p>
               <p className="text-sm font-bold text-white">{displayDuration}</p>
             </div>
           )}
@@ -204,10 +220,10 @@ export default function NewLeavePage() {
           <div className="mt-3 flex items-center gap-2 rounded-xl bg-white/15 px-3 py-2">
             <CalendarDays className="h-4 w-4 shrink-0 text-white/70" />
             <span className="text-sm font-medium text-white">
-              {dateFrom.toLocaleDateString('th-TH', { dateStyle: 'medium' })}
+              {fmt.formatDate(dateFrom, { dateStyle: 'medium' })}
               {dateTo && dateTo.getTime() !== dateFrom.getTime() &&
-                ` – ${dateTo.toLocaleDateString('th-TH', { dateStyle: 'medium' })}`}
-              {timeFrom && timeTo && ` · ${timeFrom}–${timeTo} น.`}
+                ` – ${fmt.formatDate(dateTo, { dateStyle: 'medium' })}`}
+              {timeFrom && timeTo && ` · ${tCommon('time.range', { from: timeFrom, to: timeTo })}`}
             </span>
           </div>
         )}
@@ -219,10 +235,13 @@ export default function NewLeavePage() {
         <div className="rounded-2xl bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <FileText className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold">ประเภทการลา</span>
+            <span className="text-sm font-semibold">{t('leaveType')}</span>
             {selectedBal && (
               <span className="ml-auto text-xs text-muted-foreground">
-                คงเหลือ <span className="font-semibold text-primary">{selectedBal.remainingDays}</span> วัน
+                {t.rich('remaining', {
+                  days: selectedBal.remainingDays,
+                  b: (chunks) => <span className="font-semibold text-primary">{chunks}</span>,
+                })}
               </span>
             )}
           </div>
@@ -232,7 +251,7 @@ export default function NewLeavePage() {
               {[1, 2, 3].map(i => <div key={i} className="h-9 w-24 animate-pulse rounded-full bg-whited" />)}
             </div>
           ) : availableTypes?.length === 0 ? (
-            <p className="text-sm text-muted-foreground">ไม่มีประเภทการลาที่มีโควต้าเหลือ</p>
+            <p className="text-sm text-muted-foreground">{t('noTypes')}</p>
           ) : (
             <div className="flex gap-2 overflow-x-auto pb-0.5 scrollbar-none">
               {availableTypes?.map((lt, idx) => {
@@ -249,7 +268,7 @@ export default function NewLeavePage() {
                       : { borderColor: '#e5e5e5', backgroundColor: '#fff', color: '#555' }
                     }
                   >
-                    {lt.nameTh}
+                    {localizedName(lt, locale)}
                   </button>
                 )
               })}
@@ -264,7 +283,7 @@ export default function NewLeavePage() {
         <div className="rounded-2xl bg-white px-3 pb-3 pt-4 shadow-sm">
           <div className="mb-2 flex items-center gap-2 px-1">
             <CalendarDays className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold">เลือกวันที่ลา</span>
+            <span className="text-sm font-semibold">{t('selectDates')}</span>
           </div>
 
           <DayPicker
@@ -316,20 +335,20 @@ export default function NewLeavePage() {
           <div className="rounded-2xl bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center gap-2">
               <Clock className="h-4 w-4 text-primary" />
-              <span className="text-sm font-semibold">ระบุเวลา</span>
+              <span className="text-sm font-semibold">{t('specifyTime')}</span>
               {shiftStart && shiftEnd ? (
                 <span className="ml-auto rounded-full bg-sky-50 px-2.5 py-0.5 text-xs text-sky-600">
-                  กะ {shiftStart}–{shiftEnd}
+                  {t('shift', { from: shiftStart, to: shiftEnd })}
                 </span>
               ) : (
-                <span className="ml-auto text-xs text-muted-foreground">ไม่บังคับ</span>
+                <span className="ml-auto text-xs text-muted-foreground">{t('notRequired')}</span>
               )}
             </div>
 
             {/* เวลาเริ่ม / สิ้นสุด — list row style */}
             <div className="divide-y rounded-xl border bg-whited overflow-hidden">
               <label className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-muted-foreground">เวลาเริ่มต้น</span>
+                <span className="text-sm text-muted-foreground">{t('timeFrom')}</span>
                 <input
                   type="time"
                   value={timeFrom ?? ''}
@@ -343,7 +362,7 @@ export default function NewLeavePage() {
                 />
               </label>
               <label className="flex items-center justify-between px-4 py-3">
-                <span className="text-sm text-muted-foreground">เวลาสิ้นสุด</span>
+                <span className="text-sm text-muted-foreground">{t('timeTo')}</span>
                 <input
                   type="time"
                   value={timeTo ?? ''}
@@ -358,14 +377,14 @@ export default function NewLeavePage() {
             {/* Duration presets — กดเพื่อ auto-set เวลาสิ้นสุด */}
             {timeFrom && (
               <>
-                <p className="mb-2 mt-3 text-xs font-medium text-muted-foreground">เลือกระยะเวลาด่วน</p>
+                <p className="mb-2 mt-3 text-xs font-medium text-muted-foreground">{t('quickDuration')}</p>
                 <div className="flex flex-wrap gap-2">
-                  {DURATION_OPTIONS.map(({ label, minutes }) => {
+                  {DURATION_OPTIONS.map(({ key, minutes }) => {
                     const endTime = addMinutes(timeFrom, minutes)
                     const selected = timeTo === endTime
                     return (
                       <button
-                        key={`${label}-${minutes}`}
+                        key={key}
                         type="button"
                         onClick={() => setValue('timeTo', endTime)}
                         className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
@@ -374,7 +393,7 @@ export default function NewLeavePage() {
                             : 'border-border bg-whited text-foreground'
                         }`}
                       >
-                        {label}
+                        {t(`presets.${key}`)}
                         {!selected && <span className="ml-1 text-muted-foreground">→ {endTime}</span>}
                       </button>
                     )
@@ -386,7 +405,7 @@ export default function NewLeavePage() {
             {/* Result summary */}
             {timeFrom && timeTo && displayDuration && (
               <div className="mt-3 flex items-center justify-between rounded-xl bg-primary/5 px-4 py-2.5">
-                <span className="text-sm font-semibold text-primary">{timeFrom} – {timeTo} น.</span>
+                <span className="text-sm font-semibold text-primary">{tCommon('time.range', { from: timeFrom, to: timeTo })}</span>
                 <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-sm font-bold text-primary">
                   {displayDuration}
                 </span>
@@ -401,7 +420,7 @@ export default function NewLeavePage() {
                 onClick={() => { setValue('timeFrom', undefined); setValue('timeTo', undefined) }}
                 className="mt-2 w-full text-center text-xs text-muted-foreground underline"
               >
-                ล้างเวลา
+                {t('clearTime')}
               </button>
             )}
           </div>
@@ -412,13 +431,13 @@ export default function NewLeavePage() {
           <div className="mb-3 flex items-center gap-2">
             <FileText className="h-4 w-4 text-primary" />
             <span className="text-sm font-semibold">
-              เหตุผล <span className="font-normal text-muted-foreground">(ถ้ามี)</span>
+              {t('reason')} {optionalHint}
             </span>
           </div>
           <textarea
             {...register('reason')}
             rows={3}
-            placeholder="ระบุเหตุผลการลา..."
+            placeholder={t('reasonPlaceholder')}
             className="w-full resize-none rounded-xl border bg-whited px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
           <div className="mt-1 flex justify-end">
@@ -433,13 +452,13 @@ export default function NewLeavePage() {
           <div className="mb-3 flex items-center gap-2">
             <Paperclip className="h-4 w-4 text-primary" />
             <span className="text-sm font-semibold">
-              เอกสารแนบ{selectedType?.requiresAttachment
+              {t('attachments')}{selectedType?.requiresAttachment
                 ? <span className="ml-1 text-destructive">*</span>
-                : <span className="ml-1 font-normal text-muted-foreground">(ถ้ามี)</span>}
+                : <span className="ml-1">{optionalHint}</span>}
             </span>
             {attachFiles.length > 0 && (
               <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                {attachFiles.length} ไฟล์
+                {t('fileCount', { count: attachFiles.length })}
               </span>
             )}
           </div>
@@ -475,13 +494,13 @@ export default function NewLeavePage() {
             <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-border py-4 transition-colors hover:border-primary/50 hover:bg-primary/5">
               <Paperclip className="h-5 w-5 text-muted-foreground" />
               <span className="text-sm text-muted-foreground">
-                {attachFiles.length > 0 ? 'แตะเพื่อเพิ่มไฟล์อีก' : 'แตะเพื่อเลือกไฟล์'}
+                {attachFiles.length > 0 ? t('tapToAdd') : t('tapToSelect')}
               </span>
-              <span className="text-xs text-muted-foreground/70">.jpg .jpeg .png .pdf · สูงสุด 10 MB/ไฟล์ · ไม่เกิน {MAX_FILES} ไฟล์</span>
+              <span className="text-xs text-muted-foreground/70">{t('fileHint', { max: MAX_FILES })}</span>
               <input type="file" accept=".jpg,.jpeg,.png,.pdf" multiple className="hidden" onChange={handleFileChange} />
             </label>
           ) : (
-            <p className="text-center text-xs text-muted-foreground py-2">แนบครบ {MAX_FILES} ไฟล์แล้ว</p>
+            <p className="text-center text-xs text-muted-foreground py-2">{t('filesFull', { max: MAX_FILES })}</p>
           )}
         </div>
 
@@ -498,11 +517,11 @@ export default function NewLeavePage() {
       <div className="fixed bottom-16 left-0 right-0 border-t bg-white/95 px-4 py-3 backdrop-blur-sm">
         {selectedType && dateFrom && (
           <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{selectedType.nameTh}</span>
+            <span className="font-medium text-foreground">{localizedName(selectedType, locale)}</span>
             <span>
-              {dateFrom.toLocaleDateString('th-TH', { dateStyle: 'short' })}
+              {fmt.formatDate(dateFrom, { dateStyle: 'short' })}
               {dateTo && dateTo.getTime() !== dateFrom.getTime()
-                ? ` – ${dateTo.toLocaleDateString('th-TH', { dateStyle: 'short' })}`
+                ? ` – ${fmt.formatDate(dateTo, { dateStyle: 'short' })}`
                 : ''}
               {displayDuration && ` · ${displayDuration}`}
             </span>
@@ -517,10 +536,10 @@ export default function NewLeavePage() {
           {isSubmitting ? (
             <span className="flex items-center justify-center gap-2">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-              กำลังส่งคำขอ...
+              {t('submitting')}
             </span>
           ) : (
-            'ยืนยันการขอลา'
+            t('submit')
           )}
         </button>
       </div>

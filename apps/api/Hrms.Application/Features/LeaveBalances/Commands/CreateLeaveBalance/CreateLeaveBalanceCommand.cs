@@ -31,13 +31,13 @@ public class CreateLeaveBalanceHandler(IApplicationDbContext db, IScopeGuard sco
         var employee = await db.Employees
             .Include(e => e.Department)
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบพนักงาน");
+            ?? throw new NotFoundException("Employee", request.EmployeeId, "EMPLOYEE_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(employee.CompanyId);
 
         var leaveType = await db.LeaveTypes
             .FirstOrDefaultAsync(lt => lt.Id == request.LeaveTypeId && lt.IsActive, ct)
-            ?? throw new KeyNotFoundException("ไม่พบประเภทการลา");
+            ?? throw new NotFoundException("LeaveType", request.LeaveTypeId, "LEAVE_TYPE_NOT_FOUND");
 
         var exists = await db.LeaveBalances.AnyAsync(
             b => b.EmployeeId == request.EmployeeId &&
@@ -45,7 +45,7 @@ public class CreateLeaveBalanceHandler(IApplicationDbContext db, IScopeGuard sco
                  b.Year == request.Year, ct);
 
         if (exists)
-            throw new ConflictException("BALANCE_ALREADY_EXISTS", "มีสิทธิ์ของพนักงานและประเภทการลานี้อยู่แล้ว");
+            throw new ConflictException("BALANCE_ALREADY_EXISTS", "This employee already has a balance for this leave type.");
 
         var balance = new LeaveBalance
         {

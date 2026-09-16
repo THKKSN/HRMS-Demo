@@ -1,4 +1,5 @@
 using System.Text;
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Common.Options;
 using Microsoft.Extensions.Options;
@@ -14,7 +15,7 @@ public sealed class ExternalRepairSyncClient(HttpClient httpClient, IOptions<Ext
     {
         var configuration = options.Value;
         if (!configuration.Enabled || string.IsNullOrWhiteSpace(configuration.Endpoint))
-            throw new InvalidOperationException("External repair sync ยังไม่ได้เปิดใช้งานหรือไม่ได้ตั้งค่า Endpoint");
+            throw new InvalidOperationException("External repair sync is disabled or its Endpoint is not configured.");
 
         using var request = new HttpRequestMessage(HttpMethod.Post, configuration.Endpoint)
         {

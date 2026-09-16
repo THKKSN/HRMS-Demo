@@ -1,11 +1,14 @@
 'use client'
 
-export function gpsErrorMessage(err: GeolocationPositionError): string {
+export type GpsErrorKey = 'denied' | 'unavailable' | 'timeout' | 'error'
+
+// คืน key ให้หน้าจอแปลเอง (liff.attendance.gps.*) — hook นี้ไม่รู้จักภาษา
+export function gpsErrorKey(err: GeolocationPositionError): GpsErrorKey {
   switch (err.code) {
-    case 1: return 'กรุณาอนุญาตให้แอปเข้าถึง GPS'
-    case 2: return 'ไม่สามารถระบุตำแหน่งได้ กรุณาลองใหม่'
-    case 3: return 'หมดเวลา กรุณาลองใหม่'
-    default: return 'เกิดข้อผิดพลาด GPS'
+    case 1: return 'denied'
+    case 2: return 'unavailable'
+    case 3: return 'timeout'
+    default: return 'error'
   }
 }
 

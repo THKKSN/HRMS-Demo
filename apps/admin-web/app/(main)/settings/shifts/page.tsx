@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -16,6 +17,8 @@ import { useCompanies } from '@/hooks/use-companies'
 import { useAuthStore } from '@/stores/auth.store'
 import type { ShiftDto } from '@/types/admin'
 import type { CompanyTreeDto } from '@hrms/shared-types'
+import { localizedName, type Locale } from '@hrms/i18n'
+import { useApiError } from '@/hooks/use-api-error'
 
 function flattenCompanies(nodes: CompanyTreeDto[]): CompanyTreeDto[] {
   return nodes.flatMap((n) => [n, ...flattenCompanies(n.children)])
@@ -33,21 +36,28 @@ function FieldError({ message }: { message?: string }) {
 }
 
 // ── schema ───────────────────────────────────────────────────────────────────
+// ข้อความ validation ต้องมาจาก useTranslations จึงสร้าง schema ใน component (แบบเดียวกับงาน 2.5)
 
-const shiftSchema = z
-  .object({
-    companyId: z.string().min(1, 'กรุณาเลือกบริษัท'),
-    name: z.string().min(1, 'กรุณาระบุชื่อกะ').max(100),
-    startTime: z.string().regex(/^\d{2}:\d{2}$/, 'รูปแบบเวลาไม่ถูกต้อง'),
-    endTime: z.string().regex(/^\d{2}:\d{2}$/, 'รูปแบบเวลาไม่ถูกต้อง'),
-    gracePeriodMinutes: z.number().int().min(0).max(120),
-  })
-  .refine((d) => d.startTime < d.endTime, {
-    message: 'เวลาเข้างานต้องน้อยกว่าเวลาเลิกงาน',
-    path: ['endTime'],
-  })
+type ShiftTexts = (key: string) => string
 
-type ShiftValues = z.infer<typeof shiftSchema>
+function buildShiftSchema(t: ShiftTexts) {
+  return z
+    .object({
+      companyId: z.string().min(1, t('validation.company')),
+      name: z.string().min(1, t('validation.name')).max(100),
+      nameEn: z.string().max(100).optional().or(z.literal('')),
+      nameId: z.string().max(100).optional().or(z.literal('')),
+      startTime: z.string().regex(/^\d{2}:\d{2}$/, t('validation.timeFormat')),
+      endTime: z.string().regex(/^\d{2}:\d{2}$/, t('validation.timeFormat')),
+      gracePeriodMinutes: z.number().int().min(0).max(120),
+    })
+    .refine((d) => d.startTime < d.endTime, {
+      message: t('validation.timeOrder'),
+      path: ['endTime'],
+    })
+}
+
+type ShiftValues = z.infer<ReturnType<typeof buildShiftSchema>>
 
 // ── Create Modal ──────────────────────────────────────────────────────────────
 
@@ -62,7 +72,13 @@ function CreateModal({
   defaultCompanyId?: string
   companies: CompanyTreeDto[]
 }) {
+  const t = useTranslations('admin.settings.shifts')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const locale = useLocale() as Locale
   const create = useCreateShift()
+  const schema = useMemo(() => buildShiftSchema(t), [t])
   const {
     register,
     handleSubmit,
@@ -70,7 +86,7 @@ function CreateModal({
     reset,
     formState: { errors, isSubmitting },
   } = useForm<ShiftValues>({
-    resolver: zodResolver(shiftSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       companyId: defaultCompanyId ?? '',
       startTime: '08:00',
@@ -84,36 +100,38 @@ function CreateModal({
       await create.mutateAsync({
         companyId: values.companyId,
         name: values.name,
+        nameEn: values.nameEn ?? '',
+        nameId: values.nameId ?? '',
         startTime: values.startTime + ':00',
         endTime: values.endTime + ':00',
         gracePeriodMinutes: values.gracePeriodMinutes,
       })
-      toast.success(`เพิ่มกะ "${values.name}" สำเร็จ`)
+      toast.success(t('created', { name: values.name }))
       reset()
       onClose()
     } catch (err: unknown) {
       const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
       if (apiErr?.error === 'DUPLICATE_SHIFT')
-        setError('name', { message: 'มีชื่อกะนี้อยู่แล้วใน company นี้' })
+        setError('name', { message: t('duplicate') })
       else
-        toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+        toast.error(apiError(err, tCommon('state.error')))
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="เพิ่มเวลาทำงานใหม่">
+    <Modal open={open} onClose={onClose} title={t('addTitle')}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="c-company">บริษัท <span className='text-red-500'>*</span></Label>
+          <Label htmlFor="c-company">{tOrg('company')} <span className='text-red-500'>*</span></Label>
           <select
             id="c-company"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             {...register('companyId')}
           >
-            <option value="">เลือกบริษัท</option>
+            <option value="">{tOrg('selectCompany')}</option>
             {companies?.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
+                {localizedName(c, locale)}
               </option>
             ))}
           </select>
@@ -121,26 +139,40 @@ function CreateModal({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="c-name">ชื่อ <span className='text-red-500'>*</span></Label>
-          <Input id="c-name" placeholder="เช่น กะเช้า" {...register('name')} />
+          <Label htmlFor="c-name">{t('name')} <span className='text-red-500'>*</span></Label>
+          <Input id="c-name" placeholder={t('namePlaceholder')} {...register('name')} />
           <FieldError message={errors.name?.message} />
+        </div>
+
+        {/* ชื่อภาษาอื่นสำหรับหน้าจอที่สลับภาษา — ว่างได้ ระบบจะแสดงชื่อไทยแทน */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="c-name-en">{tOrg('nameEn')}</Label>
+            <Input id="c-name-en" {...register('nameEn')} />
+            <FieldError message={errors.nameEn?.message} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="c-name-id">{tOrg('nameId')}</Label>
+            <Input id="c-name-id" {...register('nameId')} />
+            <FieldError message={errors.nameId?.message} />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="c-start">เวลาเข้างาน <span className='text-red-500'>*</span></Label>
+            <Label htmlFor="c-start">{t('startTime')} <span className='text-red-500'>*</span></Label>
             <Input id="c-start" type="time" {...register('startTime')} />
             <FieldError message={errors.startTime?.message} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="c-end">เวลาเลิกงาน <span className='text-red-500'>*</span></Label>
+            <Label htmlFor="c-end">{t('endTime')} <span className='text-red-500'>*</span></Label>
             <Input id="c-end" type="time" {...register('endTime')} />
             <FieldError message={errors.endTime?.message} />
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="c-grace">ผ่อนปรน (นาที)</Label>
+          <Label htmlFor="c-grace">{t('gracePeriod')}</Label>
           <Input
             id="c-grace"
             type="number"
@@ -155,10 +187,10 @@ function CreateModal({
 
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" onClick={onClose}>
-            ยกเลิก
+            {tCommon('action.cancel')}
           </Button>
           <Button type="submit" loading={isSubmitting}>
-            บันทึก
+            {tCommon('action.save')}
           </Button>
         </div>
       </form>
@@ -169,18 +201,25 @@ function CreateModal({
 // ── Edit Modal ────────────────────────────────────────────────────────────────
 
 function EditModal({ item, onClose }: { item: ShiftDto; onClose: () => void }) {
+  const t = useTranslations('admin.settings.shifts')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
   const update = useUpdateShift()
   const toggle = useToggleShiftStatus()
+  const schema = useMemo(() => buildShiftSchema(t), [t])
   const {
     register,
     handleSubmit,
     setError,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<ShiftValues>({
-    resolver: zodResolver(shiftSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       companyId: item.companyId,
       name: item.name,
+      nameEn: item.nameEn ?? '',
+      nameId: item.nameId ?? '',
       startTime: fmt(item.startTime),
       endTime: fmt(item.endTime),
       gracePeriodMinutes: item.gracePeriodMinutes,
@@ -192,29 +231,33 @@ function EditModal({ item, onClose }: { item: ShiftDto; onClose: () => void }) {
       await update.mutateAsync({
         id: item.id,
         name: values.name,
+        nameEn: values.nameEn ?? '',
+        nameId: values.nameId ?? '',
         startTime: values.startTime + ':00',
         endTime: values.endTime + ':00',
         gracePeriodMinutes: values.gracePeriodMinutes,
         isActive: item.isActive,
       })
-      toast.success(`บันทึก "${values.name}" สำเร็จ`)
+      toast.success(t('saved', { name: values.name }))
       onClose()
     } catch (err: unknown) {
       const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
       if (apiErr?.error === 'DUPLICATE_SHIFT')
-        setError('name', { message: 'มีชื่อกะนี้อยู่แล้วใน company นี้' })
+        setError('name', { message: t('duplicate') })
       else
-        toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+        toast.error(apiError(err, tCommon('state.error')))
     }
   }
 
   async function handleToggle() {
     try {
       await toggle.mutateAsync({ id: item.id, isActive: !item.isActive })
-      toast.success(`${item.isActive ? 'ปิด' : 'เปิด'}ใช้งาน "${item.name}" สำเร็จ`)
+      toast.success(item.isActive
+        ? t('deactivated', { name: item.name })
+        : t('activated', { name: item.name }))
       onClose()
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      toast.error(tCommon('state.error'))
     }
   }
 
@@ -222,32 +265,45 @@ function EditModal({ item, onClose }: { item: ShiftDto; onClose: () => void }) {
     <Modal open onClose={onClose} title={`${item.name}`}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         <div className="space-y-1.5">
-          <Label>บริษัท (ไม่สามารถเปลี่ยนได้)</Label>
+          <Label>{t('companyLocked')}</Label>
           <Input value={item.companyName} disabled />
           <input type="hidden" {...register('companyId')} />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="e-name">ชื่อกะ <span className='text-red-500'>*</span></Label>
+          <Label htmlFor="e-name">{t('shiftName')} <span className='text-red-500'>*</span></Label>
           <Input id="e-name" {...register('name')} />
           <FieldError message={errors.name?.message} />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="e-start">เวลาเข้างาน <span className='text-red-500'>*</span></Label>
+            <Label htmlFor="e-name-en">{tOrg('nameEn')}</Label>
+            <Input id="e-name-en" {...register('nameEn')} />
+            <FieldError message={errors.nameEn?.message} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="e-name-id">{tOrg('nameId')}</Label>
+            <Input id="e-name-id" {...register('nameId')} />
+            <FieldError message={errors.nameId?.message} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="e-start">{t('startTime')} <span className='text-red-500'>*</span></Label>
             <Input id="e-start" type="time" {...register('startTime')} />
             <FieldError message={errors.startTime?.message} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="e-end">เวลาเลิกงาน <span className='text-red-500'>*</span></Label>
+            <Label htmlFor="e-end">{t('endTime')} <span className='text-red-500'>*</span></Label>
             <Input id="e-end" type="time" {...register('endTime')} />
             <FieldError message={errors.endTime?.message} />
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="e-grace">ผ่อนปรน (นาที)</Label>
+          <Label htmlFor="e-grace">{t('gracePeriod')}</Label>
           <Input
             id="e-grace"
             type="number"
@@ -265,14 +321,14 @@ function EditModal({ item, onClose }: { item: ShiftDto; onClose: () => void }) {
             onClick={handleToggle}
             loading={toggle.isPending}
           >
-            {item.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+            {item.isActive ? tOrg('deactivate') : tOrg('activate')}
           </Button>
           <div className="flex gap-2">
             <Button type="button" variant="outline" onClick={onClose}>
-              ยกเลิก
+              {tCommon('action.cancel')}
             </Button>
             <Button type="submit" loading={isSubmitting} disabled={!isDirty}>
-              บันทึก
+              {tCommon('action.save')}
             </Button>
           </div>
         </div>
@@ -284,6 +340,9 @@ function EditModal({ item, onClose }: { item: ShiftDto; onClose: () => void }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function ShiftsPage() {
+  const t = useTranslations('admin.settings.shifts')
+  const tOrg = useTranslations('admin.org.common')
+  const locale = useLocale() as Locale
   const employee = useAuthStore((s) => s.employee)
   const isAdmin = employee?.roles.some((r) => r.role === 'Admin') ?? false
   const isHr = employee?.roles.some((r) => r.role === 'Hr') ?? false
@@ -308,10 +367,10 @@ export default function ShiftsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">เวลาทำงาน</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t('title')}</h1>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
-          เพิ่มเวลาทำงาน
+          {t('add')}
         </Button>
       </div>
 
@@ -323,10 +382,10 @@ export default function ShiftsPage() {
             value={companyId ?? ''}
             onChange={(e) => setCompanyId(e.target.value || undefined)}
           >
-            <option value="">ทุกบริษัท</option>
+            <option value="">{tOrg('allCompanies')}</option>
             {allCompanies.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
+                {localizedName(c, locale)}
               </option>
             ))}
           </select>
@@ -338,7 +397,7 @@ export default function ShiftsPage() {
             onChange={(e) => setIncludeInactive(e.target.checked)}
             className="rounded border-border"
           />
-          รวมที่ปิดใช้งาน
+          {t('includeInactive')}
         </label>
       </div>
 
@@ -347,12 +406,12 @@ export default function ShiftsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-whited/50">
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อ</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">บริษัท</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">เข้างาน</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">เลิกงาน</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ผ่อนปรน</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">สถานะ</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colName')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colCompany')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colStart')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colEnd')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colGrace')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{tOrg('colStatus')}</th>
               <th className="px-4 py-3 w-12" />
             </tr>
           </thead>
@@ -371,7 +430,7 @@ export default function ShiftsPage() {
             {!isLoading && (!shifts || shifts.length === 0) && (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-                  ยังไม่มีกะงาน — กด &quot;+ เพิ่มกะงาน&quot; เพื่อเริ่มต้น
+                  {t('empty')}
                 </td>
               </tr>
             )}
@@ -382,16 +441,16 @@ export default function ShiftsPage() {
                   key={s.id}
                   className="border-b border-border last:border-0 hover:bg-whited/30 transition-colors"
                 >
-                  <td className="px-4 py-3 font-medium">{s.name}</td>
+                  <td className="px-4 py-3 font-medium">{localizedName(s, locale)}</td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">{s.companyName}</td>
                   <td className="px-4 py-3 font-mono">{fmt(s.startTime)}</td>
                   <td className="px-4 py-3 font-mono">{fmt(s.endTime)}</td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {s.gracePeriodMinutes > 0 ? `${s.gracePeriodMinutes} นาที` : '—'}
+                    {s.gracePeriodMinutes > 0 ? t('graceMinutes', { count: s.gracePeriodMinutes }) : '—'}
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant={s.isActive ? 'success' : 'secondary'}>
-                      {s.isActive ? 'ใช้งาน' : 'ปิด'}
+                      {s.isActive ? tOrg('statusActive') : tOrg('statusInactive')}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">

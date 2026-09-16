@@ -59,6 +59,8 @@ public class GetDepartmentsHandler(IApplicationDbContext db, ICurrentUser curren
             d.ShiftId,
             d.Shift?.Name,
             countByDept.GetValueOrDefault(d.Id, 0),
-            d.IsActive)).ToList();
+            d.IsActive,
+            d.NameEn,
+            d.NameId)).ToList();
     }
 }

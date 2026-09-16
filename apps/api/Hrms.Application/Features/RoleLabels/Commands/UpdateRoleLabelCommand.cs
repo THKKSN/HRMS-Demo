@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.RoleLabels.Commands;
 
-public record UpdateRoleLabelCommand(Guid Id, string Name, bool IsActive) : IRequest<RoleLabelDto>;
+public record UpdateRoleLabelCommand(Guid Id, string Name, bool IsActive, string? NameEn = null, string? NameId = null) : IRequest<RoleLabelDto>;
 
 public class UpdateRoleLabelValidator : AbstractValidator<UpdateRoleLabelCommand>
 {
@@ -16,6 +16,8 @@ public class UpdateRoleLabelValidator : AbstractValidator<UpdateRoleLabelCommand
     {
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.NameEn).MaximumLength(100).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(100).When(x => x.NameId is not null);
     }
 }
 
@@ -27,18 +29,20 @@ public class UpdateRoleLabelHandler(IApplicationDbContext db, ICurrentUser curre
         await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-departments", ct);
 
         var entity = await db.RoleLabels.FirstOrDefaultAsync(r => r.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบ Role Label");
+            ?? throw new NotFoundException("RoleLabel", request.Id, "ROLE_LABEL_NOT_FOUND");
 
         if (!currentUser.CanManageCompany(entity.CompanyId))
-            throw new AppForbiddenException("ไม่มีสิทธิ์จัดการ company นี้");
+            throw new AppForbiddenException("COMPANY_MANAGE_FORBIDDEN", "You are not allowed to manage this company.");
 
         if (request.Name != entity.Name &&
             await db.RoleLabels.AnyAsync(r => r.CompanyId == entity.CompanyId && r.Name == request.Name && r.Id != request.Id, ct))
-            throw new ConflictException("DUPLICATE_ROLE_LABEL", $"ชื่อ '{request.Name}' มีอยู่แล้วในบริษัทนี้");
+            throw new ConflictException("DUPLICATE_ROLE_LABEL", $"Job title '{request.Name}' already exists in this company.");
 
         var oldValues = new { entity.Name, entity.IsActive };
 
         entity.Name      = request.Name;
+        entity.NameEn    = Common.Helpers.NameText.Apply(entity.NameEn, request.NameEn);
+        entity.NameId    = Common.Helpers.NameText.Apply(entity.NameId, request.NameId);
         entity.IsActive  = request.IsActive;
         entity.UpdatedAt = DateTime.UtcNow.AddHours(7);
 
@@ -54,6 +58,6 @@ public class UpdateRoleLabelHandler(IApplicationDbContext db, ICurrentUser curre
             newValues:   new { entity.Name, entity.IsActive },
             ct:          ct);
 
-        return new RoleLabelDto(entity.Id, entity.CompanyId, entity.Name, entity.IsActive);
+        return new RoleLabelDto(entity.Id, entity.CompanyId, entity.Name, entity.IsActive, entity.NameEn, entity.NameId);
     }
 }

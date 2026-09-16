@@ -1,3 +1,5 @@
+using Hrms.Application.Features.AuditLogs.Dtos;
+
 namespace Hrms.Application.Features.Dashboard.Queries.GetAdminDashboard;
 
 public record AdminDashboardDto(
@@ -5,12 +7,4 @@ public record AdminDashboardDto(
     int TotalDepartments,
     int TotalEmployees,
     int ActiveEmployees,
-    IReadOnlyList<AdminAuditLogItem> RecentAuditLogs);
-
-public record AdminAuditLogItem(
-    string Id,
-    string Module,
-    string Action,
-    string Description,
-    string? PerformedByName,
-    string PerformedAt);
+    IReadOnlyList<AuditLogDto> RecentAuditLogs);

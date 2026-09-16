@@ -1,6 +1,8 @@
 import { api } from './api'
 import type {
   TicketCategoryDto,
+  TicketCloseoutReasonDto,
+  TicketTeamTemplateDto,
   TicketManagementScopeDto,
   TicketSubjectDto,
   TicketTopicDto,
@@ -8,8 +10,18 @@ import type {
 
 export type TicketTaxonomyItemBody = {
   name: string
+  // ชื่อภาษาอื่น (i18n Phase M) — ไม่ส่ง = คงค่าเดิม, ส่ง '' = ล้าง
+  nameEn?: string
+  nameId?: string
   description?: string
   sortOrder: number
+}
+
+export type TicketCloseoutReasonBody = TicketTaxonomyItemBody & {
+  /** id หมวดที่จำกัดการใช้ — ว่าง = ใช้ได้ทุกหมวดใน scope */
+  categoryIds: string[]
+  requiresResolutionNote: boolean
+  requiresCompletionEvidence: boolean
 }
 
 export const ticketTaxonomyApi = {
@@ -58,4 +70,33 @@ export const ticketTaxonomyApi = {
 
   updateSubject: (id: string, body: TicketTaxonomyItemBody & { isActive: boolean }) =>
     api.put<TicketSubjectDto>(`/ticket-subjects/${id}`, body).then(r => r.data),
+
+  // เหตุผลปิดงาน/ประเภทปัญหา — list คืนทั้งของแผนกที่เลือกและระดับบริษัทที่แผนกนี้ใช้ร่วม
+  getCloseoutReasons: (companyId: string, departmentId: string) =>
+    api.get<TicketCloseoutReasonDto[]>('/ticket-closeout-reasons/manage', {
+      params: { companyId, departmentId },
+    }).then(r => r.data),
+
+  createCloseoutReason: (body: TicketCloseoutReasonBody & { companyId: string; departmentId?: string }) =>
+    api.post<TicketCloseoutReasonDto>('/ticket-closeout-reasons', body).then(r => r.data),
+
+  updateCloseoutReason: (id: string, body: TicketCloseoutReasonBody & { isActive: boolean }) =>
+    api.put<TicketCloseoutReasonDto>(`/ticket-closeout-reasons/${id}`, body).then(r => r.data),
+
+  // ทีมสำเร็จรูป — list คืนทั้งของแผนกที่เลือกและระดับบริษัทที่แผนกนี้ใช้ร่วม
+  getTeamTemplates: (companyId: string, departmentId: string) =>
+    api.get<TicketTeamTemplateDto[]>('/ticket-team-templates/manage', {
+      params: { companyId, departmentId },
+    }).then(r => r.data),
+
+  createTeamTemplate: (body: TicketTaxonomyItemBody & {
+    companyId: string
+    departmentId?: string
+    employeeIds: string[]
+  }) => api.post<TicketTeamTemplateDto>('/ticket-team-templates', body).then(r => r.data),
+
+  updateTeamTemplate: (id: string, body: TicketTaxonomyItemBody & {
+    isActive: boolean
+    employeeIds: string[]
+  }) => api.put<TicketTeamTemplateDto>(`/ticket-team-templates/${id}`, body).then(r => r.data),
 }

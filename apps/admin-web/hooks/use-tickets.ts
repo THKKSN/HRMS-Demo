@@ -10,7 +10,9 @@ export const ticketKeys = {
   comments: (id: string) => [...ticketKeys.all, 'comments', id] as const,
   history: (id: string) => [...ticketKeys.all, 'history', id] as const,
   candidates: (id: string) => [...ticketKeys.all, 'candidates', id] as const,
+  team: (id: string) => [...ticketKeys.all, 'team', id] as const,
   reviews: (id: string) => [...ticketKeys.all, 'reviews', id] as const,
+  closeoutReasonOptions: (id: string) => [...ticketKeys.all, 'closeout-reason-options', id] as const,
   pendingCancellations: (params?: object) => [...ticketKeys.all, 'pending-cancellations', params] as const,
   lookup: (name: string, ...ids: string[]) => [...ticketKeys.all, 'lookup', name, ...ids] as const,
 }
@@ -60,7 +62,7 @@ export function useMyTickets(params: MyTicketParams) {
 export function useAssignedTickets(params: {
   status?: import('@hrms/shared-types').TicketStatus
   search?: string
-  history?: boolean
+  scope?: import('@hrms/shared-types').AssignedTicketScope
   requestType?: import('@hrms/shared-types').TicketRequestType
   page?: number
   pageSize?: number
@@ -116,6 +118,49 @@ export function useTicketAssignmentHistory(id: string, enabled = true) {
   })
 }
 
+/**
+ * โหลดข้อมูลใบแจ้งเรื่องใหม่เฉพาะ query detail (บอร์ด/การ์ดกิจกรรม/ทีม)
+ * ใช้แทน window.location.reload() เพื่อไม่ให้ร่างที่ค้างในฟอร์มและตำแหน่ง scroll หาย
+ */
+export function useRefreshTicketDetail(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => queryClient.refetchQueries({ queryKey: ticketKeys.detail(id) }),
+  })
+}
+
+export function useTicketTeamTemplateOptions(id: string, enabled = true) {
+  return useQuery({
+    queryKey: [...ticketKeys.team(id), 'template-options'],
+    queryFn: () => ticketsApi.getTeamTemplateOptions(id),
+    enabled: !!id && enabled,
+  })
+}
+
+export function useApplyTicketTeamTemplate(id: string) {
+  return useTicketAction((body: Parameters<typeof ticketsApi.applyTeamTemplate>[1]) =>
+    ticketsApi.applyTeamTemplate(id, body))
+}
+
+export function useTicketTeam(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ticketKeys.team(id),
+    queryFn: () => ticketsApi.getTeam(id),
+    enabled: !!id && enabled,
+  })
+}
+
+export function useAddTicketTeamMembers(id: string) {
+  return useTicketAction((body: Parameters<typeof ticketsApi.addTeamMembers>[1]) =>
+    ticketsApi.addTeamMembers(id, body))
+}
+
+export function useRemoveTicketTeamMember(id: string) {
+  return useTicketAction((
+    { employeeId, expectedUpdatedAt }: { employeeId: string; expectedUpdatedAt?: string },
+  ) => ticketsApi.removeTeamMember(id, employeeId, expectedUpdatedAt))
+}
+
 export function useTicketAssignmentCandidates(id: string, enabled = true) {
   return useQuery({
     queryKey: ticketKeys.candidates(id),
@@ -129,6 +174,14 @@ export function useTicketReviews(id: string) {
     queryKey: ticketKeys.reviews(id),
     queryFn: () => ticketsApi.getReviews(id),
     enabled: !!id,
+  })
+}
+
+export function useTicketCloseoutReasonOptions(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ticketKeys.closeoutReasonOptions(id),
+    queryFn: () => ticketsApi.getCloseoutReasonOptions(id),
+    enabled: !!id && enabled,
   })
 }
 
@@ -184,6 +237,18 @@ export function useUpdateTicketWorkDetail(id: string) {
 export function useUpdateTicketProgress(id: string) {
   return useTicketAction((body: Parameters<typeof ticketsApi.updateProgress>[1]) =>
     ticketsApi.updateProgress(id, body))
+}
+
+export function useUpdateTicketProgressEntry(id: string) {
+  return useTicketAction((
+    { entryId, ...body }: { entryId: string } & Parameters<typeof ticketsApi.updateProgressEntry>[2],
+  ) => ticketsApi.updateProgressEntry(id, entryId, body))
+}
+
+export function usePinTicketProgressEntry(id: string) {
+  return useTicketAction((
+    { entryId, ...body }: { entryId: string } & Parameters<typeof ticketsApi.pinProgressEntry>[2],
+  ) => ticketsApi.pinProgressEntry(id, entryId, body))
 }
 
 export function useResolveTicket(id: string) {

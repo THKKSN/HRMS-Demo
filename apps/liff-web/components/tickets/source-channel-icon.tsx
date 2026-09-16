@@ -1,3 +1,4 @@
+import { useTranslations } from 'next-intl'
 import { Globe, Monitor } from 'lucide-react'
 import type { TicketSourceChannel } from '@hrms/shared-types'
 
@@ -9,14 +10,11 @@ function LineIcon({ className }: { className?: string }) {
   )
 }
 
+// ป้ายช่องทางอยู่ที่ liff.ticket.source.* — คีย์ตรงกับค่า enum
 function sourceChannelMeta(channel: TicketSourceChannel) {
-  if (channel === 'LineLiff') {
-    return { icon: LineIcon, label: 'แจ้งผ่าน LINE (LIFF)', className: 'text-[#06C755]' }
-  }
-  if (channel === 'ExternalPortal') {
-    return { icon: Globe, label: 'แจ้งผ่านช่องทางบุคคลภายนอก', className: 'text-sky-600' }
-  }
-  return { icon: Monitor, label: 'แจ้งผ่าน Admin Web', className: 'text-muted-foreground' }
+  if (channel === 'LineLiff') return { icon: LineIcon, key: 'LineLiff' as const, className: 'text-[#06C755]' }
+  if (channel === 'ExternalPortal') return { icon: Globe, key: 'ExternalPortal' as const, className: 'text-sky-600' }
+  return { icon: Monitor, key: 'AdminWeb' as const, className: 'text-muted-foreground' }
 }
 
 export function SourceChannelIcon({
@@ -26,6 +24,7 @@ export function SourceChannelIcon({
   channel: TicketSourceChannel
   className?: string
 }) {
-  const { icon: Icon, label, className: colorClassName } = sourceChannelMeta(channel)
-  return <Icon className={`${className} ${colorClassName}`} aria-label={label} />
+  const t = useTranslations('liff.ticket.source')
+  const { icon: Icon, key, className: colorClassName } = sourceChannelMeta(channel)
+  return <Icon className={`${className} ${colorClassName}`} aria-label={t(key)} />
 }

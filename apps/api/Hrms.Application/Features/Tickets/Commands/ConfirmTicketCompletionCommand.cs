@@ -1,9 +1,11 @@
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Common.Options;
 using Hrms.Application.Features.Tickets.Dtos;
 using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Hrms.Application.Features.Tickets.Commands;
 
@@ -14,7 +16,8 @@ public class ConfirmTicketCompletionHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
     IPermissionService permissions,
-    IAuditLogService auditLog)
+    IAuditLogService auditLog,
+    IOptions<TicketOptions> ticketOptions)
     : IRequestHandler<ConfirmTicketCompletionCommand, TicketActionResultDto>
 {
     public async Task<TicketActionResultDto> Handle(ConfirmTicketCompletionCommand request, CancellationToken ct)
@@ -24,13 +27,13 @@ public class ConfirmTicketCompletionHandler(
             .Include(t => t.ExternalReporter)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary)).ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("Ticket not found");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
         if (ticket.RequesterEmployeeId != actorId ||
             !await permissions.HasPermissionAsync(currentUser, "ticket:view-own", ct))
-            throw new AppForbiddenException("Only the requester can confirm completion");
+            throw new AppForbiddenException("TICKET_CONFIRM_REQUESTER_ONLY", "Only the requester can confirm completion.");
         if (ticket.Status != TicketStatus.AwaitingRequesterConfirmation)
-            throw new ConflictException("INVALID_TICKET_STATUS", "Ticket is not waiting for requester confirmation");
+            throw new ConflictException("TICKET_NOT_AWAITING_CONFIRMATION", "The ticket is not waiting for requester confirmation.");
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
 
         var now = DateTime.UtcNow.AddHours(7);
@@ -52,16 +55,14 @@ public class ConfirmTicketCompletionHandler(
             TicketCommandSupport.AddProgressEntry(db, ticket, actorId, "closed", workState: "ผู้ร้องขอยืนยันว่าดำเนินการเสร็จสิ้นแล้ว");
             TicketStatusTransition.Record(db, ticket, TicketStatus.AwaitingRequesterConfirmation, TicketStatus.Closed,
                 actorId, now, "RequesterConfirmed", assignment?.Id);
-            var message = $"ผู้แจ้งยืนยันปิดงาน {ticket.TicketNo} แล้ว";
-            if (assignment is not null)
-            {
-                TicketCommandSupport.QueueNotification(
-                    db, "TicketRequesterConfirmed", ticket.Id, assignment.AssignedToEmployeeId,
-                    assignment.AssignedToEmployee.LineUserId, message, ticket);
-            }
+            var templateParams = new { ticketNo = ticket.TicketNo };
+            // แจ้งทั้งทีมก่อน SaveChanges — แถว assignment ที่เพิ่งปิดยังนับเป็น active ใน DB จึงยังได้รับข้อความ
+            await TicketCommandSupport.QueueForTeamAsync(
+                db, ticketOptions.Value, "TicketRequesterConfirmed", ticket.Id, ticket,
+                "ticket.requesterConfirmed.all", templateParams, transactionCt);
             TicketCommandSupport.QueueNotification(
                 db, "TicketRequesterConfirmed", ticket.Id, TicketCommandSupport.Requester(ticket),
-                message, ticket);
+                "ticket.requesterConfirmed.all", templateParams, ticket);
             ticket.UpdatedBy = actorId;
             await db.SaveChangesAsync(transactionCt);
         }, ct);

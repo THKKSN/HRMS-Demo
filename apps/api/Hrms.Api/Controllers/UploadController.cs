@@ -14,7 +14,7 @@ public class UploadController(
     ICurrentUser currentUser,
     IPermissionService permService) : ControllerBase
 {
-    private static readonly HashSet<string> AllowedModules = ["leaves", "payslips", "general", "tickets", "expenses"];
+    private static readonly HashSet<string> AllowedModules = ["leaves", "payslips", "general", "tickets", "expenses", "memos"];
 
     /// <summary>อัปโหลดไฟล์ — คืน key และ URL สำหรับใช้ใน form submit</summary>
     [HttpPost]
@@ -28,39 +28,38 @@ public class UploadController(
             return Unauthorized(new { error = "UNAUTHENTICATED" });
 
         if (!AllowedModules.Contains(module.ToLower()))
-            return BadRequest(new { error = "INVALID_MODULE", message = $"module ต้องเป็นหนึ่งใน: {string.Join(", ", AllowedModules)}" });
+            return BadRequest(new { error = "INVALID_MODULE", message = $"module must be one of: {string.Join(", ", AllowedModules)}" });
         if (module.Equals("tickets", StringComparison.OrdinalIgnoreCase))
-            return BadRequest(new { error = "PROTECTED_UPLOAD_REQUIRED", message = "กรุณาใช้ /v1/uploads/tickets" });
+            return BadRequest(new { error = "PROTECTED_UPLOAD_REQUIRED", message = "Use /v1/uploads/tickets instead." });
         if (module.Equals("expenses", StringComparison.OrdinalIgnoreCase) &&
             !await permService.HasPermissionAsync(currentUser, "expense:upload-attachment", ct))
-            return StatusCode(403, new { error = "FORBIDDEN", message = "ไม่มีสิทธิ์อัปโหลดหลักฐานวางบิล" });
+            return StatusCode(403, new { error = "UPLOAD_EXPENSE_FORBIDDEN", message = "You are not allowed to upload expense attachments." });
+        // แนบไฟล์ memo ได้ทุกคนที่สร้างเรื่องได้ (ผู้ทำ step ก็มี memo:create เป็น default ทุก role อยู่แล้ว)
+        if (module.Equals("memos", StringComparison.OrdinalIgnoreCase) &&
+            !await permService.HasPermissionAsync(currentUser, "memo:create", ct))
+            return StatusCode(403, new { error = "UPLOAD_MEMO_FORBIDDEN", message = "You are not allowed to upload memo attachments." });
 
         if (file is null || file.Length == 0)
-            return BadRequest(new { error = "NO_FILE", message = "กรุณาเลือกไฟล์" });
+            return BadRequest(new { error = "NO_FILE", message = "No file was provided." });
 
-        try
-        {
-            await using var stream = file.OpenReadStream();
-            var result = await storage.UploadAsync(
-                stream,
-                file.FileName,
-                file.ContentType,
-                module,
-                ct);
+        // ไม่ดัก exception เอง — storage โยน BadRequestException ที่พก code เฉพาะ (ไฟล์ใหญ่เกิน/ชนิดไม่รองรับ)
+        // แล้ว GlobalExceptionMiddleware ตอบให้ ของเดิมยุบเป็น UPLOAD_REJECTED ก้อนเดียวแล้วส่งข้อความไทยไปแทน
+        await using var stream = file.OpenReadStream();
+        var result = await storage.UploadAsync(
+            stream,
+            file.FileName,
+            file.ContentType,
+            module,
+            ct);
 
-            return Ok(new
-            {
-                key         = result.Key,
-                url         = result.Url,
-                fileName    = result.FileName,
-                contentType = result.ContentType,
-                sizeBytes   = result.SizeBytes,
-            });
-        }
-        catch (InvalidOperationException ex)
+        return Ok(new
         {
-            return BadRequest(new { error = "UPLOAD_REJECTED", message = ex.Message });
-        }
+            key         = result.Key,
+            url         = result.Url,
+            fileName    = result.FileName,
+            contentType = result.ContentType,
+            sizeBytes   = result.SizeBytes,
+        });
     }
 
     /// <summary>ลบไฟล์ตาม key (HR/Admin เท่านั้น)</summary>
@@ -72,7 +71,7 @@ public class UploadController(
 
         var canDelete = await permService.HasPermissionAsync(currentUser, "leave:approve-hr", ct);
         if (!canDelete)
-            return StatusCode(403, new { error = "FORBIDDEN", message = "ต้องมีสิทธิ์ HR จึงจะลบไฟล์ได้" });
+            return StatusCode(403, new { error = "UPLOAD_DELETE_FORBIDDEN", message = "Only HR can delete files." });
 
         if (string.IsNullOrWhiteSpace(key))
             return BadRequest(new { error = "MISSING_KEY" });
@@ -93,7 +92,7 @@ public class UploadController(
         if (!await permService.HasPermissionAsync(currentUser, "ticket:add-attachment", ct))
             return StatusCode(403, new { error = "FORBIDDEN" });
         if (file is null || file.Length == 0)
-            return BadRequest(new { error = "NO_FILE", message = "กรุณาเลือกไฟล์" });
+            return BadRequest(new { error = "NO_FILE", message = "No file was provided." });
 
         FileUploadResult? result = null;
         try
@@ -121,11 +120,6 @@ public class UploadController(
                 contentType = upload.ContentType,
                 sizeBytes = upload.SizeBytes
             });
-        }
-        catch (InvalidOperationException ex)
-        {
-            if (result is not null) await storage.DeleteTicketAsync(result.Key, ct);
-            return BadRequest(new { error = "UPLOAD_REJECTED", message = ex.Message });
         }
         catch
         {

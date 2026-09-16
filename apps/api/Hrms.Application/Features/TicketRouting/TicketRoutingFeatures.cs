@@ -83,7 +83,7 @@ public class CreateResponsibilityValidator : AbstractValidator<CreateResponsibil
     {
         RuleFor(x => x.Note).MaximumLength(500);
         RuleFor(x => x).Must(x => !x.EffectiveFrom.HasValue || !x.EffectiveTo.HasValue || x.EffectiveFrom <= x.EffectiveTo)
-            .WithMessage("วันที่สิ้นสุดต้องไม่น้อยกว่าวันที่เริ่มต้น");
+            .WithErrorCode("DATE_RANGE_INVALID").WithMessage("The end date must not be earlier than the start date.");
     }
 }
 
@@ -97,19 +97,19 @@ public class CreateResponsibilityHandler(
             db, user, permissions, "ticket:manage-responsibilities", request.CompanyId, request.DepartmentId, ct);
         var category = await db.TicketCategories.FirstOrDefaultAsync(c => c.Id == request.CategoryId &&
             c.CompanyId == request.CompanyId && c.DepartmentId == request.DepartmentId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบหมวดที่ระบุ");
+            ?? throw new NotFoundException("TicketCategory", request.CategoryId, "TICKET_CATEGORY_NOT_FOUND");
         TicketTopic? topic = null;
         if (request.TopicId.HasValue)
             topic = await db.TicketTopics.FirstOrDefaultAsync(t => t.Id == request.TopicId &&
                 t.CategoryId == request.CategoryId && t.DepartmentId == request.DepartmentId, ct)
-                ?? throw new KeyNotFoundException("ไม่พบหัวข้อย่อยที่ระบุ");
+                ?? throw new NotFoundException("TicketTopic", request.TopicId, "TICKET_TOPIC_NOT_FOUND");
         var employee = await db.Employees.FirstOrDefaultAsync(e => e.Id == request.EmployeeId && e.IsActive &&
             e.CompanyId == request.CompanyId && e.DepartmentId == request.DepartmentId, ct)
-            ?? throw new ValidationException("ผู้รับผิดชอบต้องเป็นพนักงาน active ในแผนกที่เลือก");
+            ?? throw new BadRequestException("ROUTING_EMPLOYEE_INVALID", "The responsible person must be an active employee of the selected department.");
         if (await db.EmployeeResponsibilities.AnyAsync(r => r.DepartmentId == request.DepartmentId &&
             r.CategoryId == request.CategoryId && r.TopicId == request.TopicId &&
             r.EmployeeId == request.EmployeeId && r.IsActive, ct))
-            throw new ConflictException("DUPLICATE_RESPONSIBILITY", "พนักงานคนนี้รับผิดชอบ scope นี้อยู่แล้ว");
+            throw new ConflictException("DUPLICATE_RESPONSIBILITY", "This employee is already responsible for this scope.");
         var actorId = user.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
         var item = new EmployeeResponsibility
         {
@@ -151,18 +151,18 @@ public class UpdateResponsibilityHandler(
     public async Task<EmployeeResponsibilityDto> Handle(UpdateResponsibilityCommand request, CancellationToken ct)
     {
         if (request.EffectiveFrom.HasValue && request.EffectiveTo.HasValue && request.EffectiveFrom > request.EffectiveTo)
-            throw new ValidationException("วันที่สิ้นสุดต้องไม่น้อยกว่าวันที่เริ่มต้น");
+            throw new BadRequestException("DATE_RANGE_INVALID", "The end date must not be earlier than the start date.");
         var item = await db.EmployeeResponsibilities.Include(r => r.Category).Include(r => r.Topic).Include(r => r.Employee)
-            .FirstOrDefaultAsync(r => r.Id == request.Id, ct) ?? throw new KeyNotFoundException("ไม่พบ responsibility");
+            .FirstOrDefaultAsync(r => r.Id == request.Id, ct) ?? throw new NotFoundException("EmployeeResponsibility", request.Id, "TICKET_RESPONSIBILITY_NOT_FOUND");
         await TicketManagementAccess.EnsureDepartmentAsync(
             db, user, permissions, "ticket:manage-responsibilities", item.CompanyId, item.DepartmentId, ct);
         if (request.ExpectedUpdatedAt.HasValue && Math.Abs((item.UpdatedAt - request.ExpectedUpdatedAt.Value).TotalMilliseconds) > 1)
-            throw new ConflictException("ROUTING_CONFIG_CHANGED", "ข้อมูลถูกแก้ไขแล้ว กรุณาโหลดใหม่");
+            throw new ConflictException("ROUTING_CONFIG_CHANGED", "The routing configuration was changed. Reload and try again.");
         var old = new { item.IsActive, item.EffectiveFrom, item.EffectiveTo, item.Note };
         if (request.IsActive && !item.IsActive && await db.EmployeeResponsibilities.AnyAsync(r =>
             r.Id != item.Id && r.DepartmentId == item.DepartmentId && r.CategoryId == item.CategoryId &&
             r.TopicId == item.TopicId && r.EmployeeId == item.EmployeeId && r.IsActive, ct))
-            throw new ConflictException("DUPLICATE_RESPONSIBILITY", "พนักงานคนนี้รับผิดชอบ scope นี้อยู่แล้ว");
+            throw new ConflictException("DUPLICATE_RESPONSIBILITY", "This employee is already responsible for this scope.");
         item.IsActive = request.IsActive;
         if (!request.PreserveDetails)
         {
@@ -190,7 +190,7 @@ public class UpdateTopicRoutingHandler(
     public async Task Handle(UpdateTopicRoutingCommand request, CancellationToken ct)
     {
         var topic = await db.TicketTopics.FirstOrDefaultAsync(t => t.Id == request.TopicId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบหัวข้อย่อย");
+            ?? throw new NotFoundException("TicketTopic", request.TopicId, "TICKET_TOPIC_NOT_FOUND");
         await TicketManagementAccess.EnsureDepartmentAsync(db, user, permissions,
             "ticket:manage-responsibilities", topic.CompanyId, topic.DepartmentId, ct);
         EnsureVersion(topic.UpdatedAt, request.ExpectedUpdatedAt);
@@ -204,7 +204,7 @@ public class UpdateTopicRoutingHandler(
     internal static void EnsureVersion(DateTime current, DateTime? expected)
     {
         if (expected.HasValue && Math.Abs((current - expected.Value).TotalMilliseconds) > 1)
-            throw new ConflictException("ROUTING_CONFIG_CHANGED", "ข้อมูล routing ถูกแก้ไขแล้ว กรุณาโหลดใหม่");
+            throw new ConflictException("ROUTING_CONFIG_CHANGED", "The routing configuration was changed. Reload and try again.");
     }
 }
 
@@ -215,7 +215,7 @@ public class UpdateCategoryRoutingHandler(
     public async Task Handle(UpdateCategoryRoutingCommand request, CancellationToken ct)
     {
         var category = await db.TicketCategories.FirstOrDefaultAsync(c => c.Id == request.CategoryId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบหมวด");
+            ?? throw new NotFoundException("TicketCategory", request.CategoryId, "TICKET_CATEGORY_NOT_FOUND");
         await TicketManagementAccess.EnsureDepartmentAsync(db, user, permissions,
             "ticket:manage-responsibilities", category.CompanyId, category.DepartmentId, ct);
         UpdateTopicRoutingHandler.EnsureVersion(category.UpdatedAt, request.ExpectedUpdatedAt);

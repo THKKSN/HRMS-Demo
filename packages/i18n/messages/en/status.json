@@ -1,0 +1,108 @@
+{
+  "ticket": {
+    "AwaitingRequesterConfirmation": "Awaiting requester confirmation",
+    "Open": "New",
+    "Assigned": "Assigned",
+    "InProgress": "In progress",
+    "WaitingInfo": "Waiting for info",
+    "Resolved": "Awaiting acceptance",
+    "Closed": "Closed",
+    "Rejected": "Rejected",
+    "Cancelled": "Cancelled"
+  },
+  "ticketPriority": {
+    "Low": "Normal",
+    "Medium": "Medium",
+    "High": "Urgent",
+    "Critical": "Critical"
+  },
+  "memo": {
+    "Draft": "Draft",
+    "Pending": "Pending approval",
+    "Approved": "Approved",
+    "Rejected": "Not approved"
+  },
+  "memoStepKind": {
+    "Work": "Task",
+    "Approval": "Approval"
+  },
+  "expenseType": {
+    "Fuel": "Fuel",
+    "Toll": "Toll",
+    "Parking": "Parking",
+    "Meal": "Meals",
+    "Other": "Other"
+  },
+  "expenseBillingBatch": {
+    "Draft": "Draft",
+    "Exported": "Exported",
+    "Paid": "Paid",
+    "Cancelled": "Cancelled"
+  },
+  "expenseDocument": {
+    "PaymentOrder": "Payment order",
+    "Receipt": "Receipt",
+    "Other": "Other document"
+  },
+  "orgType": {
+    "Holding": "Holding company",
+    "Subsidiary": "Subsidiary",
+    "Branch": "Branch",
+    "School": "School"
+  },
+  "attendance": {
+    "Present": "Present",
+    "Late": "Late",
+    "Absent": "Absent",
+    "HalfDay": "Half day"
+  },
+  "leave": {
+    "Draft": "Draft",
+    "PendingSupervisor": "Awaiting supervisor",
+    "PendingHr": "Awaiting HR",
+    "CancellationRequested": "Cancellation requested",
+    "Approved": "Approved",
+    "Rejected": "Rejected",
+    "Cancelled": "Cancelled"
+  },
+  "leaveHalfDay": {
+    "Full": "Full day",
+    "Morning": "Morning",
+    "Afternoon": "Afternoon"
+  },
+  "ot": {
+    "PendingSupervisor": "Awaiting supervisor",
+    "PendingHr": "Awaiting HR",
+    "Approved": "Approved",
+    "Rejected": "Rejected",
+    "Cancelled": "Cancelled"
+  },
+  "otRate": {
+    "Weekday": "Weekday (×1.5)",
+    "Weekend": "Weekend (×2)",
+    "Holiday": "Public holiday (×3)"
+  },
+  "expenseClaim": {
+    "Draft": "Draft",
+    "Pending": "Pending review",
+    "Approved": "Approved",
+    "Rejected": "Not approved",
+    "Cancelled": "Cancelled",
+    "Batched": "In billing batch",
+    "Paid": "Paid"
+  },
+  "expenseOcr": {
+    "Pending": "Queued",
+    "Processing": "Reading",
+    "Succeeded": "Read successfully",
+    "Failed": "Failed to read"
+  },
+  "roleType": {
+    "Admin": "System administrator",
+    "Hr": "HR",
+    "Supervisor": "Supervisor",
+    "Executive": "Executive",
+    "Employee": "Employee",
+    "SchoolAdmin": "School administrator"
+  }
+}

@@ -1,0 +1,251 @@
+{
+  "ticket": {
+    "created": {
+      "toManager": "New ticket {ticketNo}\nSubject: {title}\nFrom: {requester}\nTo: {department}\nCategory: {taxonomy}\nPriority: {priority}\nRouting: {routing}",
+      "toAutoAssignee": "You have been assigned ticket {ticketNo}\nSubject: {title}\nCategory: {taxonomy}",
+      "toCandidate": "New ticket in your area of responsibility: {ticketNo}\nSubject: {title}\nOpen the app to pick it up."
+    },
+    "accepted": {
+      "toRequester": "Ticket {ticketNo} has been received.\nReceived by: {acceptedBy}"
+    },
+    "claimed": {
+      "toRequester": "Ticket {ticketNo} now has an assignee.\nAssignee: {owner}"
+    },
+    "assigned": {
+      "toAssignee": "You have been assigned ticket {ticketNo}\nSubject: {title}\nLocation: {location}\nAssigned by: {assignedBy}",
+      "toRequester": "Ticket {ticketNo} has been assigned.\nAssignee: {owner}",
+      "toPreviousAssignee": "Ticket {ticketNo} has been reassigned.\nNew assignee: {owner}",
+      "toTeam": "Ticket {ticketNo} has a new main assignee: {owner}"
+    },
+    "started": {
+      "toRequester": "Work has started on ticket {ticketNo}.\nSubject: {title}",
+      "toTeam": "Ticket {ticketNo} is now in progress.\nSubject: {title}"
+    },
+    "resumed": {
+      "toRequester": "Work on ticket {ticketNo} has resumed."
+    },
+    "commented": {
+      "all": "New message on ticket {ticketNo}\nFrom: {actor}\n{comment}"
+    },
+    "waitingInfo": {
+      "toRequester": "More information is needed for ticket {ticketNo}\n{question}"
+    },
+    "resolved": {
+      "toReviewer": "Ticket {ticketNo} is done and awaiting acceptance.\nSubject: {title}"
+    },
+    "returned": {
+      "all": "Ticket {ticketNo} has been sent back for changes.\nReason: {reason}"
+    },
+    "closed": {
+      "all": "Ticket {ticketNo} has been accepted and closed."
+    },
+    "requesterConfirmed": {
+      "all": "The requester has confirmed completion of ticket {ticketNo}."
+    },
+    "rejected": {
+      "toRequester": "Ticket {ticketNo} has been rejected.\nReason: {reason}",
+      "toAssignee": "Ticket {ticketNo} has been stopped.\nReason: {reason}"
+    },
+    "cancellationRequested": {
+      "toReviewers": "Cancellation requested for ticket {ticketNo}\nRequester: {requester}\nReason: {reason}"
+    },
+    "cancelled": {
+      "all": "The cancellation request for ticket {ticketNo} has been approved.\nReason: {reason}"
+    },
+    "cancellationRejected": {
+      "all": "The cancellation request for ticket {ticketNo} was not approved.\nReason: {reason}"
+    },
+    "teamMemberAdded": {
+      "toMember": "You have been added to the team for ticket {ticketNo}\nSubject: {title}\nMain assignee: {owner}\nAdded by: {actor}",
+      "toTeam": "New team members on ticket {ticketNo}: {members}"
+    },
+    "teamMemberRemoved": {
+      "toMember": "You have been removed from the team for ticket {ticketNo}\nSubject: {title}"
+    }
+  },
+  "memo": {
+    "submitted": {
+      "toApprover": "A memo is pending your approval: {memoTitle}"
+    },
+    "approved": {
+      "toRequester": "Memo '{memoTitle}' has been approved.\nComment: {comment}",
+      "toTargetSupervisor": "Memo '{memoTitle}' has been approved.\nSent to: {target}\nComment: {comment}"
+    },
+    "rejected": {
+      "toRequester": "Memo '{memoTitle}' was not approved.\nReason: {reason}"
+    },
+    "stepReady": {
+      "toAssignee": "Memo '{memoTitle}' has reached step '{step}' and is waiting for you."
+    },
+    "stepsCompleted": {
+      "toSupervisor": "All steps for memo '{memoTitle}' are complete and it is ready to hand over."
+    },
+    "stepRejected": {
+      "toRequester": "Memo '{memoTitle}' was not approved at step '{step}'.\nReason: {reason}"
+    },
+    "stepReturned": {
+      "toAssignee": "Memo '{memoTitle}' has been sent back from step '{fromStep}' to '{toStep}'.\nReason: {reason}"
+    },
+    "returnedToRequester": {
+      "toRequester": "Memo '{memoTitle}' has been sent back from step '{fromStep}' for you to revise.\nReason: {reason}"
+    },
+    "resubmitted": {
+      "toAssignee": "The requester has revised memo '{memoTitle}'. It is back at step '{step}' and waiting for you."
+    },
+    "deliveredToRequester": {
+      "toRequester": "Memo '{memoTitle}' is complete. Please confirm acceptance."
+    }
+  },
+  "enum": {
+    "priority": {
+      "Low": "Normal",
+      "Medium": "Medium",
+      "High": "Urgent",
+      "Critical": "Critical"
+    },
+    "routing": {
+      "NotEvaluated": "Checking",
+      "NoMatch": "No assignee found yet",
+      "SupervisorQueue": "Sent to the assignee queue",
+      "AutoAssigned": "Assigned automatically"
+    }
+  },
+  "card": {
+    "fallbackTitle": "Ticket update",
+    "noDetailHint": "Tap the button below for details",
+    "updatedAt": "Updated {time}",
+    "openButton": "Open details",
+    "badge": {
+      "newTicket": "New ticket",
+      "assigned": "Assigned",
+      "inProgress": "In progress",
+      "actionRequired": "Action required",
+      "awaitingAcceptance": "Awaiting acceptance",
+      "closed": "Closed",
+      "newMessage": "New message",
+      "pendingApproval": "Pending approval",
+      "pendingReview": "Pending review",
+      "approved": "Approved",
+      "notApproved": "Not approved",
+      "stopped": "Stopped",
+      "cancelled": "Cancelled"
+    }
+  },
+  "leave": {
+    "pending": {
+      "title": "📋 Leave request",
+      "subtitle": "Waiting for your approval",
+      "altText": "📋 {employee} requested {leaveType} {dateRange} ({days} days)"
+    },
+    "field": {
+      "employee": "Employee",
+      "type": "Type",
+      "dates": "Dates",
+      "days": "Days",
+      "reason": "Reason",
+      "supervisorApproved": "Supervisor",
+      "attachments": "Attachments",
+      "approver": "Approved by",
+      "comment": "Note"
+    },
+    "value": {
+      "days": "{days} days",
+      "attachments": "📎 {count} file(s) attached"
+    },
+    "action": {
+      "approve": "Approve",
+      "approveDisplayText": "Approve leave request",
+      "reject": "Reject",
+      "rejectDisplayText": "Reject leave request"
+    },
+    "result": {
+      "approvedTitle": "Leave request approved",
+      "rejectedTitle": "Leave request rejected",
+      "approvedAltText": "✅ Your {leaveType} request {dateRange} has been approved",
+      "rejectedAltText": "❌ Your {leaveType} request {dateRange} has been rejected"
+    }
+  },
+  "attendance": {
+    "value": {
+      "time": "{time}"
+    },
+    "field": {
+      "location": "Location",
+      "checkInTime": "Time in",
+      "checkIn": "Check in",
+      "checkOut": "Check out"
+    },
+    "checkIn": {
+      "title": "Check in",
+      "done": "Checked in",
+      "onTime": "On time ✅",
+      "lateBy": "{minutes} minutes late"
+    },
+    "checkOut": {
+      "title": "Check out",
+      "done": "Checked out",
+      "worked": "Worked {hours} h {minutes} min"
+    },
+    "prompt": {
+      "notCheckedInYet": "Not checked in today",
+      "checkedInAt": "Checked in at {time}",
+      "shareForCheckIn": "📍 Share location to check in",
+      "shareForCheckOut": "📍 Share location to check out"
+    },
+    "today": {
+      "title": "Today's attendance"
+    },
+    "status": {
+      "present": "✅ Present",
+      "late": "⚠️ Late",
+      "absent": "❌ Absent",
+      "notRecorded": "— Not recorded"
+    },
+    "report": {
+      "title": "Attendance summary",
+      "altText": "Attendance summary {company} {date}",
+      "date": "{dayOfWeek} {date}",
+      "checkedIn": "Checked in",
+      "late": "Late",
+      "onLeave": "On leave",
+      "notCheckedIn": "Not checked in",
+      "notCheckedInNames": "Who has not checked in",
+      "people": "{count}",
+      "ofTotalPeople": "{count}/{total}",
+      "andMorePeople": "and {count} more"
+    }
+  },
+  "webhook": {
+    "accountNotLinked": "We could not find your account. Please link it before using this feature.",
+    "accountNotLinkedLogin": "We could not find your account. Tap 'Log in' to link it before using this feature.",
+    "alreadyCheckedIn": "You already checked in today at {time}.",
+    "alreadyCheckedOut": "You already checked out today at {time}.",
+    "notCheckedInYet": "You have not checked in today. Tap 'Attendance' to check in first.",
+    "outsideGeofenceCheckIn": "You are outside the allowed area. Please check in from the office 📍",
+    "outsideGeofenceCheckOut": "You are outside the allowed area. Please check out from the office 📍",
+    "shareLocation": "Share location",
+    "shareLocationWithoutPrompt": "Tap 'Attendance' before sharing your location.",
+    "menu": {
+      "welcome": "Welcome to TBG Assistant. Please choose what you would like to do.",
+      "attendance": "Attendance",
+      "leave": "Leave request",
+      "leaveQuota": "Leave balance"
+    },
+    "quota": {
+      "title": "Your leave balance",
+      "subtitle": "{name} · {year}",
+      "altText": "Leave balance for {name}",
+      "noData": "There is no leave quota for {year} yet.",
+      "remainingOfTotal": "{remaining}/{total} days"
+    },
+    "leave": {
+      "userNotFound": "We could not find your account.",
+      "requestNotFound": "We could not find that leave request.",
+      "noPermission": "You do not have permission to do this.",
+      "supervisorApproved": "✅ Approved at the first step — waiting for HR to confirm",
+      "approved": "✅ Approved",
+      "rejected": "❌ Rejected",
+      "notPending": "This request is not waiting for approval."
+    }
+  }
+}

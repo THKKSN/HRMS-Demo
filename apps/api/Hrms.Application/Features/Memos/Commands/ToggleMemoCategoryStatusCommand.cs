@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,7 @@ public class ToggleMemoCategoryStatusHandler(IApplicationDbContext db, IAuditLog
     public async Task Handle(ToggleMemoCategoryStatusCommand request, CancellationToken ct)
     {
         var category = await db.MemoCategories.FirstOrDefaultAsync(x => x.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบหมวดหมู่");
+            ?? throw new NotFoundException("MemoCategory", request.Id, "MEMO_CATEGORY_NOT_FOUND");
 
         var oldIsActive = category.IsActive;
         category.IsActive = request.IsActive;

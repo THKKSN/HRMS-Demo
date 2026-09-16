@@ -9,6 +9,8 @@ public class TicketSubject : BaseEntity
     public Guid CategoryId { get; set; }
     public Guid TopicId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
+    public string? NameId { get; set; }
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }

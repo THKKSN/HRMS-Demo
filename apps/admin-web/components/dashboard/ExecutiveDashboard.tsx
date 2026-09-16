@@ -1,14 +1,14 @@
 "use client";
 
-import { MemoPendingCard } from "./MemoPendingCard";
+import { PendingWorkChips } from "./PendingWorkChips";
 import { TicketOverviewSection } from "./TicketOverviewSection";
 
 // Executive ยังไม่เปิดใช้ภาพรวมการเข้างาน (ไม่มีสิทธิ์ attendance:view-all)
-// จึงตัดส่วน attendance ออกจาก UI ไปก่อน — เหลือ Memo รออนุมัติ + ภาพรวมการแจ้งเรื่องทุกบริษัท
+// จึงตัดส่วน attendance ออกจาก UI ไปก่อน — เหลืองานค้างที่ต้องลงมือ + ภาพรวมทุกบริษัท
 export function ExecutiveDashboard() {
   return (
     <div className="space-y-5">
-      <MemoPendingCard variant="approval" />
+      <PendingWorkChips />
       <TicketOverviewSection showCompanyFilter showSlowClosers />
     </div>
   );

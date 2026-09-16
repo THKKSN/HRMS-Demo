@@ -51,14 +51,14 @@ public class CreateExternalTicketHandler(
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.TargetCompanyId == ExternalTicketConstants.TargetCompanyId, ct);
         if (config is null || !config.IsEnabled)
-            throw new ConflictException("EXTERNAL_CHANNEL_DISABLED", "ช่องทางแจ้งเรื่องสำหรับบุคคลภายนอกปิดใช้งานอยู่");
+            throw new ConflictException("EXTERNAL_CHANNEL_DISABLED", "The external reporting channel is disabled.");
 
         // โปรไฟล์ต้องครบก่อนแจ้งเรื่อง — HrmsDbContext บังคับ snapshot 4 ตัวไม่ว่างตอน SaveChanges อยู่แล้ว เช็คก่อนเพื่อ error ที่สื่อสารได้
         if (string.IsNullOrWhiteSpace(reporter.FullName) ||
             string.IsNullOrWhiteSpace(reporter.Phone) ||
             string.IsNullOrWhiteSpace(reporter.Email) ||
             string.IsNullOrWhiteSpace(reporter.Organization))
-            throw new ConflictException("EXTERNAL_PROFILE_INCOMPLETE", "กรุณากรอกโปรไฟล์ (ชื่อ เบอร์โทร อีเมล หน่วยงาน) ให้ครบก่อนแจ้งเรื่อง");
+            throw new ConflictException("EXTERNAL_PROFILE_INCOMPLETE", "Complete the reporter profile (name, phone, email, organization) before opening a ticket.");
 
         // ไม่มีขั้น consent privacy notice ในแอปแล้ว — consent จัดการที่ระดับ LINE ไปแล้ว
         var subject = await db.ExternalTicketSubjects
@@ -77,7 +77,7 @@ public class CreateExternalTicketHandler(
             })
             .FirstOrDefaultAsync(ct);
         if (subject is null || !subject.TopicIsActive || !subject.CategoryIsActive)
-            throw new ConflictException("EXTERNAL_SUBJECT_UNAVAILABLE", "หัวข้อที่เลือกไม่พร้อมใช้งาน กรุณาโหลดรายการหัวข้อใหม่");
+            throw new ConflictException("EXTERNAL_SUBJECT_UNAVAILABLE", "The selected subject is unavailable. Reload the subject list.");
 
         var now = DateTime.UtcNow.AddHours(7);
         var uploadTokens = (request.AttachmentUrls ?? [])
@@ -86,14 +86,14 @@ public class CreateExternalTicketHandler(
             .Distinct()
             .ToList();
         if (uploadTokens.Count > 10)
-            throw new FluentValidation.ValidationException("แนบหลักฐานตอนเปิดเรื่องได้ไม่เกิน 10 ไฟล์");
+            throw new BadRequestException("TICKET_CREATE_ATTACHMENT_LIMIT", "Up to 10 attachments are allowed when opening a ticket.");
         var pendingUploads = await db.TicketPendingUploads
             .Where(upload => uploadTokens.Contains(upload.Id) &&
                 upload.UploadedByExternalReporterId == reporter.Id &&
                 upload.LinkedAt == null)
             .ToListAsync(ct);
         if (pendingUploads.Count != uploadTokens.Count)
-            throw new FluentValidation.ValidationException("ไฟล์อัปโหลดไม่ถูกต้อง ถูกใช้งานแล้ว หรือไม่ใช่ของผู้ใช้");
+            throw new BadRequestException("UPLOAD_TOKEN_INVALID", "The uploaded file is invalid, already used, or belongs to another user.");
 
         var requester = requesterResolver.FromExternalReporter(reporter);
 
@@ -178,7 +178,7 @@ public class CreateExternalTicketHandler(
         var token = value.Trim();
         if (!token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
             !Guid.TryParse(token[prefix.Length..], out var uploadId))
-            throw new FluentValidation.ValidationException("ไฟล์แนบต้องอัปโหลดผ่านระบบ Ticket");
+            throw new BadRequestException("TICKET_ATTACHMENT_SOURCE_INVALID", "Attachments must be uploaded through the ticket upload endpoint.");
         return uploadId;
     }
 

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Hrms.Application.Features.Memos.Services;
 using Hrms.Application.Features.Tickets.Queries;
 using Hrms.Application.Tests.Support;
 using Hrms.Domain.Enums;
@@ -7,6 +8,13 @@ namespace Hrms.Application.Tests.Tickets;
 
 public class TicketPendingCountsTests
 {
+    // ใช้ resolver ตัวจริง (ไม่ mock) เพื่อให้เทสครอบว่า count งานขั้นตอน memo ไม่พังเมื่อไม่มี memo ในระบบ
+    private static GetTicketPendingCountsHandler CreateHandler(
+        TicketTestFixture fixture, TestCurrentUser user, params string[] permissions)
+        => new(
+            fixture.Db, user, new TestPermissionService(permissions),
+            new MemoStepTaskResolver(fixture.Db, new MemoStepAuthorizer(fixture.Db)));
+
     [Fact]
     public async Task Assignee_ShouldCountActiveAndWaitingInfoAssignments()
     {
@@ -19,8 +27,7 @@ public class TicketPendingCountsTests
         var user = new TestCurrentUser(
             fixture.AssigneeId, fixture.CompanyId, fixture.TargetDepartmentId,
             RoleType.Employee);
-        var handler = new GetTicketPendingCountsHandler(
-            fixture.Db, user, new TestPermissionService("ticket:view-assigned", "ticket:view-own"));
+        var handler = CreateHandler(fixture, user, "ticket:view-assigned", "ticket:view-own");
 
         var counts = await handler.Handle(new GetTicketPendingCountsQuery(), default);
 
@@ -29,6 +36,8 @@ public class TicketPendingCountsTests
         counts.MyOpen.Should().Be(0);
         counts.InboxUntriaged.Should().BeNull();
         counts.MemoAwaitingApproval.Should().BeNull();
+        // งานขั้นตอน memo ไม่ผูก permission — คำนวณให้ทุกคน จึงเป็น 0 ไม่ใช่ null
+        counts.MemoStepTasks.Should().Be(0);
     }
 
     [Fact]
@@ -44,8 +53,7 @@ public class TicketPendingCountsTests
         var user = new TestCurrentUser(
             fixture.RequesterId, fixture.CompanyId, fixture.SourceDepartmentId,
             RoleType.Employee);
-        var handler = new GetTicketPendingCountsHandler(
-            fixture.Db, user, new TestPermissionService("ticket:view-own"));
+        var handler = CreateHandler(fixture, user, "ticket:view-own");
 
         var counts = await handler.Handle(new GetTicketPendingCountsQuery(), default);
 
@@ -66,8 +74,7 @@ public class TicketPendingCountsTests
         var user = new TestCurrentUser(
             fixture.SupervisorId, fixture.CompanyId, fixture.TargetDepartmentId,
             RoleType.Supervisor);
-        var handler = new GetTicketPendingCountsHandler(
-            fixture.Db, user, new TestPermissionService("ticket:view-team"));
+        var handler = CreateHandler(fixture, user, "ticket:view-team");
 
         var counts = await handler.Handle(new GetTicketPendingCountsQuery(), default);
 

@@ -16,9 +16,11 @@ public sealed class ExternalReporterConfiguration : IEntityTypeConfiguration<Ext
         builder.Property(x => x.PictureUrl).HasMaxLength(1000);
         builder.Property(x => x.FullName).HasMaxLength(200);
         builder.Property(x => x.Phone).HasMaxLength(20);
+        builder.Property(x => x.PhoneCountry).HasColumnType("char(2)").HasMaxLength(2);
         builder.Property(x => x.Email).HasMaxLength(320);
         builder.Property(x => x.Organization).HasMaxLength(200);
         builder.Property(x => x.PrivacyNoticeVersion).HasMaxLength(100);
+        builder.Property(x => x.PreferredLanguage).HasMaxLength(5).HasDefaultValue("th").IsRequired();
         builder.Property(x => x.ConsentedAt).HasColumnType("datetime");
         builder.Property(x => x.LastLoginAt).HasColumnType("datetime");
         builder.Property(x => x.IsActive).HasDefaultValue(true);

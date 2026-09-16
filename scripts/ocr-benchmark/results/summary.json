@@ -1,0 +1,63 @@
+{
+  "engines": {
+    "paddleocr": {
+      "files": 2,
+      "errors": 0,
+      "hitCount": 11,
+      "totalFields": 11,
+      "hitRate": 1.0,
+      "avgDurationMs": 59237.68
+    }
+  },
+  "results": [
+    {
+      "engine": "paddleocr",
+      "file": "S__25092104_0.jpg",
+      "documentType": "PaymentOrder",
+      "durationMs": 63664.04,
+      "error": null,
+      "parsed": {
+        "billNo": "FB-CM6903-03617",
+        "expenseDate": "2026-03-31",
+        "driverName": "ปรีชา เขจะรานนท์",
+        "vehicleNo": "102-025",
+        "plateNo": "72-1853"
+      },
+      "fieldResults": {
+        "billNo": true,
+        "expenseDate": true,
+        "fuelLiters": true,
+        "vehicleNo": true,
+        "plateNo": true,
+        "driverName": true
+      },
+      "hitCount": 6,
+      "totalFields": 6,
+      "hitRate": 1.0
+    },
+    {
+      "engine": "paddleocr",
+      "file": "S__25092105_0.jpg",
+      "documentType": "Receipt",
+      "durationMs": 54811.31,
+      "error": null,
+      "parsed": {
+        "expenseDate": "2026-04-01",
+        "receiptTid": "28257831",
+        "receiptTrace": "002795",
+        "merchantName": "PTTST.D VT GROUP (2013) SARABURI",
+        "amount": 1474.6
+      },
+      "fieldResults": {
+        "merchantName": true,
+        "expenseDate": true,
+        "amount": true,
+        "receiptTid": true,
+        "receiptTrace": true
+      },
+      "hitCount": 5,
+      "totalFields": 5,
+      "hitRate": 1.0
+    }
+  ]
+}

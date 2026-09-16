@@ -16,45 +16,28 @@ namespace Hrms.Api.Controllers;
 public class TicketController(IMediator mediator, IFileStorageService storage) : ControllerBase
 {
     /// <summary>เปิดใบแจ้งเรื่อง</summary>
+    // ไม่ดัก exception เอง — GlobalExceptionMiddleware ตอบ { traceId, error, message } รูปแบบเดียวกันทั้งระบบ
+    // (ของเดิมดักเองแล้วส่ง `error` เป็น "ข้อความ" ไม่ใช่ code หน้าจอจึงหาคำแปลไม่เจอ — กติกา D7)
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateTicketRequest request, CancellationToken ct)
     {
-        try
-        {
-            var result = await mediator.Send(new CreateTicketCommand(
-                request.RequestType,
-                request.TargetCompanyId,
-                request.TargetDepartmentId,
-                request.CategoryId,
-                request.TopicId,
-                request.SubjectId,
-                request.OtherTopicText,
-                request.Detail,
-                request.Priority,
-                request.VehicleText,
-                request.LocationText,
-                request.ContactPhone,
-                request.ContactNote,
-                request.AttachmentUrls), ct);
+        var result = await mediator.Send(new CreateTicketCommand(
+            request.RequestType,
+            request.TargetCompanyId,
+            request.TargetDepartmentId,
+            request.CategoryId,
+            request.TopicId,
+            request.SubjectId,
+            request.OtherTopicText,
+            request.Detail,
+            request.Priority,
+            request.VehicleText,
+            request.LocationText,
+            request.ContactPhone,
+            request.ContactNote,
+            request.AttachmentUrls), ct);
 
-            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
-        }
-        catch (FluentValidation.ValidationException ex)
-        {
-            return BadRequest(new { errors = ex.Errors.Select(e => e.ErrorMessage).DefaultIfEmpty(ex.Message) });
-        }
-        catch (AppForbiddenException ex)
-        {
-            return StatusCode(403, new { error = ex.Message });
-        }
-        catch (AppUnauthorizedException ex)
-        {
-            return Unauthorized(new { error = ex.Message });
-        }
-        catch (ConflictException ex)
-        {
-            return Conflict(new { error = ex.Code, message = ex.Message });
-        }
+        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
     [HttpGet("{id:guid}")]
@@ -112,8 +95,10 @@ public class TicketController(IMediator mediator, IFileStorageService storage) :
         [FromQuery] TicketRequestType? requestType = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
+        [FromQuery] AssignedTicketScope? scope = null,
         CancellationToken ct = default)
-        => Ok(await mediator.Send(new GetAssignedTicketsQuery(status, search, history, requestType, page, pageSize), ct));
+        => Ok(await mediator.Send(
+            new GetAssignedTicketsQuery(status, search, history, requestType, page, pageSize, scope), ct));
 
     [HttpGet("claimable")]
     public async Task<IActionResult> GetClaimable(
@@ -175,6 +160,31 @@ public class TicketController(IMediator mediator, IFileStorageService storage) :
         => Ok(await mediator.Send(new AssignTicketCommand(
             id, request.AssignedToEmployeeId, request.Note, request.ExpectedUpdatedAt), ct));
 
+    [HttpGet("{id:guid}/team")]
+    public async Task<IActionResult> GetTeam(Guid id, CancellationToken ct)
+        => Ok(await mediator.Send(new GetTicketTeamQuery(id), ct));
+
+    [HttpPost("{id:guid}/team")]
+    public async Task<IActionResult> AddTeamMembers(
+        Guid id, [FromBody] AddTicketTeamMembersRequest request, CancellationToken ct)
+        => Ok(await mediator.Send(new AddTicketTeamMembersCommand(
+            id, request.EmployeeIds, request.Note, request.ExpectedUpdatedAt), ct));
+
+    [HttpGet("{id:guid}/team-template-options")]
+    public async Task<IActionResult> GetTeamTemplateOptions(Guid id, CancellationToken ct)
+        => Ok(await mediator.Send(new GetTicketTeamTemplateOptionsQuery(id), ct));
+
+    [HttpPost("{id:guid}/team/apply-template")]
+    public async Task<IActionResult> ApplyTeamTemplate(
+        Guid id, [FromBody] ApplyTicketTeamTemplateRequest request, CancellationToken ct)
+        => Ok(await mediator.Send(new ApplyTicketTeamTemplateCommand(
+            id, request.TemplateId, request.ExpectedUpdatedAt), ct));
+
+    [HttpDelete("{id:guid}/team/{employeeId:guid}")]
+    public async Task<IActionResult> RemoveTeamMember(
+        Guid id, Guid employeeId, [FromQuery] DateTime? expectedUpdatedAt, CancellationToken ct)
+        => Ok(await mediator.Send(new RemoveTicketTeamMemberCommand(id, employeeId, expectedUpdatedAt), ct));
+
     [HttpPost("{id:guid}/reject")]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectTicketRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new RejectTicketCommand(id, request.Reason, request.ExpectedUpdatedAt), ct));
@@ -186,12 +196,36 @@ public class TicketController(IMediator mediator, IFileStorageService storage) :
     [HttpPut("{id:guid}/work-detail")]
     public async Task<IActionResult> UpdateWorkDetail(Guid id, [FromBody] UpdateTicketWorkDetailRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new UpdateTicketWorkDetailCommand(
-            id, request.ProblemType, request.InitialInspectionNote, request.ResolutionNote, request.ExpectedUpdatedAt), ct));
+            id, request.ProblemType, request.InitialInspectionNote, request.ResolutionNote, request.CloseoutReasonId, request.ExpectedUpdatedAt), ct));
+
+    [HttpGet("{id:guid}/closeout-reason-options")]
+    public async Task<IActionResult> GetCloseoutReasonOptions(Guid id, CancellationToken ct)
+        => Ok(await mediator.Send(new GetTicketCloseoutReasonOptionsQuery(id), ct));
 
     [HttpPost("{id:guid}/progress")]
     public async Task<IActionResult> UpdateProgress(Guid id, [FromBody] UpdateTicketProgressRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new UpdateTicketProgressCommand(
-            id, request.WorkState, request.BlockerReason, request.NextAction, request.IsCompleted, request.Note, request.ExpectedUpdatedAt), ct));
+            id, request.WorkState, request.BlockerReason, request.NextAction, request.IsCompleted, request.Note,
+            request.ExpectedUpdatedAt, request.OwnerEmployeeId), ct));
+
+    [HttpPut("{id:guid}/progress/{entryId:guid}")]
+    public async Task<IActionResult> UpdateProgressEntry(
+        Guid id,
+        Guid entryId,
+        [FromBody] UpdateTicketProgressEntryRequest request,
+        CancellationToken ct)
+        => Ok(await mediator.Send(new UpdateTicketProgressEntryCommand(
+            id, entryId, request.WorkState, request.BlockerReason, request.NextAction, request.Note,
+            request.ExpectedUpdatedAt, request.OwnerEmployeeId), ct));
+
+    [HttpPatch("{id:guid}/progress/{entryId:guid}/pin")]
+    public async Task<IActionResult> PinProgressEntry(
+        Guid id,
+        Guid entryId,
+        [FromBody] PinTicketProgressEntryRequest request,
+        CancellationToken ct)
+        => Ok(await mediator.Send(new PinTicketProgressEntryCommand(
+            id, entryId, request.IsPinned, request.ExpectedUpdatedAt), ct));
 
     [HttpPost("{id:guid}/request-info")]
     public async Task<IActionResult> RequestInfo(Guid id, [FromBody] RequestTicketInfoRequest request, CancellationToken ct)
@@ -298,14 +332,16 @@ public class TicketCategoryController(IMediator mediator) : ControllerBase
     public async Task<IActionResult> Create([FromBody] CreateTicketCategoryRequest request, CancellationToken ct)
     {
         var result = await mediator.Send(new CreateTicketCategoryCommand(
-            request.CompanyId, request.DepartmentId, request.Name, request.Description, request.SortOrder), ct);
+            request.CompanyId, request.DepartmentId, request.Name, request.Description, request.SortOrder,
+            request.NameEn, request.NameId), ct);
         return Created($"/v1/ticket-categories/{result.Id}", result);
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTicketTaxonomyItemRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new UpdateTicketCategoryCommand(
-            id, request.Name, request.Description, request.SortOrder, request.IsActive), ct));
+            id, request.Name, request.Description, request.SortOrder, request.IsActive,
+            request.NameEn, request.NameId), ct));
 
     [HttpPut("{id:guid}/routing")]
     public async Task<IActionResult> UpdateRouting(
@@ -315,6 +351,66 @@ public class TicketCategoryController(IMediator mediator) : ControllerBase
             id, request.EnableFallback, request.Mode, request.ExpectedUpdatedAt), ct);
         return NoContent();
     }
+}
+
+[ApiController]
+[Route("v1/ticket-closeout-reasons")]
+[Authorize]
+public class TicketCloseoutReasonController(IMediator mediator) : ControllerBase
+{
+    [HttpGet("manage")]
+    public async Task<IActionResult> GetManaged(
+        [FromQuery] Guid companyId,
+        [FromQuery] Guid departmentId,
+        CancellationToken ct)
+        => Ok(await mediator.Send(new GetManagedTicketCloseoutReasonsQuery(companyId, departmentId), ct));
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateTicketCloseoutReasonRequest request, CancellationToken ct)
+    {
+        var result = await mediator.Send(new CreateTicketCloseoutReasonCommand(
+            request.CompanyId, request.DepartmentId, request.Name, request.Description, request.SortOrder, request.CategoryIds,
+            request.RequiresResolutionNote, request.RequiresCompletionEvidence,
+            request.NameEn, request.NameId), ct);
+        return Created($"/v1/ticket-closeout-reasons/{result.Id}", result);
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTicketCloseoutReasonRequest request, CancellationToken ct)
+        => Ok(await mediator.Send(new UpdateTicketCloseoutReasonCommand(
+            id, request.Name, request.Description, request.SortOrder, request.IsActive, request.CategoryIds,
+            request.RequiresResolutionNote, request.RequiresCompletionEvidence,
+            request.NameEn, request.NameId), ct));
+}
+
+[ApiController]
+[Route("v1/ticket-team-templates")]
+[Authorize]
+public class TicketTeamTemplateController(IMediator mediator) : ControllerBase
+{
+    [HttpGet("manage")]
+    public async Task<IActionResult> GetManaged(
+        [FromQuery] Guid companyId,
+        [FromQuery] Guid departmentId,
+        CancellationToken ct)
+        => Ok(await mediator.Send(new GetManagedTicketTeamTemplatesQuery(companyId, departmentId), ct));
+
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        [FromBody] CreateTicketTeamTemplateRequest request, CancellationToken ct)
+    {
+        var result = await mediator.Send(new CreateTicketTeamTemplateCommand(
+            request.CompanyId, request.DepartmentId, request.Name, request.Description,
+            request.SortOrder, request.EmployeeIds), ct);
+        return Created($"/v1/ticket-team-templates/{result.Id}", result);
+    }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(
+        Guid id, [FromBody] UpdateTicketTeamTemplateRequest request, CancellationToken ct)
+        => Ok(await mediator.Send(new UpdateTicketTeamTemplateCommand(
+            id, request.Name, request.Description, request.SortOrder, request.IsActive,
+            request.EmployeeIds), ct));
 }
 
 [ApiController]
@@ -343,14 +439,16 @@ public class TicketTopicController(IMediator mediator) : ControllerBase
     {
         var result = await mediator.Send(new CreateTicketTopicCommand(
             request.CompanyId, request.DepartmentId, request.CategoryId,
-            request.Name, request.Description, request.SortOrder, request.SyncToExternalRepairSystem), ct);
+            request.Name, request.Description, request.SortOrder, request.SyncToExternalRepairSystem,
+            request.NameEn, request.NameId), ct);
         return Created($"/v1/ticket-topics/{result.Id}", result);
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTicketTaxonomyItemRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new UpdateTicketTopicCommand(
-            id, request.Name, request.Description, request.SortOrder, request.IsActive, request.SyncToExternalRepairSystem), ct));
+            id, request.Name, request.Description, request.SortOrder, request.IsActive, request.SyncToExternalRepairSystem,
+            request.NameEn, request.NameId), ct));
 
     [HttpPut("{id:guid}/routing")]
     public async Task<IActionResult> UpdateRouting(
@@ -389,14 +487,16 @@ public class TicketSubjectController(IMediator mediator) : ControllerBase
     {
         var result = await mediator.Send(new CreateTicketSubjectCommand(
             request.CompanyId, request.DepartmentId, request.CategoryId, request.TopicId,
-            request.Name, request.Description, request.SortOrder), ct);
+            request.Name, request.Description, request.SortOrder,
+            request.NameEn, request.NameId), ct);
         return Created($"/v1/ticket-subjects/{result.Id}", result);
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateTicketTaxonomyItemRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new UpdateTicketSubjectCommand(
-            id, request.Name, request.Description, request.SortOrder, request.IsActive), ct));
+            id, request.Name, request.Description, request.SortOrder, request.IsActive,
+            request.NameEn, request.NameId), ct));
 }
 
 [ApiController]
@@ -425,12 +525,15 @@ public record CreateTicketRequest(
     string? ContactNote,
     IReadOnlyList<string>? AttachmentUrls);
 
+// NameEn/NameId = ชื่อหลายภาษาของ master data (i18n Phase M) — ไม่ส่ง = คงค่าเดิม, ส่ง "" = ล้างค่า
 public record CreateTicketCategoryRequest(
     Guid CompanyId,
     Guid DepartmentId,
     string Name,
     string? Description,
-    int SortOrder);
+    int SortOrder,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record CreateTicketTopicRequest(
     Guid CompanyId,
@@ -439,7 +542,9 @@ public record CreateTicketTopicRequest(
     string Name,
     string? Description,
     int SortOrder,
-    bool SyncToExternalRepairSystem = false);
+    bool SyncToExternalRepairSystem = false,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record CreateTicketSubjectRequest(
     Guid CompanyId,
@@ -448,14 +553,18 @@ public record CreateTicketSubjectRequest(
     Guid TopicId,
     string Name,
     string? Description,
-    int SortOrder);
+    int SortOrder,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record UpdateTicketTaxonomyItemRequest(
     string Name,
     string? Description,
     int SortOrder,
     bool IsActive,
-    bool SyncToExternalRepairSystem = false);
+    bool SyncToExternalRepairSystem = false,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record TicketVersionRequest(DateTime? ExpectedUpdatedAt);
 
@@ -477,11 +586,57 @@ public record AssignTicketRequest(
 
 public record RejectTicketRequest(string Reason, DateTime? ExpectedUpdatedAt);
 
+public record AddTicketTeamMembersRequest(
+    IReadOnlyList<Guid> EmployeeIds,
+    string? Note,
+    DateTime? ExpectedUpdatedAt);
+
+public record ApplyTicketTeamTemplateRequest(Guid TemplateId, DateTime? ExpectedUpdatedAt);
+
+public record CreateTicketTeamTemplateRequest(
+    Guid CompanyId,
+    Guid? DepartmentId,
+    string Name,
+    string? Description,
+    int SortOrder,
+    IReadOnlyList<Guid> EmployeeIds);
+
+public record UpdateTicketTeamTemplateRequest(
+    string Name,
+    string? Description,
+    int SortOrder,
+    bool IsActive,
+    IReadOnlyList<Guid> EmployeeIds);
+
 public record UpdateTicketWorkDetailRequest(
     TicketProblemType? ProblemType,
     string? InitialInspectionNote,
     string? ResolutionNote,
-    DateTime? ExpectedUpdatedAt);
+    DateTime? ExpectedUpdatedAt,
+    Guid? CloseoutReasonId = null);
+
+public record CreateTicketCloseoutReasonRequest(
+    Guid CompanyId,
+    Guid? DepartmentId,
+    string Name,
+    string? Description,
+    int SortOrder,
+    IReadOnlyList<Guid>? CategoryIds,
+    bool RequiresResolutionNote = true,
+    bool RequiresCompletionEvidence = true,
+    string? NameEn = null,
+    string? NameId = null);
+
+public record UpdateTicketCloseoutReasonRequest(
+    string Name,
+    string? Description,
+    int SortOrder,
+    bool IsActive,
+    IReadOnlyList<Guid>? CategoryIds,
+    bool RequiresResolutionNote = true,
+    bool RequiresCompletionEvidence = true,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record UpdateTicketProgressRequest(
     string? WorkState,
@@ -489,7 +644,18 @@ public record UpdateTicketProgressRequest(
     string? NextAction,
     bool IsCompleted,
     string? Note,
-    DateTime? ExpectedUpdatedAt);
+    DateTime? ExpectedUpdatedAt,
+    Guid? OwnerEmployeeId = null);
+
+public record UpdateTicketProgressEntryRequest(
+    string? WorkState,
+    string? BlockerReason,
+    string? NextAction,
+    string? Note,
+    DateTime? ExpectedUpdatedAt,
+    Guid? OwnerEmployeeId = null);
+
+public record PinTicketProgressEntryRequest(bool IsPinned, DateTime? ExpectedUpdatedAt);
 
 public record RequestTicketInfoRequest(string Message, DateTime? ExpectedUpdatedAt);
 

@@ -31,7 +31,7 @@ public class GetEmployeesHandler(IApplicationDbContext db, IScopeGuard scope, IC
         // ถ้า companyId ระบุมา ตรวจสิทธิ์ก่อน
         if (request.CompanyId.HasValue &&
             accessibleIds != null && !accessibleIds.Contains(request.CompanyId.Value))
-            throw new AppForbiddenException("ไม่มีสิทธิ์เข้าถึงบริษัทนี้");
+            throw new AppForbiddenException("COMPANY_ACCESS_FORBIDDEN", "You are not allowed to access this company.");
 
         var query = db.Employees
             .Include(e => e.Company)

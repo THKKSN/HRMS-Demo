@@ -8,7 +8,8 @@ public record CompanyDto(
     Guid? ParentId,
     string? ParentName,
     bool IsActive,
-    bool IsHeadquarters);
+    bool IsHeadquarters,
+    string? NameId = null);
 
 public record CompanyTreeDto(
     Guid Id,
@@ -17,4 +18,5 @@ public record CompanyTreeDto(
     string OrgType,
     bool IsActive,
     bool IsHeadquarters,
-    List<CompanyTreeDto> Children);
+    List<CompanyTreeDto> Children,
+    string? NameId = null);

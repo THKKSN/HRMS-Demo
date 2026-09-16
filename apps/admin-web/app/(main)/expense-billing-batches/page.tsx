@@ -4,19 +4,14 @@ import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { CalendarDays, ChevronRight, FileSpreadsheet, Search } from 'lucide-react'
 import type { ExpenseBillingBatchStatus } from '@hrms/shared-types'
+import { EXPENSE_BILLING_BATCH_STATUS_LABEL as STATUS_LABEL } from '@hrms/i18n/labels'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useExpenseBillingBatches } from '@/hooks/use-expense-billing-batches'
+import * as fmt from '@hrms/i18n/format'
 
 const PAGE_SIZE = 20
-
-const STATUS_LABEL: Record<ExpenseBillingBatchStatus, string> = {
-  Draft: 'แบบร่าง',
-  Exported: 'Export แล้ว',
-  Paid: 'จ่ายแล้ว',
-  Cancelled: 'ยกเลิก',
-}
 
 const STATUS_VARIANT: Record<ExpenseBillingBatchStatus, 'secondary' | 'info' | 'success' | 'outline'> = {
   Draft: 'secondary',
@@ -26,16 +21,16 @@ const STATUS_VARIANT: Record<ExpenseBillingBatchStatus, 'secondary' | 'info' | '
 }
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(`${value}T00:00:00`))
+  return fmt.formatDate(new Date(`${value}T00:00:00`), { dateStyle: 'medium' })
 }
 
 function formatDateTime(value?: string) {
   if (!value) return '-'
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  return fmt.formatDateTime(new Date(value))
 }
 
 function formatMoney(value: number) {
-  return new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
+  return fmt.formatMoney(value)
 }
 
 export default function ExpenseBillingBatchesPage() {
@@ -158,7 +153,7 @@ export default function ExpenseBillingBatchesPage() {
                 <td className="px-4 py-3">
                   <Badge variant={STATUS_VARIANT[item.status]}>{STATUS_LABEL[item.status]}</Badge>
                 </td>
-                <td className="px-4 py-3 text-right">{item.totalClaims.toLocaleString('th-TH')}</td>
+                <td className="px-4 py-3 text-right">{fmt.formatNumber(item.totalClaims)}</td>
                 <td className="px-4 py-3 text-right font-semibold">{formatMoney(item.totalAmount)}</td>
                 <td className="px-4 py-3 text-muted-foreground">{item.createdByEmployeeName}</td>
                 <td className="px-4 py-3 text-muted-foreground">{formatDateTime(item.exportedAt)}</td>

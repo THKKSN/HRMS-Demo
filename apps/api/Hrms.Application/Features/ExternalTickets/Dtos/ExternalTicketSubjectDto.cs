@@ -8,4 +8,6 @@ public record ExternalTicketSubjectDto(
     string? Template,
     IReadOnlyList<string> Suggestions,
     int SortOrder,
-    bool IsActive);
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null);

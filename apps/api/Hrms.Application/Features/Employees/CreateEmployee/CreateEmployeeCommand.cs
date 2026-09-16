@@ -62,7 +62,7 @@ public class CreateEmployeeHandler(
         else
         {
             companyId = currentUser.CompanyId
-                ?? throw new AppUnauthorizedException("ไม่พบข้อมูล company ของผู้ใช้");
+                ?? throw new AppUnauthorizedException("USER_COMPANY_NOT_FOUND", "Current user has no company.");
             await scope.ThrowIfCannotAccessAsync(companyId, ct);
         }
 
@@ -70,15 +70,15 @@ public class CreateEmployeeHandler(
         var employeeCode = EmployeeCodeNormalizer.Normalize(request.EmployeeCode);
 
         if (await db.Employees.AnyAsync(e => e.CompanyId == companyId && e.EmployeeCode == employeeCode, ct))
-            throw new ConflictException("DUPLICATE_EMPLOYEE_CODE", $"รหัสพนักงาน '{employeeCode}' มีอยู่แล้วในระบบ");
+            throw new ConflictException("DUPLICATE_EMPLOYEE_CODE", $"Employee code '{employeeCode}' already exists.");
 
         if (!string.IsNullOrEmpty(request.Email) &&
             await db.Employees.AnyAsync(e => e.Email == request.Email, ct))
-            throw new ConflictException("DUPLICATE_EMAIL", $"อีเมล '{request.Email}' ถูกใช้งานแล้ว");
+            throw new ConflictException("DUPLICATE_EMAIL", $"Email '{request.Email}' is already in use.");
 
         if (!string.IsNullOrEmpty(request.NationalId) &&
             await db.Employees.AnyAsync(e => e.NationalId == request.NationalId, ct))
-            throw new ConflictException("DUPLICATE_NATIONAL_ID", "หมายเลขบัตรประชาชนนี้มีในระบบแล้ว");
+            throw new ConflictException("DUPLICATE_NATIONAL_ID", "This national ID already exists.");
 
         var department = request.DepartmentId.HasValue
             ? await db.Departments.FirstOrDefaultAsync(d => d.Id == request.DepartmentId.Value && d.CompanyId == companyId, ct)

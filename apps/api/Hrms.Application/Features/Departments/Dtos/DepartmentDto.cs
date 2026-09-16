@@ -9,7 +9,9 @@ public record DepartmentDto(
     string? ManagerName,
     Guid? ShiftId,
     string? ShiftName,
-    bool IsActive);
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record DepartmentListItemDto(
     Guid Id,
@@ -21,4 +23,6 @@ public record DepartmentListItemDto(
     Guid? ShiftId,
     string? ShiftName,
     int EmployeeCount,
-    bool IsActive);
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null);

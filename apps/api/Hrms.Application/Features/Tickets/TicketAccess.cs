@@ -10,6 +10,11 @@ namespace Hrms.Application.Features.Tickets;
 
 internal static class TicketAccess
 {
+    // permission code ของการ์ดกิจกรรม — ต้องตรงกับ PermissionSeeder และ docs/sql/permission-v1-1-1.sql
+    public const string EditProgressEntryPermission = "ticket:edit-progress-entry";
+    public const string EditAnyProgressEntryPermission = "ticket:edit-any-progress-entry";
+    public const string PinProgressEntryPermission = "ticket:pin-progress-entry";
+
     public static async Task EnsureCanViewAsync(
         IApplicationDbContext db,
         ICurrentUser currentUser,
@@ -24,9 +29,10 @@ internal static class TicketAccess
         if (ticket.RequesterEmployeeId == employeeId &&
             await permissions.HasPermissionAsync(currentUser, "ticket:view-own", ct)) return;
 
-        var hasAssignment = await db.TicketAssignments.AnyAsync(a =>
-            a.TicketId == ticket.Id && a.AssignedToEmployeeId == employeeId && a.IsPrimary, ct);
-        if (hasAssignment && await permissions.HasPermissionAsync(currentUser, "ticket:view-assigned", ct)) return;
+        // ไม่กรอง IsActive โดยเจตนา — คนที่เคยรับผิดชอบหรือเคยร่วมทีมยังเปิดดูใบเดิมที่ตัวเองทำไว้ได้
+        // แม้จะถูกเปลี่ยนตัวหรือถอดออกจากทีมแล้ว (ทำงานต่อไม่ได้ ดูได้เท่านั้น)
+        var wasWorker = await TicketTeam.WasEverWorkerAsync(db, employeeId, ticket.Id, ct);
+        if (wasWorker && await permissions.HasPermissionAsync(currentUser, "ticket:view-assigned", ct)) return;
 
         if (await IsRoutingCandidateAsync(db, employeeId, ticket, ct) &&
             await permissions.HasPermissionAsync(currentUser, "ticket:view-assigned", ct)) return;
@@ -34,31 +40,8 @@ internal static class TicketAccess
         if (await IsDepartmentManagerAsync(db, currentUser, ticket, ct) &&
             await permissions.HasPermissionAsync(currentUser, "ticket:view-team", ct)) return;
 
-        throw new AppForbiddenException("ไม่มีสิทธิ์ดูใบแจ้งเรื่องนี้");
+        throw new AppForbiddenException("TICKET_VIEW_FORBIDDEN", "You are not allowed to view this ticket.");
     }
-
-    public static async Task EnsureActiveAssigneeAsync(
-        IApplicationDbContext db,
-        ICurrentUser currentUser,
-        IPermissionService permissions,
-        string permission,
-        Ticket ticket,
-        CancellationToken ct)
-    {
-        await currentUser.ThrowIfNoPermissionAsync(permissions, permission, ct);
-        if (currentUser.HasRole(RoleType.Admin)) return;
-
-        var employeeId = currentUser.EmployeeId
-            ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
-        var isAssignee = await IsActiveAssigneeAsync(db, employeeId, ticket.Id, ct);
-        if (!isAssignee)
-            throw new AppForbiddenException("เฉพาะผู้รับผิดชอบปัจจุบันเท่านั้นที่ดำเนินการได้");
-    }
-
-    public static Task<bool> IsActiveAssigneeAsync(
-        IApplicationDbContext db, Guid employeeId, Guid ticketId, CancellationToken ct)
-        => db.TicketAssignments.AnyAsync(a =>
-            a.TicketId == ticketId && a.AssignedToEmployeeId == employeeId && a.IsActive && a.IsPrimary, ct);
 
     public static Task<bool> IsRoutingCandidateAsync(
         IApplicationDbContext db, Guid employeeId, Ticket ticket, CancellationToken ct)
@@ -73,8 +56,8 @@ internal static class TicketAccess
         // External ticket ไม่มี internal Category/Topic ให้ match responsibility — ไม่มี auto-routing candidate เลย
         if (ticket.RequestType == TicketRequestType.External) return false;
 
-        if (await db.TicketAssignments.AsNoTracking().AnyAsync(a =>
-            a.TicketId == ticket.Id && a.IsActive && a.IsPrimary, ct)) return false;
+        // มีผู้รับผิดชอบหลักแล้วก็ไม่ต้องมี candidate อีก — ผู้ร่วมงานในทีมไม่นับ
+        if (await TicketTeam.HasActiveOwnerAsync(db, ticket.Id, ct)) return false;
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         return await db.EmployeeResponsibilities.AsNoTracking().AnyAsync(r =>
@@ -96,12 +79,25 @@ internal static class TicketAccess
         CancellationToken ct)
     {
         await currentUser.ThrowIfNoPermissionAsync(permissions, permission, ct);
+        await EnsureWorkerOrManagerRelationAsync(db, currentUser, ticket, ct);
+    }
+
+    /// <summary>
+    /// เช็กเฉพาะความเกี่ยวข้องกับใบแจ้งเรื่อง (Admin / คนในทีมที่ยัง active / หัวหน้าแผนกปลายทาง) โดยไม่เช็ค permission
+    /// ใช้กับ action ที่ต้องเช็ค permission หลายตัวเองก่อน เช่น แก้ไข/ปักหมุดการ์ดกิจกรรม
+    /// </summary>
+    public static async Task EnsureWorkerOrManagerRelationAsync(
+        IApplicationDbContext db,
+        ICurrentUser currentUser,
+        Ticket ticket,
+        CancellationToken ct)
+    {
         if (currentUser.HasRole(RoleType.Admin)) return;
         var employeeId = currentUser.EmployeeId
             ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
-        if (await IsActiveAssigneeAsync(db, employeeId, ticket.Id, ct)) return;
+        if (await TicketTeam.IsActiveWorkerAsync(db, employeeId, ticket.Id, ct)) return;
         if (await IsDepartmentManagerAsync(db, currentUser, ticket, ct)) return;
-        throw new AppForbiddenException("ไม่มีสิทธิ์ดำเนินการกับใบแจ้งเรื่องนี้");
+        throw new AppForbiddenException("TICKET_ACTION_FORBIDDEN", "You are not allowed to act on this ticket.");
     }
 
     public static async Task<bool> IsDepartmentManagerAsync(
@@ -143,12 +139,22 @@ internal static class TicketAccess
         var employeeId = currentUser.EmployeeId;
         var isAdmin = currentUser.HasRole(RoleType.Admin);
         var isRequester = employeeId.HasValue && ticket.RequesterEmployeeId == employeeId.Value;
-        var isAssignee = employeeId.HasValue && await db.TicketAssignments.AnyAsync(a =>
-            a.TicketId == ticket.Id && a.AssignedToEmployeeId == employeeId.Value && a.IsActive && a.IsPrimary, ct);
+        var isTeamOwner = employeeId.HasValue &&
+            await TicketTeam.IsActiveOwnerAsync(db, employeeId.Value, ticket.Id, ct);
+        var isTeamMember = employeeId.HasValue && !isTeamOwner &&
+            await TicketTeam.IsActiveMemberAsync(db, employeeId.Value, ticket.Id, ct);
+        // ผู้ร่วมงานลงมือทำได้เฉพาะเมื่อ role มี permission ผู้ร่วมงาน (ถอนสิทธิ์ทั้ง role ได้จากหน้าตั้งค่า)
+        var canWorkAsMember = isTeamMember &&
+            await permissions.HasPermissionAsync(currentUser, TicketTeam.WorkAsMemberPermission, ct);
+        var isAssignee = isTeamOwner || canWorkAsMember;
         var isManager = await IsDepartmentManagerAsync(db, currentUser, ticket, ct);
         var isRoutingCandidate = employeeId.HasValue &&
             await IsRoutingCandidateAsync(db, employeeId.Value, ticket, ct);
-        var canWork = !isRequester && (isAdmin || isAssignee);
+        // หัวหน้าแผนกที่เปิดเรื่องเข้าแผนกตัวเองต้องเดินงานเองได้ครบวงจร (แผนกเล็กมีหัวหน้าคนเดียว
+        // ถ้ากันไว้ใบนั้นจะตันทั้งใบ ทำอะไรไม่ได้เลยนอกจากขอยกเลิก)
+        // ตัวที่ต้องกันจากฝั่งผู้รับคือ "ผู้แจ้งที่ไม่ได้ดูแลแผนกปลายทาง" เท่านั้น
+        var isRequesterOnly = isRequester && !isManager;
+        var canWork = !isRequesterOnly && (isAdmin || isAssignee);
         var canUpdateStatus = await permissions.HasPermissionAsync(currentUser, "ticket:update-status", ct);
         var canTriagePermission = await permissions.HasPermissionAsync(currentUser, "ticket:triage", ct);
         var canAssignPermission = await permissions.HasPermissionAsync(currentUser, "ticket:assign", ct);
@@ -160,9 +166,15 @@ internal static class TicketAccess
         var canReturnPermission = await permissions.HasPermissionAsync(currentUser, "ticket:return", ct);
         var canClosePermission = await permissions.HasPermissionAsync(currentUser, "ticket:close", ct);
         var canViewReportPermission = await permissions.HasPermissionAsync(currentUser, "ticket:view-report", ct);
-        var isReceiverManager = isManager && !isRequester;
-        var isReceiverSide = !isRequester && (isReceiverManager || isAssignee || isRoutingCandidate);
+        var isReceiverManager = isManager;
+        var isReceiverSide = !isRequesterOnly && (isReceiverManager || isAssignee || isTeamMember || isRoutingCandidate);
         var isTerminal = ticket.Status is TicketStatus.Closed or TicketStatus.Rejected or TicketStatus.Cancelled;
+        // จัดทีมได้: หัวหน้าแผนกปลายทาง หรือผู้รับผิดชอบหลักของใบนั้น — ต้องมีผู้รับผิดชอบหลักแล้วจึงตั้งทีมได้
+        var canManageTeam = !isRequesterOnly && !isTerminal &&
+            ticket.Status is not TicketStatus.Resolved &&
+            (isReceiverManager || isTeamOwner) &&
+            await permissions.HasPermissionAsync(currentUser, TicketTeam.ManageTeamPermission, ct) &&
+            await TicketTeam.HasActiveOwnerAsync(db, ticket.Id, ct);
 
         var hasPendingCancellation = await db.TicketCancellationRequests.AnyAsync(cancellation =>
             cancellation.TicketId == ticket.Id &&
@@ -185,7 +197,9 @@ internal static class TicketAccess
                 ticket.Status is (TicketStatus.Assigned or TicketStatus.InProgress or TicketStatus.WaitingInfo),
             canUpdateStatus && (canWork || isReceiverManager) && ticket.Status == TicketStatus.InProgress,
             canUpdateStatus && canWork && ticket.Status == TicketStatus.WaitingInfo,
-            canResolvePermission && canWork && ticket.Status == TicketStatus.InProgress,
+            // ส่งตรวจจบงานเป็นของผู้รับผิดชอบหลักคนเดียว — ผู้ร่วมงานทำแทนไม่ได้ (เจ้าภาพเดียวของเหตุผลปิดงาน)
+            canResolvePermission && !isRequesterOnly && (isAdmin || isTeamOwner) &&
+                ticket.Status == TicketStatus.InProgress,
             !isTerminal && canCommentPermission && (isRequester || isAssignee || isManager || isAdmin),
             !isTerminal && canAddInternalNotePermission && isReceiverManager,
             canAttachmentPermission && (isRequester || isAssignee || isManager || isAdmin) &&
@@ -196,9 +210,12 @@ internal static class TicketAccess
             canClosePermission && isReceiverManager && !hasPendingCancellation &&
                 ticket.Status == TicketStatus.Resolved,
             canViewReportPermission && isManager,
-            canUpdateStatus && !isRequester && isRoutingCandidate,
+            canUpdateStatus && !isRequesterOnly && isRoutingCandidate,
             isRequester && !hasPendingCancellation &&
                 ticket.Status is (TicketStatus.Open or TicketStatus.Assigned or
-                    TicketStatus.InProgress or TicketStatus.WaitingInfo));
+                    TicketStatus.InProgress or TicketStatus.WaitingInfo),
+            isTeamOwner,
+            isTeamMember,
+            canManageTeam);
     }
 }

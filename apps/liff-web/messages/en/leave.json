@@ -1,0 +1,121 @@
+{
+  "list": {
+    "title": "Leave history",
+    "checkBalance": "Check balance",
+    "tabs": {
+      "all": "All",
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "empty": "No leave requests yet",
+    "emptyHint": "Tap + to submit a new leave request",
+    "requestNow": "Request leave"
+  },
+  "new": {
+    "title": "Request leave",
+    "subtitle": "Choose a leave type and dates",
+    "amount": "Duration",
+    "leaveType": "Leave type",
+    "remaining": "<b>{days}</b> days left",
+    "noTypes": "No leave types with remaining balance",
+    "selectDates": "Select dates",
+    "specifyTime": "Time",
+    "shift": "Shift {from}–{to}",
+    "notRequired": "Optional",
+    "timeFrom": "Start time",
+    "timeTo": "End time",
+    "quickDuration": "Quick duration",
+    "presets": {
+      "m30": "30 min",
+      "h1": "1 h",
+      "h1_5": "1.5 h",
+      "h2": "2 h",
+      "h3": "3 h",
+      "h4": "4 h",
+      "halfDay": "Half day",
+      "fullDay": "Full day"
+    },
+    "clearTime": "Clear time",
+    "reason": "Reason",
+    "reasonPlaceholder": "Reason for leave...",
+    "attachments": "Attachments",
+    "fileCount": "{count, plural, one {# file} other {# files}}",
+    "tapToAdd": "Tap to add another file",
+    "tapToSelect": "Tap to choose a file",
+    "fileHint": ".jpg .jpeg .png .pdf · up to 10 MB each · max {max} files",
+    "filesFull": "All {max} files attached",
+    "fileTooBig": "These files are larger than 10 MB: {names}",
+    "tooManyFiles": "You can attach up to {max} files",
+    "submitting": "Submitting...",
+    "submit": "Submit leave request",
+    "validation": {
+      "leaveTypeRequired": "Please choose a leave type",
+      "dateFromRequired": "Please choose a start date",
+      "dateToRequired": "Please choose an end date",
+      "dateOrder": "End date cannot be before start date",
+      "timeOrder": "End time must be after start time"
+    }
+  },
+  "detail": {
+    "title": "Leave details",
+    "notFound": "Leave request not found",
+    "timeline": {
+      "submitted": "Submitted",
+      "supervisorApproved": "Supervisor approved",
+      "hrApproved": "HR approved"
+    },
+    "cancellationPendingTitle": "Waiting for HR to cancel",
+    "cancellationPendingBody": "Your cancellation request has been sent and is being reviewed by HR.",
+    "status": "Status",
+    "requester": "Requester",
+    "reason": "Reason",
+    "supervisor": "Approving supervisor",
+    "supervisorComment": "Supervisor comment",
+    "hr": "Approving HR",
+    "hrComment": "HR comment",
+    "submittedAt": "Submitted on",
+    "attachments": "Attachments ({count})",
+    "fileN": "File {n}",
+    "actions": "Actions",
+    "commentPlaceholder": "Comment (optional)...",
+    "reject": "Reject",
+    "approve": "Approve",
+    "approving": "Approving...",
+    "confirmRejectTitle": "Reject this leave request?",
+    "confirmReject": "Confirm rejection",
+    "cancelRequest": "Cancel leave request",
+    "confirmCancelTitle": "Cancel this leave request?",
+    "irreversible": "This cannot be undone.",
+    "keep": "Keep it",
+    "cancelling": "Cancelling...",
+    "confirmCancel": "Confirm cancellation",
+    "requestCancel": "Request cancellation (needs HR approval)",
+    "requestCancelTitle": "Request cancellation",
+    "requestCancelBody": "This request goes to HR for review — the leave is not cancelled immediately.",
+    "cancelReasonPlaceholder": "Reason for cancelling (optional)...",
+    "sendCancelRequest": "Send cancellation request",
+    "errors": {
+      "cancelFailed": "Could not cancel. Please try again.",
+      "requestCancelFailed": "Could not send the cancellation request. Please try again.",
+      "approveFailed": "Could not approve. Please try again.",
+      "rejectFailed": "Could not reject. Please try again."
+    }
+  },
+  "balance": {
+    "title": "Leave entitlement {year}",
+    "empty": "No leave entitlement data yet",
+    "remaining": "{days} days left",
+    "used": "Used {days} days",
+    "pending": " + {days} pending",
+    "total": "Total {days} days",
+    "legendApproved": "Approved",
+    "legendPending": "Pending"
+  },
+  "pending": {
+    "title": "Pending approval",
+    "empty": "No requests waiting for approval",
+    "emptyHint": "Everything has been handled",
+    "count": "{count, plural, one {# request} other {# requests}} pending approval"
+  }
+}

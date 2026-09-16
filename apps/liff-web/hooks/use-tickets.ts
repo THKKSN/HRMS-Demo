@@ -16,6 +16,8 @@ export const ticketKeys = {
   detail: (id: string) => [...ticketKeys.all, 'detail', id] as const,
   comments: (id: string) => [...ticketKeys.all, 'comments', id] as const,
   candidates: (id: string) => [...ticketKeys.all, 'candidates', id] as const,
+  team: (id: string) => [...ticketKeys.all, 'team', id] as const,
+  closeoutReasonOptions: (id: string) => [...ticketKeys.all, 'closeout-reason-options', id] as const,
 }
 
 export function useTicketInbox(params: TicketInboxParams, enabled = true) {
@@ -73,11 +75,63 @@ export function useTicketComments(id: string) {
   return useQuery({ queryKey: ticketKeys.comments(id), queryFn: () => ticketsApi.getComments(id), enabled: !!id })
 }
 
+export function useTicketCloseoutReasonOptions(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ticketKeys.closeoutReasonOptions(id),
+    queryFn: () => ticketsApi.getCloseoutReasonOptions(id),
+    enabled: !!id && enabled,
+  })
+}
+
+export function useTicketTeamTemplateOptions(id: string, enabled = true) {
+  return useQuery({
+    queryKey: [...ticketKeys.team(id), 'template-options'],
+    queryFn: () => ticketsApi.getTeamTemplateOptions(id),
+    enabled: !!id && enabled,
+  })
+}
+
+export function useApplyTicketTeamTemplate(id: string) {
+  return useTicketMutation<
+    Parameters<typeof ticketsApi.applyTeamTemplate>[1],
+    Awaited<ReturnType<typeof ticketsApi.applyTeamTemplate>>
+  >(id, body => ticketsApi.applyTeamTemplate(id, body))
+}
+
+export function useTicketTeam(id: string, enabled = true) {
+  return useQuery({
+    queryKey: ticketKeys.team(id),
+    queryFn: () => ticketsApi.getTeam(id),
+    enabled: !!id && enabled,
+  })
+}
+
+export function useAddTicketTeamMembers(id: string) {
+  return useTicketMutation<
+    Parameters<typeof ticketsApi.addTeamMembers>[1],
+    Awaited<ReturnType<typeof ticketsApi.addTeamMembers>>
+  >(id, body => ticketsApi.addTeamMembers(id, body))
+}
+
+export function useRemoveTicketTeamMember(id: string) {
+  return useTicketMutation<
+    { employeeId: string; expectedUpdatedAt?: string },
+    Awaited<ReturnType<typeof ticketsApi.removeTeamMember>>
+  >(id, body => ticketsApi.removeTeamMember(id, body.employeeId, body.expectedUpdatedAt))
+}
+
 export function useTicketAssignmentCandidates(id: string, enabled = true) {
   return useQuery({
     queryKey: ticketKeys.candidates(id),
     queryFn: () => ticketsApi.getAssignmentCandidates(id),
     enabled: !!id && enabled,
+  })
+}
+
+export function useRefreshTicketDetail(id: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: () => queryClient.refetchQueries({ queryKey: ticketKeys.detail(id) }),
   })
 }
 
@@ -135,6 +189,20 @@ export function useUpdateTicketProgress(id: string) {
     Parameters<typeof ticketsApi.updateProgress>[1],
     Awaited<ReturnType<typeof ticketsApi.updateProgress>>
   >(id, body => ticketsApi.updateProgress(id, body))
+}
+
+export function useUpdateTicketProgressEntry(id: string) {
+  return useTicketMutation<
+    { entryId: string } & Parameters<typeof ticketsApi.updateProgressEntry>[2],
+    Awaited<ReturnType<typeof ticketsApi.updateProgressEntry>>
+  >(id, ({ entryId, ...body }) => ticketsApi.updateProgressEntry(id, entryId, body))
+}
+
+export function usePinTicketProgressEntry(id: string) {
+  return useTicketMutation<
+    { entryId: string } & Parameters<typeof ticketsApi.pinProgressEntry>[2],
+    Awaited<ReturnType<typeof ticketsApi.pinProgressEntry>>
+  >(id, ({ entryId, ...body }) => ticketsApi.pinProgressEntry(id, entryId, body))
 }
 
 export function useRequestTicketInfo(id: string) {

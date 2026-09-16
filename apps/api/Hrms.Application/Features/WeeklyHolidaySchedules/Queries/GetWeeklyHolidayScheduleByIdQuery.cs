@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.WeeklyHolidaySchedules.Dtos;
 using MediatR;
@@ -17,7 +18,7 @@ public class GetWeeklyHolidayScheduleByIdHandler(IApplicationDbContext db, IScop
             .Include(s => s.Company)
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException($"ไม่พบ WeeklyHolidaySchedule Id '{request.Id}'");
+            ?? throw new NotFoundException("WeeklyHolidaySchedule", request.Id, "HOLIDAY_SCHEDULE_NOT_FOUND");
 
         if (schedule.CompanyId.HasValue)
             await scope.ThrowIfCannotAccessAsync(schedule.CompanyId.Value, ct);

@@ -1,6 +1,7 @@
 'use client'
 
 import { use, useState, useEffect, useRef, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -28,40 +29,48 @@ import { useDepartments } from '@/hooks/use-departments'
 import { useRoleLabels } from '@/hooks/use-role-labels'
 import { useLeaveTypes } from '@/hooks/use-leave-types'
 import { useLeaveBalances, useAdjustBalance, useCreateLeaveBalance, useSeedBalancesForEmployee } from '@/hooks/use-leave-balances'
-import { useAuthStore } from '@/stores/auth.store'
+import { usePermissionGate } from '@/hooks/use-permission-gate'
 import { useShiftOverrides, useCurrentShift, useSetShiftOverride, useRemoveShiftOverride } from '@/hooks/use-shift-overrides'
 import { useShifts } from '@/hooks/use-shifts'
 import { useAllRolePermissions } from '@/hooks/use-permissions'
 import { companyOptionLabel, useCompanyOptions } from '@/hooks/use-company-options'
-import { getInitials, ROLE_LABEL_TH, roleChipClass } from '@/lib/employee-roles'
+import { getInitials, roleChipClass } from '@/lib/employee-roles'
 import type { LeaveBalanceAdminDto } from '@/types/admin'
+import * as fmt from '@hrms/i18n/format'
+import { useApiError } from '@/hooks/use-api-error'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1]
 
-const editSchema = z.object({
-  firstName:    z.string().min(1, 'กรุณากรอกชื่อ'),
-  lastName:     z.string().min(1, 'กรุณากรอกนามสกุล'),
-  nickname:     z.string().max(50, { message: 'ไม่เกิน 50 ตัวอักษร' }).optional(),
-  email:        z.string().email({ message: 'อีเมลไม่ถูกต้อง' }).optional().or(z.literal('')),
+// ข้อความ validation มาจาก useTranslations จึงสร้าง schema ใน component
+type TranslateFn = (key: string) => string
+
+function buildEditSchema(t: TranslateFn) {
+  return z.object({
+  firstName:    z.string().min(1, t('errorFirstNameRequired')),
+  lastName:     z.string().min(1, t('errorLastNameRequired')),
+  nickname:     z.string().max(50, { message: t('errorNicknameMax') }).optional(),
+  email:        z.string().email({ message: t('errorInvalidEmail') }).optional().or(z.literal('')),
   phone:        z.string().optional(),
   hireDate:     z.string().optional(),
   nationalId:   z.string().optional(),
   companyId:    z.string().optional(),
   departmentId: z.string().optional(),
   roleLabelId:  z.string().optional(),
-})
-type EditValues = z.infer<typeof editSchema>
+  })
+}
+type EditValues = z.infer<ReturnType<typeof buildEditSchema>>
 
 type TabKey = 'info' | 'roles' | 'leave' | 'shift' | 'password'
 
 // ต้องตรงกับ SetPasswordCommandValidator ฝั่ง API (อย่างน้อย 8 ตัว + พิมพ์ใหญ่/เล็ก + ตัวเลข + อักขระพิเศษ)
-const PASSWORD_RULES: { label: string; test: (pw: string) => boolean }[] = [
-  { label: 'อย่างน้อย 8 ตัวอักษร',        test: (pw) => pw.length >= 8 },
-  { label: 'ตัวพิมพ์ใหญ่ (A-Z)',           test: (pw) => /[A-Z]/.test(pw) },
-  { label: 'ตัวพิมพ์เล็ก (a-z)',           test: (pw) => /[a-z]/.test(pw) },
-  { label: 'ตัวเลข (0-9)',                 test: (pw) => /\d/.test(pw) },
-  { label: 'อักขระพิเศษ (เช่น !@#$%)',     test: (pw) => /[\W_]/.test(pw) },
+// key ตรงกับคีย์ข้อความใน messages (admin.employees.password.rule*)
+const PASSWORD_RULES: { key: string; test: (pw: string) => boolean }[] = [
+  { key: 'ruleLength',  test: (pw) => pw.length >= 8 },
+  { key: 'ruleUpper',   test: (pw) => /[A-Z]/.test(pw) },
+  { key: 'ruleLower',   test: (pw) => /[a-z]/.test(pw) },
+  { key: 'ruleDigit',   test: (pw) => /\d/.test(pw) },
+  { key: 'ruleSpecial', test: (pw) => /[\W_]/.test(pw) },
 ]
 
 function isPasswordValid(pw: string) {
@@ -93,14 +102,15 @@ function generatePassword(length = 12) {
 }
 
 function PasswordChecklist({ password }: { password: string }) {
+  const t = useTranslations('admin.employees.password')
   return (
     <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2">
       {PASSWORD_RULES.map(rule => {
         const passed = rule.test(password)
         return (
-          <li key={rule.label} className={`flex items-center gap-1.5 text-xs ${passed ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+          <li key={rule.key} className={`flex items-center gap-1.5 text-xs ${passed ? 'text-emerald-600' : 'text-muted-foreground'}`}>
             <CircleCheck className={`h-3.5 w-3.5 shrink-0 ${passed ? '' : 'opacity-40'}`} />
-            {rule.label}
+            {t(rule.key)}
           </li>
         )
       })}
@@ -139,6 +149,8 @@ function InlineInput({ value, error, isPending, onChange, onConfirm, onCancel }:
 
 // ── Leave balance tab ─────────────────────────────────────────────────────────
 function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; companyId: string; canEdit: boolean }) {
+  const t = useTranslations('admin.employees.leave')
+  const apiError = useApiError()
   const [year, setYear]               = useState(CURRENT_YEAR)
   const [editId, setEditId]           = useState<string | null>(null)
   const [editValue, setEditValue]     = useState('')
@@ -167,13 +179,12 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
 
   async function confirmEdit(id: string) {
     const val = parseFloat(editValue)
-    if (isNaN(val) || val < 0) { setEditError('กรุณากรอกตัวเลขที่ถูกต้อง (≥ 0)'); return }
+    if (isNaN(val) || val < 0) { setEditError(t('invalidNumber')); return }
     try {
       await adjustBalance.mutateAsync({ id, totalDays: val })
-      toast.success('บันทึกสิทธิ์สำเร็จ'); setEditId(null)
+      toast.success(t('saveSuccess')); setEditId(null)
     } catch (err: unknown) {
-      const d = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-      setEditError(d?.error === 'QUOTA_BELOW_USED' ? (d.message ?? 'สิทธิ์น้อยกว่าวันที่ใช้ไปแล้ว') : 'เกิดข้อผิดพลาด')
+      setEditError(apiError(err, t('error')))
     }
   }
 
@@ -182,13 +193,12 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
 
   async function confirmCreate(ltId: string) {
     const val = parseFloat(createValue)
-    if (isNaN(val) || val < 0) { setCreateError('กรุณากรอกตัวเลขที่ถูกต้อง (≥ 0)'); return }
+    if (isNaN(val) || val < 0) { setCreateError(t('invalidNumber')); return }
     try {
       await createBalance.mutateAsync({ employeeId: empId, leaveTypeId: ltId, year, totalDays: val })
-      toast.success('เพิ่มสิทธิ์สำเร็จ'); setCreateLtId(null)
+      toast.success(t('createSuccess')); setCreateLtId(null)
     } catch (err: unknown) {
-      const d = (err as { response?: { data?: { error?: string } } })?.response?.data
-      setCreateError(d?.error === 'BALANCE_ALREADY_EXISTS' ? 'มีสิทธิ์นี้อยู่แล้ว' : 'เกิดข้อผิดพลาด')
+      setCreateError(apiError(err, t('error')))
     }
   }
 
@@ -196,9 +206,9 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
     try {
       const res = await seedForEmployee.mutateAsync({ employeeId: empId, year })
       toast[res.created === 0 ? 'info' : 'success'](
-        res.created === 0 ? 'สิทธิ์ครบทุกประเภทการลาแล้ว' : `สร้างสิทธิ์วันลาแล้ว ${res.created} รายการ`,
+        res.created === 0 ? t('seedNothing') : t('seedDone', { count: res.created }),
       )
-    } catch { toast.error('เกิดข้อผิดพลาด') }
+    } catch { toast.error(t('error')) }
   }
 
   return (
@@ -215,7 +225,7 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
         </div>
         {canEdit && missingCount > 0 && (
           <Button size="sm" variant="outline" loading={seedForEmployee.isPending} onClick={handleSeed}>
-            <RefreshCw className="h-3.5 w-3.5" />Seed ที่ขาด ({missingCount})
+            <RefreshCw className="h-3.5 w-3.5" />{t('seedMissing', { count: missingCount })}
           </Button>
         )}
       </div>
@@ -224,12 +234,12 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-whited/50">
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">ประเภทการลา</th>
-              <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-20">ค่าเริ่มต้น</th>
-              <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-32">สิทธิ์</th>
-              <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-16">ใช้ไป</th>
-              <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-16">รอ</th>
-              <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-20">คงเหลือ</th>
+              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">{t('colType')}</th>
+              <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-20">{t('colDefault')}</th>
+              <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-32">{t('colQuota')}</th>
+              <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-16">{t('colUsed')}</th>
+              <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-16">{t('colPending')}</th>
+              <th className="px-4 py-2.5 text-center font-medium text-muted-foreground w-20">{t('colRemaining')}</th>
             </tr>
           </thead>
           <tbody>
@@ -245,7 +255,7 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
             {!isLoading && activeTypes.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                  ยังไม่มีประเภทการลาในบริษัทนี้
+                  {t('emptyTypes')}
                 </td>
               </tr>
             )}
@@ -267,7 +277,7 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
                           className="mx-auto flex items-center gap-1 text-xs text-muted-foreground/50 hover:text-primary hover:font-medium transition-colors"
                           onClick={() => startCreate(lt.id)}
                         >
-                          <Plus className="h-3 w-3" />เพิ่มสิทธิ์
+                          <Plus className="h-3 w-3" />{t('addQuota')}
                         </button>
                       ) : (
                         <span className="mx-auto block text-center text-muted-foreground/30">—</span>
@@ -308,14 +318,17 @@ function LeaveBalanceTab({ empId, companyId, canEdit }: { empId: string; company
 }
 
 // ── Shift override tab ───────────────────────────────────────────────────────
-const SOURCE_LABEL: Record<string, string> = {
-  override:   'เวลาปฎิบัติงานพิเศษ (override)',
-  department: 'เวลาปฎิบัติงานของแผนก',
-  company:    'เวลาปฎิบัติงานเริ่มต้นบริษัท',
-  none:       'ไม่มีเวลาปฎิบัติงาน',
+// source ที่ API คืน → คีย์ข้อความใน messages (admin.employees.shift.source*)
+const SOURCE_LABEL_KEY: Record<string, string> = {
+  override:   'sourceOverride',
+  department: 'sourceDepartment',
+  company:    'sourceCompany',
+  none:       'sourceNone',
 }
 
 function ShiftOverrideTab({ empId, companyId, canEdit }: { empId: string; companyId: string; canEdit: boolean }) {
+  const t = useTranslations('admin.employees.shift')
+  const tCommon = useTranslations('common')
   const [formOpen, setFormOpen]   = useState(false)
   const [shiftId, setShiftId]     = useState('')
   const [dateFrom, setDateFrom]   = useState('')
@@ -334,20 +347,20 @@ function ShiftOverrideTab({ empId, companyId, canEdit }: { empId: string; compan
   }
 
   async function handleSubmit() {
-    if (!shiftId)   { setFormError('กรุณาเลือกเวลาปฎิบัติงาน'); return }
-    if (!dateFrom)  { setFormError('กรุณาระบุวันที่เริ่มต้น'); return }
+    if (!shiftId)   { setFormError(t('selectShiftError')); return }
+    if (!dateFrom)  { setFormError(t('dateFromError')); return }
     try {
       await setOverride.mutateAsync({ shiftId, effectiveFrom: dateFrom, effectiveTo: dateTo || null, reason: reason || null })
-      toast.success('ตั้งค่าเวลาปฎิบัติงานพิเศษสำเร็จ')
+      toast.success(t('setSuccess'))
       setFormOpen(false); resetForm()
-    } catch { toast.error('เกิดข้อผิดพลาด') }
+    } catch { toast.error(tCommon('state.error')) }
   }
 
   async function handleRemove(overrideId: string) {
     try {
       await removeOverride.mutateAsync(overrideId)
-      toast.success('ยกเลิกเวลาปฎิบัติงานพิเศษสำเร็จ')
-    } catch { toast.error('เกิดข้อผิดพลาด') }
+      toast.success(t('cancelSuccess'))
+    } catch { toast.error(tCommon('state.error')) }
   }
 
   const activeShifts = shifts.filter((s) => s.isActive)
@@ -356,7 +369,7 @@ function ShiftOverrideTab({ empId, companyId, canEdit }: { empId: string; compan
     <div className="space-y-5">
       {/* Current effective shift */}
       <div className="rounded-lg border border-border bg-whited/40 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">เวลาปฎิบัติงานปัจจุบันที่มีผล</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{t('currentTitle')}</p>
         {loadingCurrent ? (
           <div className="h-6 w-40 animate-pulse rounded bg-whited" />
         ) : current?.shiftId ? (
@@ -375,11 +388,11 @@ function ShiftOverrideTab({ empId, companyId, canEdit }: { empId: string; compan
                 ? 'bg-blue-100 text-blue-700'
                 : 'bg-slate-100 text-slate-600'
             }`}>
-              {SOURCE_LABEL[current.source]}
+              {t(SOURCE_LABEL_KEY[current.source] ?? 'sourceNone')}
             </span>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">ไม่มีเวลาปฎิบัติงาน</p>
+          <p className="text-sm text-muted-foreground">{t('none')}</p>
         )}
       </div>
 
@@ -387,18 +400,18 @@ function ShiftOverrideTab({ empId, companyId, canEdit }: { empId: string; compan
       {canEdit && (
         <div className="flex justify-end">
           <Button size="sm" variant="outline" onClick={() => { setFormOpen((v) => !v); resetForm() }}>
-            <Plus className="h-4 w-4" />ตั้งเวลาปฎิบัติงานพิเศษ
+            <Plus className="h-4 w-4" />{t('setOverride')}
           </Button>
         </div>
       )}
       {formOpen && (
         <div className="rounded-lg border border-border bg-whited/40 p-4 space-y-3">
-          <p className="text-sm font-medium">ตั้งเวลาปฎิบัติงานพิเศษสำหรับพนักงาน</p>
+          <p className="text-sm font-medium">{t('formTitle')}</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5 sm:col-span-2">
-              <Label>เวลาปฎิบัติงาน *</Label>
+              <Label>{t('shiftLabel')} *</Label>
               <Select value={shiftId} onChange={(e) => setShiftId(e.target.value)}>
-                <option value="">— เลือกเวลาปฎิบัติงาน —</option>
+                <option value="">{t('selectShift')}</option>
                 {activeShifts.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name} ({s.startTime.slice(0, 5)}–{s.endTime.slice(0, 5)})
@@ -407,29 +420,29 @@ function ShiftOverrideTab({ empId, companyId, canEdit }: { empId: string; compan
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>วันที่เริ่มต้น *</Label>
+              <Label>{t('dateFrom')} *</Label>
               <DateInput value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>วันที่สิ้นสุด <span className="text-muted-foreground text-xs">(ว่าง = ถาวร)</span></Label>
+              <Label>{t('dateTo')} <span className="text-muted-foreground text-xs">{t('dateToHint')}</span></Label>
               <DateInput value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </div>
             <div className="space-y-1.5 sm:col-span-2">
-              <Label>หมายเหตุ</Label>
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="เช่น ย้ายเวลาปฎิบัติงานชั่วคราว" />
+              <Label>{t('reason')}</Label>
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t('reasonPlaceholder')} />
             </div>
           </div>
           {formError && <p className="text-xs text-destructive">{formError}</p>}
           <div className="flex gap-2">
-            <Button size="sm" loading={setOverride.isPending} onClick={handleSubmit}>บันทึก</Button>
-            <Button size="sm" variant="ghost" onClick={() => { setFormOpen(false); resetForm() }}>ยกเลิก</Button>
+            <Button size="sm" loading={setOverride.isPending} onClick={handleSubmit}>{tCommon('action.save')}</Button>
+            <Button size="sm" variant="ghost" onClick={() => { setFormOpen(false); resetForm() }}>{tCommon('action.cancel')}</Button>
           </div>
         </div>
       )}
 
       {/* Override history */}
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">ประวัติ Override</p>
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{t('historyTitle')}</p>
         {loadingList ? (
           <div className="space-y-2">
             {Array.from({ length: 2 }).map((_, i) => (
@@ -437,7 +450,7 @@ function ShiftOverrideTab({ empId, companyId, canEdit }: { empId: string; compan
             ))}
           </div>
         ) : overrides.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">ยังไม่มีการตั้งเวลาปฎิบัติงานพิเศษ</p>
+          <p className="text-sm text-muted-foreground py-6 text-center">{t('historyEmpty')}</p>
         ) : (
           <div className="space-y-2">
             {overrides.map((o) => (
@@ -450,10 +463,10 @@ function ShiftOverrideTab({ empId, companyId, canEdit }: { empId: string; compan
                     <span className="font-medium text-sm">{o.shiftName}</span>
                     <span className="text-xs text-muted-foreground">{o.startTime.slice(0, 5)}–{o.endTime.slice(0, 5)}</span>
                     {!o.isActive && (
-                      <span className="rounded-full bg-slate-100 text-slate-500 px-2 py-0.5 text-xs">ยกเลิกแล้ว</span>
+                      <span className="rounded-full bg-slate-100 text-slate-500 px-2 py-0.5 text-xs">{t('cancelled')}</span>
                     )}
                     {o.isActive && !o.effectiveTo && (
-                      <span className="rounded-full bg-orange-100 text-orange-700 px-2 py-0.5 text-xs">ถาวร</span>
+                      <span className="rounded-full bg-orange-100 text-orange-700 px-2 py-0.5 text-xs">{t('permanent')}</span>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -478,7 +491,16 @@ function ShiftOverrideTab({ empId, companyId, canEdit }: { empId: string; compan
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function EmployeeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = useTranslations('admin.employees.detail')
+  const tForm = useTranslations('admin.employees.form')
+  const tRoles = useTranslations('admin.employees.roles')
+  const tPw = useTranslations('admin.employees.password')
+  const tRoleType = useTranslations('status.roleType')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
   const { id } = use(params)
+  // schema สร้างใน component เพราะข้อความ validation มาจาก useTranslations
+  const editSchema = useMemo(() => buildEditSchema(tForm), [tForm])
   const router  = useRouter()
 
   const { data: emp, isLoading } = useEmployee(id)
@@ -498,11 +520,13 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const [removeTarget,  setRemoveTarget]  = useState<string | null>(null)
   const [toggleConfirm, setToggleConfirm] = useState(false)
 
-  const currentUser = useAuthStore((s) => s.employee)
-  const isAdmin   = currentUser?.roles.some((r) => r.role === 'Admin') ?? false
-  const isHr      = currentUser?.roles.some((r) => r.role === 'Hr')    ?? false
-  const canEdit   = isAdmin || isHr
-  const canManageRoles = isAdmin
+  const { has } = usePermissionGate()
+  // แยกสิทธิ์ราย tab ตาม permission ของ endpoint จริง (เดิมรวมเป็น isAdmin || isHr ก้อนเดียว)
+  const canEdit          = has('employee:edit', ['Admin', 'Hr'])
+  const canResetPassword = has('employee:reset-password', ['Admin'])   // SetPasswordHandler บังคับ code นี้
+  const canEditBalance   = has('leave:manage-balance', ['Admin', 'Hr'])
+  const canEditShift     = has('company:manage-shifts', ['Admin', 'Hr'])
+  const canManageRoles   = has('employee:assign-role', ['Admin'])
   const { data: roleOptions = [] } = useAllRolePermissions(canManageRoles)
 
   useEffect(() => {
@@ -559,11 +583,11 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
         departmentId: values.departmentId || undefined,
         roleLabelId:  values.roleLabelId  || undefined,
       })
-      toast.success('บันทึกข้อมูลสำเร็จ'); reset(values)
+      toast.success(t('saveSuccess')); reset(values)
     } catch (err: unknown) {
       const e = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      if (e === 'DUPLICATE_EMAIL') setError('email', { message: 'อีเมลนี้มีอยู่แล้ว' })
-      else { setError('root', { message: 'เกิดข้อผิดพลาด' }); toast.error('เกิดข้อผิดพลาด') }
+      if (e === 'DUPLICATE_EMAIL') setError('email', { message: tForm('errorDuplicateEmail') })
+      else { setError('root', { message: apiError(err, tCommon('state.error')) }); toast.error(apiError(err, tCommon('state.error'))) }
     }
   }
 
@@ -572,10 +596,10 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
     try {
       await addRole.mutateAsync({ roleId: selectedRoleId })
       const roleName = roleOptions.find((role) => role.roleId === selectedRoleId)?.role ?? ''
-      setAddRoleOpen(false); toast.success(`เพิ่ม role ${roleName} สำเร็จ`)
+      setAddRoleOpen(false); toast.success(tRoles('addSuccess', { role: roleName }))
     } catch (err: unknown) {
       const e = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      toast.error(e === 'DUPLICATE_ROLE' ? 'role นี้มีอยู่แล้ว' : 'เกิดข้อผิดพลาด')
+      toast.error(e === 'DUPLICATE_ROLE' ? tRoles('duplicate') : tCommon('state.error'))
     }
   }
 
@@ -583,32 +607,32 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
     if (!removeTarget) return
     try {
       await removeRole.mutateAsync(removeTarget)
-      toast.success('ลบ role สำเร็จ'); setRemoveTarget(null)
+      toast.success(tRoles('removeSuccess')); setRemoveTarget(null)
     } catch (err: unknown) {
       const e = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      toast.error(e === 'LAST_ADMIN' ? 'ไม่สามารถลบ Admin คนสุดท้ายได้' : 'เกิดข้อผิดพลาด')
+      toast.error(e === 'LAST_ADMIN' ? tRoles('lastAdmin') : tCommon('state.error'))
       setRemoveTarget(null)
     }
   }
 
   async function handleSetPassword() {
-    if (!isPasswordValid(newPw)) { setPwError('รหัสผ่านยังไม่ครบตามเงื่อนไขด้านล่าง'); return }
+    if (!isPasswordValid(newPw)) { setPwError(tPw('invalid')); return }
     try {
       await setPasswordMut.mutateAsync(newPw)
-      toast.success('รีเซ็ตรหัสผ่านสำเร็จ')
+      toast.success(tPw('resetSuccess'))
       setPwOpen(false); setNewPw(''); setPwError(''); setShowPw(false)
-    } catch { toast.error('เกิดข้อผิดพลาด') }
+    } catch { toast.error(tCommon('state.error')) }
   }
 
   async function confirmToggleStatus() {
     if (!emp) return
     try {
       await toggleStatus.mutateAsync(!emp.isActive)
-      toast.success(`${emp.isActive ? 'ปิด' : 'เปิด'}การใช้งานสำเร็จ`)
+      toast.success(emp.isActive ? t('deactivateSuccess') : t('activateSuccess'))
       setToggleConfirm(false)
     } catch (err: unknown) {
       const e = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      toast.error(e === 'CANNOT_DEACTIVATE_SELF' ? 'ไม่สามารถพ้นสภาพตัวเองได้' : 'เกิดข้อผิดพลาด')
+      toast.error(e === 'CANNOT_DEACTIVATE_SELF' ? t('cannotDeactivateSelf') : tCommon('state.error'))
       setToggleConfirm(false)
     }
   }
@@ -628,9 +652,9 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
     return (
       <div className="space-y-4">
         <Button variant="ghost" size="sm" onClick={() => router.push('/employees')}>
-          <ArrowLeft className="h-4 w-4" />กลับ
+          <ArrowLeft className="h-4 w-4" />{t('back')}
         </Button>
-        <p className="text-muted-foreground">ไม่พบข้อมูลพนักงาน</p>
+        <p className="text-muted-foreground">{t('notFound')}</p>
       </div>
     )
   }
@@ -638,11 +662,11 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
   const activeRoles = emp.roles.filter((r) => r.isActive)
 
   const TABS: { key: TabKey; label: string; icon: LucideIcon; count?: number }[] = [
-    { key: 'info',  label: 'ข้อมูลทั่วไป',   icon: User },
-    { key: 'roles', label: 'สิทธิ์การใช้งาน', icon: ShieldCheck, count: activeRoles.length },
-    { key: 'leave', label: 'โควตาวันลา',     icon: CalendarDays },
-    { key: 'shift', label: 'เวลาปฎิบัติงาน',  icon: CalendarClock },
-    ...(canEdit ? [{ key: 'password' as TabKey, label: 'รหัสผ่าน', icon: KeyRound }] : []),
+    { key: 'info',  label: t('tabInfo'),   icon: User },
+    { key: 'roles', label: t('tabRoles'), icon: ShieldCheck, count: activeRoles.length },
+    { key: 'leave', label: t('tabLeave'),     icon: CalendarDays },
+    { key: 'shift', label: t('tabShift'),  icon: CalendarClock },
+    ...(canResetPassword ? [{ key: 'password' as TabKey, label: t('tabPassword'), icon: KeyRound }] : []),
   ]
 
   return (
@@ -650,7 +674,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       {/* Back */}
       <div className="mb-5">
         <Button variant="ghost" size="sm" onClick={() => router.push('/employees')} className="-ml-2">
-          <ArrowLeft className="h-4 w-4" />กลับรายการพนักงาน
+          <ArrowLeft className="h-4 w-4" />{t('backToList')}
         </Button>
       </div>
 
@@ -674,7 +698,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                   )}
                 </h1>
                 <Badge variant={emp.isActive ? 'success' : 'secondary'} className="shrink-0">
-                  {emp.isActive ? 'ปฎิบัติงาน' : 'พ้นสภาพ'}
+                  {emp.isActive ? t('statusActive') : t('statusInactive')}
                 </Badge>
               </div>
 
@@ -700,7 +724,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 {emp.hireDate && (
                   <span className="flex items-center gap-1.5">
                     <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                    เริ่มงาน {new Date(emp.hireDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {t('hireDate', { date: fmt.formatDate(new Date(emp.hireDate), { day: 'numeric', month: 'short', year: 'numeric' }) })}
                   </span>
                 )}
               </div>
@@ -731,7 +755,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                   {activeRoles.map((r) => (
                     <span
                       key={r.id}
-                      title={ROLE_LABEL_TH[r.role] ?? r.role}
+                      title={tRoleType(r.role)}
                       className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${roleChipClass(r.role)}`}
                     >
                       {r.role}
@@ -745,7 +769,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
           <div className="flex flex-col gap-2 shrink-0 self-start sm:mt-0 mt-2">
             <Link href={`/employees/${id}/attendance`}>
               <Button size="sm" variant="outline" className="w-full">
-                <CalendarDays className="h-4 w-4" />ประวัติการเข้างาน
+                <CalendarDays className="h-4 w-4" />{t('attendanceHistory')}
               </Button>
             </Link>
             {canEdit && (
@@ -754,7 +778,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 variant={emp.isActive ? 'destructive' : 'outline'}
                 onClick={() => setToggleConfirm(true)}
               >
-                {emp.isActive ? 'พ้นสภาพ' : 'เปิดการปฎิบัติงาน'}
+                {emp.isActive ? t('deactivate') : t('activate')}
               </Button>
             )}
           </div>
@@ -763,7 +787,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
       {/* ── Tab nav ───────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-10 -mx-4 mb-6 border-b border-border bg-background/95 px-4 backdrop-blur sm:mx-0 sm:px-0">
-        <nav className="flex overflow-x-auto" role="tablist" aria-label="ส่วนข้อมูลพนักงาน">
+        <nav className="flex overflow-x-auto" role="tablist" aria-label={t('tabsAria')}>
           {TABS.map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.key
@@ -799,36 +823,36 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
           <form onSubmit={handleSubmit(onSave)} className="space-y-5">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="e-fn">ชื่อ *</Label>
+                <Label htmlFor="e-fn">{tForm('firstName')} *</Label>
                 <Input id="e-fn" {...register('firstName')} disabled={!canEdit} />
                 <FieldError message={errors.firstName?.message} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="e-ln">นามสกุล *</Label>
+                <Label htmlFor="e-ln">{tForm('lastName')} *</Label>
                 <Input id="e-ln" {...register('lastName')} disabled={!canEdit} />
                 <FieldError message={errors.lastName?.message} />
               </div>
               <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="e-nick">ชื่อเล่น</Label>
+                <Label htmlFor="e-nick">{tForm('nickname')}</Label>
                 <Input id="e-nick" maxLength={50} {...register('nickname')} disabled={!canEdit} />
                 <FieldError message={errors.nickname?.message} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="e-email">อีเมล</Label>
+                <Label htmlFor="e-email">{tForm('email')}</Label>
                 <Input id="e-email" type="email" {...register('email')} disabled={!canEdit} />
                 <FieldError message={errors.email?.message} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="e-phone">เบอร์โทรศัพท์</Label>
+                <Label htmlFor="e-phone">{tForm('phone')}</Label>
                 <Input id="e-phone" {...register('phone')} disabled={!canEdit} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="e-hire">วันที่เริ่มงาน</Label>
+                <Label htmlFor="e-hire">{tForm('hireDate')}</Label>
                 <DateInput id="e-hire" {...register('hireDate')} disabled={!canEdit} />
               </div>
               {(emp.nationalId || emp.nationalIdMasked) && (
                 <div className="space-y-1.5">
-                  <Label htmlFor="e-nid">เลขบัตรประชาชน</Label>
+                  <Label htmlFor="e-nid">{tForm('nationalId')}</Label>
                   {canEdit ? (
                     <Input id="e-nid" {...register('nationalId')} placeholder={emp.nationalIdMasked ?? ''} />
                   ) : (
@@ -839,27 +863,27 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
             </div>
 
             <div className="border-t border-border pt-5 space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">สังกัด</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{tForm('sectionAffiliation')}</p>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="e-company">บริษัท</Label>
+                  <Label htmlFor="e-company">{tForm('company')}</Label>
                   <Select id="e-company" {...register('companyId')} disabled={!canEdit}>
-                    <option value="">— เลือกบริษัท —</option>
+                    <option value="">{tForm('selectCompany')}</option>
                     {activeCompanies.map((c) => <option key={c.id} value={c.id}>{companyOptionLabel(c)}</option>)}
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="e-dept">แผนก</Label>
+                  <Label htmlFor="e-dept">{tForm('department')}</Label>
                   <Select id="e-dept" {...register('departmentId')} disabled={!canEdit}>
-                    <option value="">— ไม่ระบุแผนก —</option>
+                    <option value="">{tForm('noDepartment')}</option>
                     {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="e-rlabel">ตำแหน่ง</Label>
+                  <Label htmlFor="e-rlabel">{tForm('position')}</Label>
                   <Select id="e-rlabel" {...register('roleLabelId')} disabled={!canEdit}>
                     <option value="">
-                      {effectiveCompanyId && roleLabels.length === 0 ? '— ยังไม่มีตำแหน่งในบริษัทนี้ —' : '— ไม่ระบุ —'}
+                      {effectiveCompanyId && roleLabels.length === 0 ? tForm('noPositionInCompany') : tForm('noPosition')}
                     </option>
                     {roleLabels.map((rl) => <option key={rl.id} value={rl.id}>{rl.name}</option>)}
                   </Select>
@@ -873,10 +897,10 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 isDirty ? 'sticky bottom-0 -mx-6 -mb-6 bg-background px-6 pb-6' : ''
               }`}>
                 {isDirty && (
-                  <span className="mr-auto text-xs text-amber-600">มีการแก้ไขที่ยังไม่ได้บันทึก</span>
+                  <span className="mr-auto text-xs text-amber-600">{t('unsavedChanges')}</span>
                 )}
-                <Button type="button" variant="outline" size="sm" onClick={() => reset()} disabled={!isDirty}>ยกเลิก</Button>
-                <Button type="submit" size="sm" loading={isSubmitting} disabled={!isDirty}>บันทึกการเปลี่ยนแปลง</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => reset()} disabled={!isDirty}>{tCommon('action.cancel')}</Button>
+                <Button type="submit" size="sm" loading={isSubmitting} disabled={!isDirty}>{t('saveChanges')}</Button>
               </div>
             )}
           </form>
@@ -889,7 +913,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
           {canManageRoles && (
             <div className="flex justify-end">
               <Button size="sm" variant="outline" onClick={() => setAddRoleOpen((v) => !v)}>
-                <Plus className="h-4 w-4" />เพิ่มสิทธิ์
+                <Plus className="h-4 w-4" />{tRoles('add')}
               </Button>
             </div>
           )}
@@ -902,13 +926,13 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                   </option>
                 ))}
               </Select>
-              <Button size="sm" disabled={!selectedRoleId} loading={addRole.isPending} onClick={handleAddRole}>เพิ่ม</Button>
-              <Button size="sm" variant="ghost" onClick={() => setAddRoleOpen(false)}>ยกเลิก</Button>
+              <Button size="sm" disabled={!selectedRoleId} loading={addRole.isPending} onClick={handleAddRole}>{tRoles('addConfirm')}</Button>
+              <Button size="sm" variant="ghost" onClick={() => setAddRoleOpen(false)}>{tCommon('action.cancel')}</Button>
             </div>
           )}
 
           {activeRoles.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">ยังไม่มีสิทธิ์การใช้งาน</p>
+            <p className="py-10 text-center text-sm text-muted-foreground">{tRoles('empty')}</p>
           ) : (
             <div className="space-y-2">
               {activeRoles.map((r) => (
@@ -920,7 +944,7 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${roleChipClass(r.role)}`}>
                       {r.role}
                     </span>
-                    <span className="text-sm text-muted-foreground">{ROLE_LABEL_TH[r.role] ?? '—'}</span>
+                    <span className="text-sm text-muted-foreground">{tRoleType(r.role)}</span>
                   </div>
                   {canManageRoles && (
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive"
@@ -938,43 +962,43 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
       {/* ── Tab: โควตาวันลา ───────────────────────────────────────────────── */}
       {activeTab === 'leave' && (
         <div className="rounded-xl border border-border bg-background p-6">
-          <LeaveBalanceTab empId={id} companyId={emp.companyId ?? ''} canEdit={canEdit} />
+          <LeaveBalanceTab empId={id} companyId={emp.companyId ?? ''} canEdit={canEditBalance} />
         </div>
       )}
 
       {/* ── Tab: เวลาปฎิบัติงาน ──────────────────────────────────────────────── */}
       {activeTab === 'shift' && (
         <div className="rounded-xl border border-border bg-background p-6">
-          <ShiftOverrideTab empId={id} companyId={emp.companyId ?? ''} canEdit={canEdit} />
+          <ShiftOverrideTab empId={id} companyId={emp.companyId ?? ''} canEdit={canEditShift} />
         </div>
       )}
 
       {/* ── Tab: รหัสผ่าน ─────────────────────────────────────────────────── */}
-      {activeTab === 'password' && canEdit && (
+      {activeTab === 'password' && canResetPassword && (
         <div className="rounded-xl border border-border bg-background p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="font-medium">รีเซ็ตรหัสผ่าน</p>
-              <p className="text-sm text-muted-foreground mt-0.5">กำหนดรหัสผ่านใหม่ให้กับพนักงาน</p>
+              <p className="font-medium">{tPw('title')}</p>
+              <p className="text-sm text-muted-foreground mt-0.5">{tPw('hint')}</p>
             </div>
             {!pwOpen && (
               <Button size="sm" variant="outline" onClick={() => setPwOpen(true)}>
-                <KeyRound className="h-4 w-4" />รีเซ็ต
+                <KeyRound className="h-4 w-4" />{tPw('reset')}
               </Button>
             )}
           </div>
           {pwOpen && (
             <div className="rounded-lg border border-border bg-whited/40 p-4 space-y-3">
               <div className="space-y-1.5">
-                <Label>รหัสผ่านใหม่</Label>
+                <Label>{tPw('newPassword')}</Label>
                 <div className="relative">
-                  <Input type={showPw ? 'text' : 'password'} placeholder="อย่างน้อย 8 ตัวอักษร"
+                  <Input type={showPw ? 'text' : 'password'} placeholder={tPw('placeholder')}
                     className="pr-10"
                     value={newPw} onChange={(e) => setNewPw(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSetPassword()} />
                   <button type="button" tabIndex={-1}
                     onClick={() => setShowPw(v => !v)}
-                    aria-label={showPw ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'}
+                    aria-label={showPw ? tForm('hidePassword') : tForm('showPassword')}
                     className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                     {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -982,19 +1006,19 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 <div className="flex gap-2 mt-3">
                   <Button size="sm" variant="outline" type="button"
                     onClick={() => { setNewPw(generatePassword()); setShowPw(true); setPwError('') }}>
-                    <Dices className="h-4 w-4" /> สุ่มรหัส
+                    <Dices className="h-4 w-4" /> {tPw('generate')}
                   </Button>
                   {newPw && (
                     <Button size="sm" variant="outline" type="button"
                       onClick={async () => {
                         try {
                           await navigator.clipboard.writeText(newPw)
-                          toast.success('คัดลอกรหัสผ่านแล้ว')
+                          toast.success(tPw('copied'))
                         } catch {
-                          toast.error('คัดลอกไม่สำเร็จ')
+                          toast.error(tPw('copyFailed'))
                         }
                       }}>
-                      <Copy className="h-4 w-4" /> คัดลอก
+                      <Copy className="h-4 w-4" /> {tPw('copy')}
                     </Button>
                   )}
                 </div>
@@ -1002,8 +1026,8 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
                 {pwError && <p className="text-xs text-destructive">{pwError}</p>}
               </div>
               <div className="flex gap-2">
-                <Button size="sm" loading={setPasswordMut.isPending} disabled={!isPasswordValid(newPw)} onClick={handleSetPassword}>ยืนยัน</Button>
-                <Button size="sm" variant="ghost" onClick={() => { setPwOpen(false); setNewPw(''); setPwError(''); setShowPw(false) }}>ยกเลิก</Button>
+                <Button size="sm" loading={setPasswordMut.isPending} disabled={!isPasswordValid(newPw)} onClick={handleSetPassword}>{tCommon('action.confirm')}</Button>
+                <Button size="sm" variant="ghost" onClick={() => { setPwOpen(false); setNewPw(''); setPwError(''); setShowPw(false) }}>{tCommon('action.cancel')}</Button>
               </div>
             </div>
           )}
@@ -1012,12 +1036,14 @@ export default function EmployeeDetailPage({ params }: { params: Promise<{ id: s
 
       {/* ── Modals ────────────────────────────────────────────────────────── */}
       <ConfirmModal open={!!removeTarget} onClose={() => setRemoveTarget(null)} onConfirm={confirmRemoveRole}
-        title="ลบ Role" description="ยืนยันลบ role นี้ออกจากพนักงาน?" confirmLabel="ลบ"
+        title={t('removeRoleTitle')} description={t('removeRoleDesc')} confirmLabel={tCommon('action.delete')}
         variant="destructive" loading={removeRole.isPending} />
       <ConfirmModal open={toggleConfirm} onClose={() => setToggleConfirm(false)} onConfirm={confirmToggleStatus}
-        title={`${emp.isActive ? 'พ้นสภาพ' : 'เปิด'}การทำงาน`}
-        description={`ยืนยัน${emp.isActive ? 'พ้นสภาพ' : 'เปิด'}การทำงานพนักงาน "${emp.fullName}"?`}
-        confirmLabel={emp.isActive ? 'พ้นสภาพ' : 'เปิดการปฎิิบัติงาน'}
+        title={emp.isActive ? t('deactivateTitle') : t('activateTitle')}
+        description={emp.isActive
+          ? t('deactivateDesc', { name: emp.fullName })
+          : t('activateDesc', { name: emp.fullName })}
+        confirmLabel={emp.isActive ? t('deactivate') : t('activate')}
         variant={emp.isActive ? 'destructive' : 'default'} loading={toggleStatus.isPending} />
     </div>
   )

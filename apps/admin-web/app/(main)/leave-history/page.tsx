@@ -6,6 +6,7 @@ import { Search, ChevronUp, ChevronDown, ChevronsUpDown, X, CalendarRange } from
 import { LeaveStatusBadge } from '@/components/shared/leave-status-badge'
 import { useAllLeaves } from '@/hooks/use-leaves'
 import type { LeaveRequestListItemDto, LeaveStatus } from '@hrms/shared-types'
+import * as i18nFmt from '@hrms/i18n/format'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -50,13 +51,13 @@ const QUICK_RANGES: { label: string; dateFrom: string; dateTo: string }[] = (() 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDateTH(dateStr: string) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('th-TH', {
+  return i18nFmt.formatDate(new Date(dateStr + 'T00:00:00'), {
     day: 'numeric', month: 'short', year: '2-digit',
   })
 }
 
 function formatDateTimeShort(iso: string) {
-  return new Date(iso).toLocaleDateString('th-TH', {
+  return i18nFmt.formatDate(new Date(iso), {
     day: 'numeric', month: 'short', year: '2-digit',
     hour: '2-digit', minute: '2-digit',
     timeZone: 'Asia/Bangkok',

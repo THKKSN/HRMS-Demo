@@ -9,13 +9,18 @@
     "test:api": "dotnet test apps/api/Hrms.Application.Tests/Hrms.Application.Tests.csproj",
     "test:e2e": "playwright test",
     "test:e2e:real": "powershell -ExecutionPolicy Bypass -File scripts/run-ticket-real-e2e.ps1",
-    "test:ticket": "pnpm test:api && pnpm test:e2e"
+    "test:ticket": "pnpm test:api && pnpm test:e2e",
+    "i18n:scan": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/i18n-scan.mjs",
+    "i18n:scan-api": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/i18n-scan-api.mjs",
+    "i18n:export": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/i18n-export.mjs",
+    "i18n:import": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/i18n-import.mjs"
   },
   "engines": {
     "node": ">=20",
     "pnpm": ">=9"
   },
   "devDependencies": {
-    "@playwright/test": "1.55.0"
+    "@playwright/test": "1.55.0",
+    "exceljs": "4.4.0"
   }
 }

@@ -1,9 +1,12 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { CheckCircle2, XCircle } from 'lucide-react'
 import type { MemoDto } from '@hrms/shared-types'
+import * as fmt from '@hrms/i18n/format'
 
 type StationState = 'complete' | 'current' | 'upcoming' | 'rejected'
+type StationLabels = ReturnType<typeof useTranslations<'admin.memo.station'>>
 
 type Station = {
   key: string
@@ -16,50 +19,83 @@ type Station = {
 
 function thaiDateTime(value?: string) {
   return value
-    ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
+    ? fmt.formatDateTime(new Date(value), { dateStyle: 'short', timeStyle: 'short' })
     : undefined
 }
 
-// Flow ของ Memo ตายตัว: ส่งเรื่อง → ผู้บริหารอนุมัติ → แผนกรับทราบ → ดำเนินการ/ส่งมอบ → ผู้ขอรับของ
-// คำนวณสถานะแต่ละสถานีจาก status + timestamp โดยตรง (ไม่มี workflow config แบบ Ticket)
-function buildStations(memo: MemoDto): Station[] {
+// Flow ของ Memo: ส่ง Memo → อนุมัติ Memo → แผนกรับทราบ → [ขั้นตอนที่ config ต่อ MemoType] → ส่งมอบ → ผู้ขอตรวจรับ
+// เรื่องที่ MemoType ไม่ได้ตั้งขั้นตอนไว้ (หรือเรื่องเก่าก่อนมี feature นี้) จะเหลือสถานี 'ดำเนินการ/ส่งมอบ' ก้อนเดียวเหมือนเดิม
+// step.label เป็นชื่อขั้นตอนที่ HR ตั้งเองต่อ MemoType — เป็นข้อมูล ไม่แปล
+function buildStations(memo: MemoDto, t: StationLabels): Station[] {
   const rejected = memo.status === 'Rejected'
   const approved = memo.status === 'Approved'
   const acknowledged = !!memo.acknowledgedAt
   const delivered = !!memo.deliveredAt
   const received = !!memo.receivedAt
+  const steps = memo.steps ?? []
 
-  return [
-    { key: 'submitted', label: 'ส่งเรื่อง', state: 'complete', by: memo.requesterName, at: memo.createdAt },
+  const head: Station[] = [
+    { key: 'submitted', label: t('submitted'), state: 'complete', by: memo.requesterName, at: memo.createdAt },
     {
       key: 'approve',
-      label: rejected ? 'ไม่อนุมัติ' : 'ผู้บริหารอนุมัติ',
-      state: rejected ? 'rejected' : approved ? 'complete' : 'current',
+      label: rejected && !memo.approvedAt ? t('approveRejected') : t('approve'),
+      state: rejected && !memo.approvedAt ? 'rejected' : approved || memo.approvedAt ? 'complete' : 'current',
       by: memo.approvedByName,
-      at: rejected ? memo.rejectedAt : memo.approvedAt,
+      at: memo.approvedAt ?? (rejected ? memo.rejectedAt : undefined),
     },
     {
       key: 'acknowledge',
-      label: 'แผนกรับทราบ',
-      state: rejected ? 'upcoming' : acknowledged ? 'complete' : approved ? 'current' : 'upcoming',
+      label: t('acknowledge'),
+      state: acknowledged ? 'complete' : rejected ? 'upcoming' : approved ? 'current' : 'upcoming',
       by: memo.acknowledgedByName,
       at: memo.acknowledgedAt,
     },
-    {
-      key: 'work',
-      label: 'ดำเนินการ/ส่งมอบ',
-      state: rejected ? 'upcoming' : delivered ? 'complete' : acknowledged ? 'current' : 'upcoming',
-      by: memo.deliveredByName,
-      at: memo.deliveredAt,
-    },
+  ]
+
+  const middle: Station[] = steps.length > 0
+    ? steps.map(step => ({
+        key: `step-${step.id}`,
+        label: step.label,
+        state: step.status === 'Done'
+          ? 'complete'
+          : step.status === 'Rejected'
+            ? 'rejected'
+            : step.status === 'Current' && !rejected
+              ? 'current'
+              : 'upcoming',
+        by: step.actedByName,
+        at: step.actedAt,
+      }))
+    : [{
+        key: 'work',
+        label: t('work'),
+        state: rejected ? 'upcoming' : delivered ? 'complete' : acknowledged ? 'current' : 'upcoming',
+        by: memo.deliveredByName,
+        at: memo.deliveredAt,
+      }]
+
+  // เรื่องที่มีขั้นตอนย่อย แยกสถานี "ส่งมอบ" ออกจากขั้นตอนสุดท้าย
+  const stepsAllDone = steps.length > 0 && steps.every(s => s.status === 'Done')
+  const tail: Station[] = [
+    ...(steps.length > 0
+      ? [{
+          key: 'deliver',
+          label: t('deliver'),
+          state: (rejected ? 'upcoming' : delivered ? 'complete' : stepsAllDone ? 'current' : 'upcoming') as StationState,
+          by: memo.deliveredByName,
+          at: memo.deliveredAt,
+        }]
+      : []),
     {
       key: 'receive',
-      label: 'ผู้ขอรับของ',
+      label: t('receive'),
       state: rejected ? 'upcoming' : received ? 'complete' : delivered ? 'current' : 'upcoming',
       by: received ? (memo.receivedByName ?? memo.requesterName) : undefined,
       at: memo.receivedAt,
     },
   ]
+
+  return [...head, ...middle, ...tail]
 }
 
 function circleClass(state: StationState) {
@@ -76,11 +112,12 @@ function circleClass(state: StationState) {
 }
 
 export function MemoStatusStation({ memo }: { memo: MemoDto }) {
-  const stations = buildStations(memo)
+  const t = useTranslations('admin.memo.station')
+  const stations = buildStations(memo, t)
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-background p-5 shadow-sm">
-      <p className="text-sm font-semibold text-slate-950">สถานะการดำเนินงาน</p>
+      <p className="text-sm font-semibold text-slate-950">{t('title')}</p>
       <div className="mt-6 overflow-x-auto pb-2">
         <div className="flex min-w-max items-start justify-center px-2">
           {stations.map((station, index) => {
@@ -101,7 +138,7 @@ export function MemoStatusStation({ memo }: { memo: MemoDto }) {
                     {station.label}
                   </p>
                   {station.state === 'current' && (
-                    <p className="mt-1 text-[10px] font-bold tracking-wide text-primary">สถานะปัจจุบัน</p>
+                    <p className="mt-1 text-[10px] font-bold tracking-wide text-primary">{t('current')}</p>
                   )}
                   {(station.state === 'complete' || station.state === 'rejected') && (station.by || station.at) && (
                     <div className="mt-1 text-[10px] leading-4 text-muted-foreground">

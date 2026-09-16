@@ -33,7 +33,7 @@ public class ExternalTicketConfigurationController(IMediator mediator) : Control
         [FromBody] CreateExternalTicketCategoryRequest request, CancellationToken ct)
     {
         var result = await mediator.Send(new CreateExternalTicketCategoryCommand(
-            request.Name, request.Description, request.SortOrder), ct);
+            request.Name, request.Description, request.SortOrder, request.NameEn, request.NameId), ct);
         return Created($"/v1/external-ticket-config/categories/{result.Id}", result);
     }
 
@@ -41,7 +41,8 @@ public class ExternalTicketConfigurationController(IMediator mediator) : Control
     public async Task<IActionResult> UpdateCategory(
         Guid id, [FromBody] UpdateExternalTicketTaxonomyItemRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new UpdateExternalTicketCategoryCommand(
-            id, request.Name, request.Description, request.SortOrder, request.IsActive), ct));
+            id, request.Name, request.Description, request.SortOrder, request.IsActive,
+            request.NameEn, request.NameId), ct));
 
     [HttpGet("topics")]
     public async Task<IActionResult> GetTopics([FromQuery] Guid categoryId, CancellationToken ct)
@@ -52,7 +53,8 @@ public class ExternalTicketConfigurationController(IMediator mediator) : Control
         [FromBody] CreateExternalTicketTopicRequest request, CancellationToken ct)
     {
         var result = await mediator.Send(new CreateExternalTicketTopicCommand(
-            request.ExternalTicketCategoryId, request.Name, request.Description, request.SortOrder), ct);
+            request.ExternalTicketCategoryId, request.Name, request.Description, request.SortOrder,
+            request.NameEn, request.NameId), ct);
         return Created($"/v1/external-ticket-config/topics/{result.Id}", result);
     }
 
@@ -60,7 +62,8 @@ public class ExternalTicketConfigurationController(IMediator mediator) : Control
     public async Task<IActionResult> UpdateTopic(
         Guid id, [FromBody] UpdateExternalTicketTaxonomyItemRequest request, CancellationToken ct)
         => Ok(await mediator.Send(new UpdateExternalTicketTopicCommand(
-            id, request.Name, request.Description, request.SortOrder, request.IsActive), ct));
+            id, request.Name, request.Description, request.SortOrder, request.IsActive,
+            request.NameEn, request.NameId), ct));
 
     [HttpGet("subjects")]
     public async Task<IActionResult> GetSubjects([FromQuery] Guid topicId, CancellationToken ct)
@@ -73,7 +76,8 @@ public class ExternalTicketConfigurationController(IMediator mediator) : Control
         var result = await mediator.Send(new CreateExternalTicketSubjectCommand(
             request.ExternalTicketTopicId,
             request.Name, request.Description,
-            request.Template, request.Suggestions, request.SortOrder), ct);
+            request.Template, request.Suggestions, request.SortOrder,
+            request.NameEn, request.NameId), ct);
         return Created($"/v1/external-ticket-config/subjects/{result.Id}", result);
     }
 
@@ -83,7 +87,8 @@ public class ExternalTicketConfigurationController(IMediator mediator) : Control
         => Ok(await mediator.Send(new UpdateExternalTicketSubjectCommand(
             id, request.Name, request.Description,
             request.Template, request.Suggestions,
-            request.SortOrder, request.IsActive), ct));
+            request.SortOrder, request.IsActive,
+            request.NameEn, request.NameId), ct));
 }
 
 public record UpdateExternalTicketConfigurationRequest(
@@ -91,16 +96,22 @@ public record UpdateExternalTicketConfigurationRequest(
     bool IsEnabled,
     DateTime ExpectedUpdatedAt);
 
+// NameEn/NameId = ชื่อหลายภาษาของ master data (i18n Phase M) — ผู้แจ้งภายนอกเห็นชื่อพวกนี้ตอนเลือกหมวด
+// ไม่ส่ง = คงค่าเดิม, ส่ง "" = ล้างค่า
 public record CreateExternalTicketCategoryRequest(
     string Name,
     string? Description,
-    int SortOrder);
+    int SortOrder,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record CreateExternalTicketTopicRequest(
     Guid ExternalTicketCategoryId,
     string Name,
     string? Description,
-    int SortOrder);
+    int SortOrder,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record CreateExternalTicketSubjectRequest(
     Guid ExternalTicketTopicId,
@@ -108,13 +119,17 @@ public record CreateExternalTicketSubjectRequest(
     string? Description,
     string? Template,
     IReadOnlyList<string>? Suggestions,
-    int SortOrder);
+    int SortOrder,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record UpdateExternalTicketTaxonomyItemRequest(
     string Name,
     string? Description,
     int SortOrder,
-    bool IsActive);
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record UpdateExternalTicketSubjectRequest(
     string Name,
@@ -122,4 +137,6 @@ public record UpdateExternalTicketSubjectRequest(
     string? Template,
     IReadOnlyList<string>? Suggestions,
     int SortOrder,
-    bool IsActive);
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null);

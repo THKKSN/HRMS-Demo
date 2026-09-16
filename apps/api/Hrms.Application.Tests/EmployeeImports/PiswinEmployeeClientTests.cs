@@ -100,7 +100,7 @@ public class PiswinEmployeeClientTests
         var action = async () => await client.FindByNationalIdAsync("1103703466623");
 
         var exception = await action.Should().ThrowAsync<ExternalServiceUnavailableException>();
-        exception.Which.StatusCode.Should().Be((int)HttpStatusCode.Unauthorized);
+        exception.Which.UpstreamStatusCode.Should().Be((int)HttpStatusCode.Unauthorized);
         exception.Which.ResponseBodySnippet.Should().Contain("invalid api key");
     }
 

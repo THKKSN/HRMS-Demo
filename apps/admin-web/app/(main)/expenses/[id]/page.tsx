@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ExpenseAttachmentFileDto, ExpenseClaimStatus, ExpenseClaimType } from '@hrms/shared-types'
+import { EXPENSE_CLAIM_TYPE_LABEL as TYPE_LABEL } from '@hrms/i18n/labels'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Modal } from '@/components/ui/modal'
@@ -26,6 +27,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useApproveExpense, useExpense, useRejectExpense } from '@/hooks/use-expenses'
 import { EXPENSE_DOCUMENT_LABEL, isImageAttachmentUrl } from '@/lib/expense-attachments'
 import { publicFileUrl } from '@/lib/public-file-url'
+import * as fmt from '@hrms/i18n/format'
 
 const STATUS_LABEL: Record<ExpenseClaimStatus, string> = {
   Draft: 'แบบร่าง',
@@ -47,27 +49,19 @@ const STATUS_VARIANT: Record<ExpenseClaimStatus, 'secondary' | 'warning' | 'succ
   Paid: 'success',
 }
 
-const TYPE_LABEL: Record<ExpenseClaimType, string> = {
-  Fuel: 'ค่าน้ำมัน',
-  Toll: 'ค่าทางด่วน',
-  Parking: 'ค่าจอดรถ',
-  Meal: 'ค่าอาหาร',
-  Other: 'อื่น ๆ',
-}
-
 function formatDate(value?: string) {
   if (!value) return '-'
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(`${value}T00:00:00`))
+  return fmt.formatDate(new Date(`${value}T00:00:00`), { dateStyle: 'medium' })
 }
 
 function formatDateTime(value?: string) {
   if (!value) return '-'
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+  return fmt.formatDateTime(new Date(value))
 }
 
 function formatMoney(value?: number) {
   if (value == null) return '-'
-  return new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
+  return fmt.formatMoney(value)
 }
 
 function Section({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: ReactNode }) {

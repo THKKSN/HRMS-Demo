@@ -1,20 +1,23 @@
+import { useTranslations } from 'next-intl'
 import type { LeaveStatus } from '@hrms/shared-types'
 
-const CONFIG: Record<LeaveStatus, { label: string; className: string }> = {
-  Draft:             { label: 'ร่าง',          className: 'bg-gray-100 text-gray-600' },
-  PendingSupervisor: { label: 'รอหัวหน้า',     className: 'bg-amber-100 text-amber-700' },
-  PendingHr:         { label: 'รอ HR',          className: 'bg-blue-100 text-blue-700' },
-  CancellationRequested: { label: 'รอยกเลิก',   className: 'bg-orange-100 text-orange-700' },
-  Approved:          { label: 'อนุมัติแล้ว',   className: 'bg-green-100 text-green-700' },
-  Rejected:          { label: 'ถูกปฏิเสธ',     className: 'bg-red-100 text-red-700' },
-  Cancelled:         { label: 'ยกเลิกแล้ว',    className: 'bg-gray-100 text-gray-500' },
+// ป้ายข้อความอยู่ที่ @hrms/i18n (status.leave) — ไฟล์นี้เหลือแค่สี
+const CLASS_NAME: Record<LeaveStatus, string> = {
+  Draft:                 'bg-gray-100 text-gray-600',
+  PendingSupervisor:     'bg-amber-100 text-amber-700',
+  PendingHr:             'bg-blue-100 text-blue-700',
+  CancellationRequested: 'bg-orange-100 text-orange-700',
+  Approved:              'bg-green-100 text-green-700',
+  Rejected:              'bg-red-100 text-red-700',
+  Cancelled:             'bg-gray-100 text-gray-500',
 }
 
 export function LeaveStatusBadge({ status }: { status: LeaveStatus }) {
-  const { label, className } = CONFIG[status] ?? CONFIG.Draft
+  const t = useTranslations('status.leave')
+  const key: LeaveStatus = status in CLASS_NAME ? status : 'Draft'
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${className}`}>
-      {label}
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${CLASS_NAME[key]}`}>
+      {t(key)}
     </span>
   )
 }

@@ -28,7 +28,7 @@ export function useCreateRoleLabel() {
 export function useUpdateRoleLabel() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: string; name: string; isActive: boolean }) =>
+    mutationFn: ({ id, ...body }: { id: string } & Parameters<typeof roleLabelsApi.update>[1]) =>
       roleLabelsApi.update(id, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: roleLabelKeys.all }),
   })

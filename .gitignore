@@ -84,3 +84,26 @@ backups/database/
 .next/
 *.tsbuildinfo
 next-env.d.ts
+
+# ── ของที่ห้ามเข้า git history ────────────────────────────────────────────────
+# ทั้งหมดนี้เคยเป็น untracked ที่ไม่มีกฎ ignore ครอบ — `git add -A` ครั้งเดียว
+# จะลากเข้าไปราว 1 GB และลบออกทีหลังไม่ได้จริง (ต้องเขียน history ใหม่)
+
+# dump ฐานข้อมูล = ข้อมูลส่วนบุคคลของพนักงานจริง
+dump-*.sql
+*.dump.sql
+backups/
+
+# ไฟล์แนบที่ผู้ใช้อัปโหลด (ใบเสร็จ = ข้อมูลส่วนบุคคล)
+tmp-receipts/
+uploads/
+
+# virtualenv + build artifact ที่สร้างใหม่ได้เสมอ
+.venv-ocr/
+.venv/
+.tmp-build/
+*.zip
+
+# ไฟล์ทดลองที่ค้างจากการ debug
+temp_*.py
+demo-data.json

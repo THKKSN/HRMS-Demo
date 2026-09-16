@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ArrowLeft, CheckCircle2, Clock, Printer, Truck, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +13,8 @@ import { Modal } from '@/components/ui/modal'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { MemoDetailBody } from '@/components/memos/memo-detail-body'
+import { findActionableStep, MemoStepActionButton } from '@/components/memos/memo-step-action-button'
+import { MemoResubmitButton } from '@/components/memos/memo-resubmit-button'
 import { useMemoSections } from '@/components/memos/memo-section-nav'
 import {
   useAcknowledgeMemo,
@@ -22,13 +25,8 @@ import {
 } from '@/hooks/use-memo'
 import { memoApi } from '@/lib/memo.api'
 import type { MemoStatus } from '@hrms/shared-types'
-
-const STATUS_LABEL: Record<MemoStatus, string> = {
-  Draft: 'แบบร่าง',
-  Pending: 'รออนุมัติ',
-  Approved: 'อนุมัติแล้ว',
-  Rejected: 'ไม่อนุมัติ',
-}
+import * as fmt from '@hrms/i18n/format'
+import { useApiError } from '@/hooks/use-api-error'
 
 function statusVariant(status: MemoStatus): 'default' | 'secondary' | 'success' | 'warning' | 'destructive' {
   if (status === 'Pending') return 'warning'
@@ -37,17 +35,9 @@ function statusVariant(status: MemoStatus): 'default' | 'secondary' | 'success' 
   return 'secondary'
 }
 
-function thaiDateTime(value: string) {
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
-}
-
-function apiMessage(error: unknown) {
-  return (error as { response?: { data?: { message?: string; error?: string } } })?.response?.data?.message
-    ?? (error as { response?: { data?: { error?: string } } })?.response?.data?.error
-    ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-}
-
+// ข้อความจาก API ยังเป็นไทย (รอ Phase 3) — fallback ส่งเข้ามาจากคำแปล
 function PrintButton({ id }: { id: string }) {
+  const t = useTranslations('admin.memo.page')
   const [downloading, setDownloading] = useState(false)
 
   async function handlePrint() {
@@ -61,7 +51,7 @@ function PrintButton({ id }: { id: string }) {
       else window.open(url, '_blank')
     } catch {
       win?.close()
-      toast.error('เปิดเอกสาร PDF ไม่สำเร็จ กรุณาลองใหม่')
+      toast.error(t('printFailed'))
     } finally {
       setDownloading(false)
     }
@@ -69,45 +59,98 @@ function PrintButton({ id }: { id: string }) {
 
   return (
     <Button variant="outline" onClick={handlePrint} loading={downloading}>
-      <Printer className="h-4 w-4" /> พิมพ์
+      <Printer className="h-4 w-4" /> {t('print')}
     </Button>
   )
 }
 
-function RejectModal({ id, open, onClose }: { id: string; open: boolean; onClose: () => void }) {
-  const { mutateAsync: rejectMemo, isPending } = useRejectMemo()
-  const [reason, setReason] = useState('')
-  const [error, setError] = useState<string | null>(null)
+function ApproveModal({ id, memoTypeName, requesterName, open, onClose }: {
+  id: string
+  memoTypeName: string
+  requesterName: string
+  open: boolean
+  onClose: () => void
+}) {
+  const t = useTranslations('admin.memo.page')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const { mutateAsync: approveMemo, isPending } = useApproveMemo()
+  const [comment, setComment] = useState('')
 
-  async function handleReject() {
-    if (!reason.trim()) { setError('กรุณาระบุเหตุผลที่ไม่อนุมัติ'); return }
-    setError(null)
+  async function handleApprove() {
     try {
-      await rejectMemo({ id, reason: reason.trim() })
-      toast.success('ไม่อนุมัติเรื่องนี้แล้ว')
+      await approveMemo({ id, comment: comment.trim() || undefined })
+      toast.success(t('approved'))
+      setComment('')
       onClose()
     } catch (err) {
-      toast.error(apiMessage(err))
+      toast.error(apiError(err, tCommon('state.error')))
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="ไม่อนุมัติบันทึกข้อความ">
+    <Modal open={open} onClose={onClose} title={t('approveTitle')}>
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          {t('approveQuestion', { memoType: memoTypeName, requester: requesterName })}
+        </p>
+        <div>
+          <Label htmlFor="approve-comment">{t('approveCommentLabel')}</Label>
+          <Textarea
+            id="approve-comment"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            rows={3}
+            maxLength={1000}
+            placeholder={t('approveCommentPlaceholder')}
+          />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose}>{tCommon('action.cancel')}</Button>
+          <Button onClick={handleApprove} loading={isPending}>
+            <CheckCircle2 className="h-4 w-4" /> {t('confirmApprove')}
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+function RejectModal({ id, open, onClose }: { id: string; open: boolean; onClose: () => void }) {
+  const t = useTranslations('admin.memo.page')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const { mutateAsync: rejectMemo, isPending } = useRejectMemo()
+  const [reason, setReason] = useState('')
+
+  async function handleReject() {
+    try {
+      await rejectMemo({ id, reason: reason.trim() || undefined })
+      toast.success(t('rejected'))
+      setReason('')
+      onClose()
+    } catch (err) {
+      toast.error(apiError(err, tCommon('state.error')))
+    }
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} title={t('rejectTitle')}>
       <div className="space-y-4">
         <div>
-          <Label htmlFor="reject-reason">เหตุผลที่ไม่อนุมัติ *</Label>
+          <Label htmlFor="reject-reason">{t('rejectReasonLabel')}</Label>
           <Textarea
             id="reject-reason"
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             rows={3}
-            placeholder="ระบุเหตุผล..."
+            maxLength={1000}
+            placeholder={t('rejectReasonPlaceholder')}
           />
-          {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
         </div>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button variant="destructive" onClick={handleReject} loading={isPending}>ยืนยันไม่อนุมัติ</Button>
+          <Button variant="outline" onClick={onClose}>{tCommon('action.cancel')}</Button>
+          <Button variant="destructive" onClick={handleReject} loading={isPending}>{t('confirmReject')}</Button>
         </div>
       </div>
     </Modal>
@@ -118,96 +161,99 @@ function RejectModal({ id, open, onClose }: { id: string; open: boolean; onClose
 // Executive/Admin (memo:approve) → อนุมัติ/ไม่อนุมัติ ตอน Pending
 // Supervisor แผนกปลายทาง (memo:view-inbox) → รับทราบ/ส่งมอบ หลัง Approved
 export default function SharedMemoDetailPage() {
+  const t = useTranslations('admin.memo.page')
+  const tStatus = useTranslations('status.memo')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
   const params = useParams<{ id: string }>()
   const id = params.id
   const { data: memo, isLoading } = useMemoById(id)
-  const { canApprove, canViewInbox } = useMemoSections()
+  const { canApprove, canViewInbox, defaultHref } = useMemoSections()
 
-  const { mutateAsync: approveMemo, isPending: isApproving } = useApproveMemo()
   const { mutateAsync: acknowledgeMemo, isPending: isAcknowledging } = useAcknowledgeMemo()
   const { mutateAsync: deliverMemo, isPending: isDelivering } = useDeliverMemo()
 
-  const [comment, setComment] = useState('')
   const [rejectOpen, setRejectOpen] = useState(false)
-  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false)
+  const [approveOpen, setApproveOpen] = useState(false)
   const [ackConfirmOpen, setAckConfirmOpen] = useState(false)
   const [deliverConfirmOpen, setDeliverConfirmOpen] = useState(false)
-
-  async function handleApprove() {
-    try {
-      await approveMemo({ id, comment: comment.trim() || undefined })
-      toast.success('อนุมัติเรื่องนี้แล้ว')
-      setApproveConfirmOpen(false)
-    } catch (err) {
-      toast.error(apiMessage(err))
-    }
-  }
 
   async function handleAcknowledge() {
     try {
       await acknowledgeMemo(id)
-      toast.success('รับทราบเรื่องนี้แล้ว')
+      toast.success(t('acknowledged'))
       setAckConfirmOpen(false)
     } catch (err) {
-      toast.error(apiMessage(err))
+      toast.error(apiError(err, tCommon('state.error')))
     }
   }
 
   async function handleDeliver() {
     try {
       await deliverMemo(id)
-      toast.success('ส่งมอบเรื่องนี้แล้ว')
+      toast.success(t('delivered'))
       setDeliverConfirmOpen(false)
     } catch (err) {
-      toast.error(apiMessage(err))
+      toast.error(apiError(err, tCommon('state.error')))
     }
   }
 
   if (isLoading) return <div className="h-48 animate-pulse rounded-md bg-muted" />
-  if (!memo) return <div className="rounded-md border border-destructive/30 p-5 text-destructive">ไม่พบบันทึกข้อความ</div>
+  if (!memo) return <div className="rounded-md border border-destructive/30 p-5 text-destructive">{t('notFound')}</div>
 
   const isPending = memo.status === 'Pending'
   const isApproved = memo.status === 'Approved'
+  const steps = memo.steps ?? []
+  // เรื่องที่มีขั้นตอน config ไว้ ต้องทำครบทุกขั้นก่อนถึงจะส่งมอบได้ (backend ก็ guard ไว้อีกชั้น)
+  const stepsPending = steps.some((s) => s.status !== 'Done')
+  // ขั้นตอนที่ผู้ใช้คนนี้ลงมือได้ — ปุ่มอยู่แถวเดียวกับ อนุมัติ/รับทราบ/ส่งมอบ
+  const actionableStep = findActionableStep(memo)
   const showApproveActions = isPending && canApprove
   const showAcknowledgeAction = isApproved && canViewInbox && !memo.acknowledgedAt
-  const showDeliverAction = isApproved && canViewInbox && !!memo.acknowledgedAt && !memo.deliveredAt
+  const showDeliverAction =
+    isApproved && canViewInbox && !!memo.acknowledgedAt && !memo.deliveredAt && !stepsPending
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
         <div>
-          <Link href="/memos/tasks" className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> กลับ
+          <Link href={defaultHref} className="mb-2 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" /> {t('back')}
           </Link>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold">{memo.memoNo}</h1>
-            <Badge variant={statusVariant(memo.status)}>{STATUS_LABEL[memo.status]}</Badge>
+            <Badge variant={statusVariant(memo.status)}>{tStatus(memo.status)}</Badge>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            ผู้ขอ {memo.requesterName} · {thaiDateTime(memo.createdAt)}
+            {t('requesterAndDate', {
+              name: memo.requesterName,
+              date: fmt.formatDateTime(new Date(memo.createdAt)),
+            })}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 border-l-2 border-primary pl-3">
+        <div className="flex flex-wrap items-center gap-2 border-l-2 border-primary pl-3">
           {isApproved && <PrintButton id={id} />}
+          {memo.canResubmit && <MemoResubmitButton memo={memo} />}
+          {actionableStep && <MemoStepActionButton memoId={id} step={actionableStep} />}
           {showApproveActions && (
             <>
               <Button variant="outline" onClick={() => setRejectOpen(true)}>
-                <XCircle className="h-4 w-4" /> ไม่อนุมัติ
+                <XCircle className="h-4 w-4" /> {t('reject')}
               </Button>
-              <Button onClick={() => setApproveConfirmOpen(true)} loading={isApproving}>
-                <CheckCircle2 className="h-4 w-4" /> อนุมัติ
+              <Button onClick={() => setApproveOpen(true)}>
+                <CheckCircle2 className="h-4 w-4" /> {t('approve')}
               </Button>
             </>
           )}
           {showAcknowledgeAction && (
             <Button onClick={() => setAckConfirmOpen(true)} loading={isAcknowledging}>
-              <CheckCircle2 className="h-4 w-4" /> รับทราบ
+              <CheckCircle2 className="h-4 w-4" /> {t('acknowledge')}
             </Button>
           )}
           {showDeliverAction && (
             <Button onClick={() => setDeliverConfirmOpen(true)} loading={isDelivering}>
-              <Truck className="h-4 w-4" /> ส่งมอบแล้ว
+              <Truck className="h-4 w-4" /> {t('deliver')}
             </Button>
           )}
         </div>
@@ -215,44 +261,29 @@ export default function SharedMemoDetailPage() {
 
       {isPending && canViewInbox && !canApprove && (
         <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <Clock className="h-4 w-4 shrink-0" /> เรื่องนี้กำลังรอผู้บริหารอนุมัติ — เห็นล่วงหน้าเพื่อเตรียมงาน จะรับทราบได้เมื่ออนุมัติแล้ว
+          <Clock className="h-4 w-4 shrink-0" /> {t('pendingExecutiveNotice')}
         </div>
       )}
 
       <MemoDetailBody memo={memo} />
 
-      {showApproveActions && (
-        <section className="max-w-3xl">
-          <h2 className="border-b border-border pb-2 text-sm font-semibold">ความเห็นประกอบการอนุมัติ</h2>
-          <Textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            rows={3}
-            placeholder="ระบุความเห็น (ถ้ามี)..."
-            className="mt-3"
-          />
-        </section>
-      )}
+      <ApproveModal
+        id={id}
+        memoTypeName={memo.memoTypeName}
+        requesterName={memo.requesterName}
+        open={approveOpen}
+        onClose={() => setApproveOpen(false)}
+      />
 
       <RejectModal id={id} open={rejectOpen} onClose={() => setRejectOpen(false)} />
-
-      <ConfirmModal
-        open={approveConfirmOpen}
-        onClose={() => setApproveConfirmOpen(false)}
-        onConfirm={handleApprove}
-        title="ยืนยันการอนุมัติ"
-        description={`ยืนยันอนุมัติเรื่อง "${memo.memoTypeName}" ของ ${memo.requesterName}?`}
-        confirmLabel="ยืนยันอนุมัติ"
-        loading={isApproving}
-      />
 
       <ConfirmModal
         open={ackConfirmOpen}
         onClose={() => setAckConfirmOpen(false)}
         onConfirm={handleAcknowledge}
-        title="ยืนยันการรับทราบ"
-        description={`ยืนยันรับทราบเรื่อง "${memo.memoTypeName}" จาก ${memo.requesterName}? หลังรับทราบให้พิมพ์เอกสารไปดำเนินการต่อนอกระบบ`}
-        confirmLabel="ยืนยันรับทราบ"
+        title={t('acknowledgeTitle')}
+        description={t('acknowledgeQuestion', { memoType: memo.memoTypeName, requester: memo.requesterName })}
+        confirmLabel={t('confirmAcknowledge')}
         loading={isAcknowledging}
       />
 
@@ -260,9 +291,9 @@ export default function SharedMemoDetailPage() {
         open={deliverConfirmOpen}
         onClose={() => setDeliverConfirmOpen(false)}
         onConfirm={handleDeliver}
-        title="ยืนยันการส่งมอบ"
-        description={`ยืนยันว่าดำเนินการเรื่อง "${memo.memoTypeName}" เสร็จแล้วและส่งมอบให้ ${memo.requesterName}?`}
-        confirmLabel="ยืนยันส่งมอบ"
+        title={t('deliverTitle')}
+        description={t('deliverQuestion', { memoType: memo.memoTypeName, requester: memo.requesterName })}
+        confirmLabel={t('confirmDeliver')}
         loading={isDelivering}
       />
     </div>

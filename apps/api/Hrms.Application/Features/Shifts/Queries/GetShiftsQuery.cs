@@ -19,7 +19,7 @@ public class GetShiftsHandler(IApplicationDbContext db, IScopeGuard scope)
         var accessibleIds = await scope.GetAccessibleCompanyIdsAsync(ct);
 
         if (request.CompanyId.HasValue && accessibleIds != null && !accessibleIds.Contains(request.CompanyId.Value))
-            throw new AppForbiddenException("ไม่มีสิทธิ์เข้าถึง Shift ของ company นี้");
+            throw new AppForbiddenException("COMPANY_ACCESS_FORBIDDEN", "You are not allowed to access this company.");
 
         var query = db.Shifts
             .Include(s => s.Company)

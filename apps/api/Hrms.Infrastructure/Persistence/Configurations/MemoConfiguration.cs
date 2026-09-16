@@ -26,10 +26,19 @@ public class MemoConfiguration : IEntityTypeConfiguration<Memo>
 
         builder.Property(x => x.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
 
+        builder.Property(x => x.FirstApproverRoleCodeSnapshot).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.FirstApproverEmployeeIdSnapshot).HasColumnType("char(36)");
+        builder.Property(x => x.CurrentStepInstanceId).HasColumnType("char(36)");
+
         builder.Property(x => x.ApprovedAt).HasColumnType("datetime");
         builder.Property(x => x.ApprovedByEmployeeId).HasColumnType("char(36)");
+        builder.Property(x => x.ApproveComment).HasMaxLength(1000);
         builder.Property(x => x.RejectedAt).HasColumnType("datetime");
         builder.Property(x => x.RejectReason).HasMaxLength(1000);
+
+        builder.Property(x => x.ReturnedToRequesterAt).HasColumnType("datetime");
+        builder.Property(x => x.ReturnedToRequesterReason).HasMaxLength(1000);
+        builder.Property(x => x.ReturnedFromStepInstanceId).HasColumnType("char(36)");
 
         builder.Property(x => x.AcknowledgedAt).HasColumnType("datetime");
         builder.Property(x => x.AcknowledgedByEmployeeId).HasColumnType("char(36)");
@@ -95,6 +104,17 @@ public class MemoConfiguration : IEntityTypeConfiguration<Memo>
         builder.HasOne(x => x.ReceivedByEmployee)
             .WithMany()
             .HasForeignKey(x => x.ReceivedByEmployeeId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(x => x.FirstApproverEmployeeSnapshot)
+            .WithMany()
+            .HasForeignKey(x => x.FirstApproverEmployeeIdSnapshot)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        // FK วนกับ memo_step_instances (instance ชี้กลับ memo) — EF แยกเป็น AddForeignKey หลังสร้างตารางให้เอง
+        builder.HasOne(x => x.CurrentStepInstance)
+            .WithMany()
+            .HasForeignKey(x => x.CurrentStepInstanceId)
             .OnDelete(DeleteBehavior.SetNull);
     }
 }

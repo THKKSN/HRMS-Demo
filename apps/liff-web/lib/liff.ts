@@ -32,6 +32,21 @@ export async function initLiff(): Promise<void> {
   initialized = true
 }
 
+/**
+ * ภาษาของแอป LINE ที่ผู้ใช้ตั้งไว้ (RFC 5646 เช่น "th", "en-US", "id") — ใช้เดาภาษาครั้งแรกที่เปิด (i18n D2)
+ * เรียกได้ก่อน liff.init() (SDK ≥ 2.24) · นอก LIFF browser หรือ SDK เก่าจะตกไปใช้ภาษาของเบราว์เซอร์แทน
+ */
+export async function getLiffAppLanguage(): Promise<string | null> {
+  try {
+    const sdk = await getLiff()
+    const language = sdk.getAppLanguage?.()
+    if (language) return language
+  } catch {
+    // เปิดนอก LIFF (dev/E2E) — ไม่ถือเป็น error
+  }
+  return typeof navigator !== 'undefined' ? navigator.language : null
+}
+
 export const liff = new Proxy({} as typeof LiffType, {
   get(_target, prop) {
     if (!liffInstance) {

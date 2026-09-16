@@ -2,13 +2,17 @@
 
 import { useRef, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { ChevronDown, LogOut, Menu, Moon, Sun, User } from 'lucide-react'
 import { useAuthStore } from '@/stores/auth.store'
 import { useTheme } from '@/hooks/use-theme'
+import { LanguageSwitcher } from '@/components/shared/language-switcher'
 import { useSidebar } from './sidebar-context'
 import { api } from '@/lib/api'
 
 export function Header() {
+  const t = useTranslations('admin.layout')
+  const tNav = useTranslations('admin.nav')
   const router = useRouter()
   const { employee, clearAuth } = useAuthStore()
   const { theme, toggle } = useTheme()
@@ -45,7 +49,7 @@ export function Header() {
       <button
         onClick={toggleSidebar}
         className="lg:hidden flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-whited hover:text-foreground transition-colors"
-        aria-label="เปิดเมนู"
+        aria-label={tNav('action.openMenu')}
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -54,10 +58,13 @@ export function Header() {
       <div className="hidden lg:block" />
 
       <div className="flex items-center gap-2">
+        {/* ตัวสลับภาษา — อยู่นอก permission gate ทุก role จึงสลับได้ (แผน i18n งาน 2.2) */}
+        <LanguageSwitcher variant="icon" />
+
         {/* theme toggle */}
         <button
           onClick={toggle}
-          title={theme === 'dark' ? 'เปลี่ยนเป็น Light mode' : 'เปลี่ยนเป็น Dark mode'}
+          title={theme === 'dark' ? t('theme.toLight') : t('theme.toDark')}
           className="flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:bg-whited hover:text-foreground transition-colors"
         >
           {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -93,7 +100,7 @@ export function Header() {
                   className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
                 >
                   <LogOut className="h-4 w-4" />
-                  ออกจากระบบ
+                  {t('logout')}
                 </button>
               </div>
             </div>

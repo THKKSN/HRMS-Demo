@@ -18,7 +18,7 @@ public class GetSystemRolesHandler(IApplicationDbContext db)
             .AsNoTracking()
             .Where(role => role.IsActive)
             .OrderBy(role => role.Code)
-            .Select(role => new SystemRoleDto(role.Id, role.Code.ToString(), role.NameTh))
+            .Select(role => new SystemRoleDto(role.Id, role.Code.ToString(), role.NameTh, role.NameEn, role.NameId))
             .ToListAsync(ct);
     }
 }

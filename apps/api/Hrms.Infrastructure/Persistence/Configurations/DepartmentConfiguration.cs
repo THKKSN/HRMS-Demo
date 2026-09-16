@@ -13,6 +13,8 @@ public class DepartmentConfiguration : IEntityTypeConfiguration<Department>
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.CompanyId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.NameEn).HasMaxLength(200);
+        builder.Property(x => x.NameId).HasMaxLength(200);
         builder.Property(x => x.DeptType).HasMaxLength(50);
         builder.Property(x => x.ParentDeptId).HasColumnType("char(36)");
         builder.Property(x => x.ManagerEmployeeId).HasColumnType("char(36)");

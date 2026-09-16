@@ -1,0 +1,8 @@
+{
+  "appName": "TBG Assistant",
+  "theme": {
+    "toLight": "เปลี่ยนเป็น Light mode",
+    "toDark": "เปลี่ยนเป็น Dark mode"
+  },
+  "logout": "ออกจากระบบ"
+}

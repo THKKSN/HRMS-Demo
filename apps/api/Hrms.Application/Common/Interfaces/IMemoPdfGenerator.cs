@@ -12,7 +12,8 @@ public record MemoPrintData(
     string DepartmentName,
     DateTime CreatedAt,
     DateTime ApprovedAt,
-    string ApprovedByName);
+    string ApprovedByName,
+    string? ApproveComment = null);
 
 public interface IMemoPdfGenerator
 {

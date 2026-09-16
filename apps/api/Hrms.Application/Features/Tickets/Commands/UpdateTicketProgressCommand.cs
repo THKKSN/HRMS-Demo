@@ -15,7 +15,9 @@ public record UpdateTicketProgressCommand(
     string? NextAction,
     bool IsCompleted,
     string? Note,
-    DateTime? ExpectedUpdatedAt) : IRequest<TicketActionResultDto>;
+    DateTime? ExpectedUpdatedAt,
+    /// <summary>ผู้ดูแลการ์ดนี้ — ต้องเป็นคนในทีมของใบนี้ ไม่ระบุ = ผู้สร้างการ์ดเอง</summary>
+    Guid? OwnerEmployeeId = null) : IRequest<TicketActionResultDto>;
 
 public class UpdateTicketProgressValidator : AbstractValidator<UpdateTicketProgressCommand>
 {
@@ -27,14 +29,14 @@ public class UpdateTicketProgressValidator : AbstractValidator<UpdateTicketProgr
         RuleFor(x => x.Note).MaximumLength(2000);
         RuleFor(x => x)
             .Must(x => !x.IsCompleted || !string.IsNullOrWhiteSpace(x.WorkState))
-            .WithMessage("กรุณาระบุหัวข้อกิจกรรมที่เสร็จสิ้น");
+            .WithErrorCode("TICKET_PROGRESS_ENTRY_TITLE_REQUIRED").WithMessage("A title is required for a completed activity.");
         RuleFor(x => x)
             .Must(x =>
                 !string.IsNullOrWhiteSpace(x.WorkState)
                 || !string.IsNullOrWhiteSpace(x.BlockerReason)
                 || !string.IsNullOrWhiteSpace(x.NextAction)
                 || !string.IsNullOrWhiteSpace(x.Note))
-            .WithMessage("กรุณาระบุความคืบหน้าอย่างน้อย 1 รายการ");
+            .WithErrorCode("TICKET_PROGRESS_FIELD_REQUIRED").WithMessage("At least one progress field must be filled in.");
     }
 }
 
@@ -48,10 +50,10 @@ public class UpdateTicketProgressHandler(
     public async Task<TicketActionResultDto> Handle(UpdateTicketProgressCommand request, CancellationToken ct)
     {
         var ticket = await db.Tickets.FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketAccess.EnsureWorkerOrManagerAsync(db, currentUser, permissions, "ticket:update-status", ticket, ct);
         if (ticket.Status is not (TicketStatus.InProgress or TicketStatus.WaitingInfo))
-            throw new ConflictException("INVALID_TICKET_STATUS", "อัปเดตความคืบหน้าได้เฉพาะงานที่กำลังดำเนินการหรือรอข้อมูล");
+            throw new ConflictException("TICKET_PROGRESS_NOT_ALLOWED", "Progress can be updated only while the ticket is in progress or waiting for information.");
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
 
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
@@ -60,6 +62,8 @@ public class UpdateTicketProgressHandler(
         var blockerReason = TrimOrNull(request.BlockerReason);
         var nextAction = TrimOrNull(request.NextAction);
         var note = TrimOrNull(request.Note);
+        var ownerEmployeeId = await TicketTeam.ResolveCardOwnerAsync(
+            db, ticket.Id, request.OwnerEmployeeId, actorId, ct);
 
         TicketCommandSupport.SetWorkflowBoardState(
             ticket,
@@ -76,7 +80,7 @@ public class UpdateTicketProgressHandler(
             blockerReason,
             nextAction,
             note,
-            ownerEmployeeId: actorId,
+            ownerEmployeeId: ownerEmployeeId,
             isCompleted: request.IsCompleted);
         ticket.UpdatedBy = actorId;
         await db.SaveChangesAsync(ct);
@@ -88,7 +92,7 @@ public class UpdateTicketProgressHandler(
             "update-progress",
             $"{TicketCommandSupport.FullName(actor)} อัปเดตบอร์ดงาน {ticket.TicketNo}",
             null,
-            new { workState, blockerReason, nextAction, request.IsCompleted, note },
+            new { workState, blockerReason, nextAction, request.IsCompleted, note, ownerEmployeeId },
             ct);
 
         return new TicketActionResultDto(ticket.Id, ticket.Status, ticket.UpdatedAt, progressEntry.Id);

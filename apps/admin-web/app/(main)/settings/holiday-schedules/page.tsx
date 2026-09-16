@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -21,6 +22,8 @@ import { useCompanies } from '@/hooks/use-companies'
 import { useAuthStore } from '@/stores/auth.store'
 import type { WeeklyHolidayScheduleDto } from '@/types/admin'
 import type { CompanyTreeDto } from '@hrms/shared-types'
+import { localizedName, type Locale } from '@hrms/i18n'
+import * as fmt from '@hrms/i18n/format'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -28,20 +31,7 @@ function flattenCompanies(nodes: CompanyTreeDto[]): CompanyTreeDto[] {
   return nodes.flatMap((n) => [n, ...flattenCompanies(n.children)])
 }
 
-const DAY_NAMES: Record<number, string> = {
-  0: 'อาทิตย์',
-  1: 'จันทร์',
-  2: 'อังคาร',
-  3: 'พุธ',
-  4: 'พฤหัสบดี',
-  5: 'ศุกร์',
-  6: 'เสาร์',
-}
-
-function formatWorkDayOccurrences(occ: number[]): string {
-  if (occ.length === 0) return 'หยุดทุกสัปดาห์'
-  return 'ครั้งที่ ' + occ.sort((a, b) => a - b).join(', ') + ' ทำงาน'
-}
+const DAY_OF_WEEK_OPTIONS = [0, 1, 2, 3, 4, 5, 6]
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
@@ -49,22 +39,25 @@ function FieldError({ message }: { message?: string }) {
 }
 
 // ── Schema ─────────────────────────────────────────────────────────────────────
+// ข้อความ validation มาจาก useTranslations จึงสร้าง schema ใน component
 
-const scheduleSchema = z
-  .object({
-    name: z.string().min(1, 'กรุณาระบุชื่อกฎ').max(200),
-    scope: z.enum(['global', 'company']),
-    companyId: z.string().optional(),
-    dayOfWeek: z.number().min(0).max(6),
-    workDayOccurrences: z.array(z.number().min(1).max(5)),
-    isActive: z.boolean().optional(),
-  })
-  .refine((d) => d.scope === 'global' || !!d.companyId, {
-    message: 'กรุณาเลือกบริษัท',
-    path: ['companyId'],
-  })
+function buildScheduleSchema(t: (key: string) => string) {
+  return z
+    .object({
+      name: z.string().min(1, t('validation.name')).max(200),
+      scope: z.enum(['global', 'company']),
+      companyId: z.string().optional(),
+      dayOfWeek: z.number().min(0).max(6),
+      workDayOccurrences: z.array(z.number().min(1).max(5)),
+      isActive: z.boolean().optional(),
+    })
+    .refine((d) => d.scope === 'global' || !!d.companyId, {
+      message: t('validation.company'),
+      path: ['companyId'],
+    })
+}
 
-type ScheduleValues = z.infer<typeof scheduleSchema>
+type ScheduleValues = z.infer<ReturnType<typeof buildScheduleSchema>>
 
 // ── ScheduleForm (shared by Create + Edit) ─────────────────────────────────────
 
@@ -85,6 +78,11 @@ function ScheduleForm({
   isSubmitting: boolean
   showStatus?: boolean
 }) {
+  const t = useTranslations('admin.settings.holidaySchedules')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const locale = useLocale() as Locale
+  const schema = useMemo(() => buildScheduleSchema(t), [t])
   const {
     register,
     handleSubmit,
@@ -92,7 +90,7 @@ function ScheduleForm({
     control,
     formState: { errors },
   } = useForm<ScheduleValues>({
-    resolver: zodResolver(scheduleSchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       scope: canSeeAll ? 'global' : 'company',
       workDayOccurrences: [],
@@ -107,22 +105,22 @@ function ScheduleForm({
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <div className="space-y-1.5">
-        <Label htmlFor="s-name">ชื่อกฎ *</Label>
-        <Input id="s-name" placeholder="เช่น กฎวันหยุดวันเสาร์" {...register('name')} />
+        <Label htmlFor="s-name">{t('name')} *</Label>
+        <Input id="s-name" placeholder={t('namePlaceholder')} {...register('name')} />
         <FieldError message={errors.name?.message} />
       </div>
 
       {canSeeAll && (
         <div className="space-y-1.5">
-          <Label>ขอบเขต</Label>
+          <Label>{t('scope')}</Label>
           <div className="flex gap-4">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="radio" value="global" {...register('scope')} />
-              ทั้งระบบ
+              {t('scopeGlobalOption')}
             </label>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="radio" value="company" {...register('scope')} />
-              เฉพาะบริษัท
+              {t('scopeCompanyOption')}
             </label>
           </div>
         </div>
@@ -130,16 +128,16 @@ function ScheduleForm({
 
       {scope === 'company' && (
         <div className="space-y-1.5">
-          <Label htmlFor="s-company">บริษัท *</Label>
+          <Label htmlFor="s-company">{tOrg('company')} *</Label>
           <select
             id="s-company"
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             {...register('companyId')}
           >
-            <option value="">— เลือกบริษัท —</option>
+            <option value="">{tOrg('selectCompany')}</option>
             {companies.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
+                {localizedName(c, locale)}
               </option>
             ))}
           </select>
@@ -148,22 +146,22 @@ function ScheduleForm({
       )}
 
       <div className="space-y-1.5">
-        <Label htmlFor="s-dow">วันในสัปดาห์ *</Label>
+        <Label htmlFor="s-dow">{t('dayOfWeek')} *</Label>
         <select
           id="s-dow"
           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
           {...register('dayOfWeek', { valueAsNumber: true })}
         >
-          {Object.entries(DAY_NAMES).map(([v, label]) => (
-            <option key={v} value={v}>
-              {label}
+          {DAY_OF_WEEK_OPTIONS.map((day) => (
+            <option key={day} value={day}>
+              {fmt.formatWeekday(day)}
             </option>
           ))}
         </select>
       </div>
 
       <div className="space-y-2">
-        <Label>ครั้งที่ในเดือนที่เป็นวันทำงาน (ยกเว้นจากวันหยุด)</Label>
+        <Label>{t('workOccurrences')}</Label>
         <div className="flex flex-wrap gap-3">
           {[1, 2, 3, 4, 5].map((occ) => (
             <Controller
@@ -185,28 +183,26 @@ function ScheduleForm({
                     }}
                     className="rounded border-border"
                   />
-                  ครั้งที่ {occ}
+                  {t('occurrence', { n: occ })}
                 </label>
               )}
             />
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">
-          ที่เหลือนอกจากนี้จะถือเป็นวันหยุด — ไม่เลือกเลย = หยุดทุกสัปดาห์
-        </p>
+        <p className="text-xs text-muted-foreground">{t('workOccurrencesHint')}</p>
       </div>
 
       {showStatus && (
         <div className="space-y-1.5">
-          <Label>สถานะ</Label>
+          <Label>{t('status')}</Label>
           <div className="flex gap-4">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="radio" value="true" {...register('isActive')} />
-              เปิดใช้งาน
+              {tOrg('activate')}
             </label>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
               <input type="radio" value="false" {...register('isActive')} />
-              ปิดใช้งาน
+              {tOrg('deactivate')}
             </label>
           </div>
         </div>
@@ -214,10 +210,10 @@ function ScheduleForm({
 
       <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" onClick={onCancel}>
-          ยกเลิก
+          {tCommon('action.cancel')}
         </Button>
         <Button type="submit" loading={isSubmitting}>
-          บันทึก
+          {tCommon('action.save')}
         </Button>
       </div>
     </form>
@@ -237,6 +233,8 @@ function CreateModal({
   canSeeAll: boolean
   companies: CompanyTreeDto[]
 }) {
+  const t = useTranslations('admin.settings.holidaySchedules')
+  const tCommon = useTranslations('common')
   const create = useCreateHolidaySchedule()
 
   async function onSubmit(values: ScheduleValues) {
@@ -247,15 +245,15 @@ function CreateModal({
         dayOfWeek: values.dayOfWeek,
         workDayOccurrences: values.workDayOccurrences,
       })
-      toast.success(`สร้างกฎ "${values.name}" สำเร็จ`)
+      toast.success(t('created', { name: values.name }))
       onClose()
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      toast.error(tCommon('state.error'))
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="เพิ่มกฎวันหยุดใหม่">
+    <Modal open={open} onClose={onClose} title={t('addTitle')}>
       <ScheduleForm
         defaultValues={{}}
         canSeeAll={canSeeAll}
@@ -281,6 +279,9 @@ function EditModal({
   canSeeAll: boolean
   companies: CompanyTreeDto[]
 }) {
+  const t = useTranslations('admin.settings.holidaySchedules')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
   const update = useUpdateHolidaySchedule()
   const toggle = useToggleHolidayScheduleStatus()
 
@@ -293,31 +294,33 @@ function EditModal({
         workDayOccurrences: values.workDayOccurrences,
         isActive: item.isActive,
       })
-      toast.success(`บันทึกกฎ "${values.name}" สำเร็จ`)
+      toast.success(t('saved', { name: values.name }))
       onClose()
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      toast.error(tCommon('state.error'))
     }
   }
 
   async function handleToggle() {
     try {
       await toggle.mutateAsync({ id: item.id, isActive: !item.isActive })
-      toast.success(`${item.isActive ? 'ปิด' : 'เปิด'}ใช้งานกฎ "${item.name}" สำเร็จ`)
+      toast.success(item.isActive
+        ? t('deactivated', { name: item.name })
+        : t('activated', { name: item.name }))
       onClose()
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      toast.error(tCommon('state.error'))
     }
   }
 
   return (
-    <Modal open onClose={onClose} title={`แก้ไขกฎ: ${item.name}`}>
+    <Modal open onClose={onClose} title={t('editTitle', { name: item.name })}>
       <div className="space-y-4">
         <div className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-          ขอบเขต:{' '}
+          {t('scopeLine')}{' '}
           {item.companyId === null ? (
             <Badge variant="outline" className="text-blue-600 border-blue-300 ml-1">
-              ทั้งระบบ
+              {t('scopeAll')}
             </Badge>
           ) : (
             <span className="font-medium text-foreground">{item.companyName}</span>
@@ -347,7 +350,7 @@ function EditModal({
             onClick={handleToggle}
             loading={toggle.isPending}
           >
-            {item.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+            {item.isActive ? tOrg('deactivate') : tOrg('activate')}
           </Button>
         </div>
       </div>
@@ -358,6 +361,8 @@ function EditModal({
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function HolidaySchedulesPage() {
+  const t = useTranslations('admin.settings.holidaySchedules')
+  const tOrg = useTranslations('admin.org.common')
   const employee = useAuthStore((s) => s.employee)
   const isAdmin = employee?.roles.some((r) => r.role === 'Admin') ?? false
   const isHr = employee?.roles.some((r) => r.role === 'Hr') ?? false
@@ -382,10 +387,10 @@ export default function HolidaySchedulesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">ตารางวันหยุดประจำสัปดาห์</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t('title')}</h1>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
-          เพิ่มกฎ
+          {t('add')}
         </Button>
       </div>
 
@@ -397,7 +402,7 @@ export default function HolidaySchedulesPage() {
             onChange={(e) => setIncludeInactive(e.target.checked)}
             className="rounded border-border"
           />
-          รวมที่ปิดใช้งาน
+          {t('includeInactive')}
         </label>
       </div>
 
@@ -405,11 +410,11 @@ export default function HolidaySchedulesPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/50">
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อกฎ</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">วันในสัปดาห์</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">วันทำงานในเดือน</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">บริษัท</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">สถานะ</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colName')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colDayOfWeek')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colWorkDays')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colCompany')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{tOrg('colStatus')}</th>
               <th className="px-4 py-3 w-12" />
             </tr>
           </thead>
@@ -428,7 +433,7 @@ export default function HolidaySchedulesPage() {
             {!isLoading && (!schedules || schedules.length === 0) && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
-                  ยังไม่มีกฎวันหยุด — กด &quot;+ เพิ่มกฎ&quot; เพื่อเริ่มต้น
+                  {t('empty')}
                 </td>
               </tr>
             )}
@@ -440,14 +445,18 @@ export default function HolidaySchedulesPage() {
                   className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
                 >
                   <td className="px-4 py-3 font-medium">{s.name}</td>
-                  <td className="px-4 py-3">{DAY_NAMES[s.dayOfWeek] ?? s.dayOfWeek}</td>
+                  <td className="px-4 py-3">{fmt.formatWeekday(s.dayOfWeek)}</td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">
-                    {formatWorkDayOccurrences(s.workDayOccurrences)}
+                    {s.workDayOccurrences.length === 0
+                      ? t('everyWeek')
+                      : t('workOnOccurrences', {
+                          list: [...s.workDayOccurrences].sort((a, b) => a - b).join(', '),
+                        })}
                   </td>
                   <td className="px-4 py-3">
                     {s.companyId === null ? (
                       <Badge variant="outline" className="text-blue-600 border-blue-300">
-                        ทั้งระบบ
+                        {t('scopeAll')}
                       </Badge>
                     ) : (
                       <span className="text-xs text-muted-foreground">{s.companyName}</span>
@@ -455,7 +464,7 @@ export default function HolidaySchedulesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant={s.isActive ? 'success' : 'secondary'}>
-                      {s.isActive ? 'ใช้งาน' : 'ปิด'}
+                      {s.isActive ? tOrg('statusActive') : tOrg('statusInactive')}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">

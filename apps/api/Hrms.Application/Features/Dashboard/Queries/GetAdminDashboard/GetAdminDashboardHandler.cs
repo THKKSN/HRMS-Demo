@@ -1,6 +1,7 @@
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Features.AuditLogs.Dtos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,13 +25,22 @@ public class GetAdminDashboardHandler(
         var recentLogs = await db.AuditLogs
             .OrderByDescending(l => l.CreatedAt)
             .Take(10)
-            .Select(l => new AdminAuditLogItem(
-                l.Id.ToString(),
+            .Select(l => new AuditLogDto(
+                l.Id,
                 l.Module,
+                l.EntityType,
+                l.EntityId,
                 l.Action,
                 l.Description,
+                l.OldValues,
+                l.NewValues,
+                l.PerformedByEmployeeId,
                 l.PerformedByName,
-                l.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")))
+                db.Employees
+                    .Where(e => e.Id == l.PerformedByEmployeeId)
+                    .Select(e => e.AvatarUrl)
+                    .FirstOrDefault(),
+                l.CreatedAt))
             .ToListAsync(ct);
 
         return new AdminDashboardDto(

@@ -1,0 +1,29 @@
+{
+  "title": "โปรไฟล์",
+  "company": "บริษัท",
+  "department": "แผนก",
+  "roleLabel": "ตำแหน่ง",
+  "employeeCode": "รหัสพนักงาน",
+  "phone": "เบอร์โทรศัพท์",
+  "email": "อีเมล",
+  "hireDate": "วันที่เริ่มงาน",
+  "fontSize": {
+    "label": "ขนาดตัวอักษร",
+    "small": "เล็ก",
+    "medium": "กลาง",
+    "large": "ใหญ่"
+  },
+  "theme": {
+    "label": "โหมดสี",
+    "system": "ตามระบบ",
+    "light": "สว่าง",
+    "dark": "มืด"
+  },
+  "settings": {
+    "title": "ตั้งค่า",
+    "display": "การแสดงผล"
+  },
+  "logout": "ออกจากระบบ",
+  "loggingOut": "กำลังออกจากระบบ...",
+  "version": "Version {version}"
+}

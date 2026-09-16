@@ -6,6 +6,8 @@ public class Shift : BaseEntity
 {
     public Guid CompanyId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
+    public string? NameId { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
     public int GracePeriodMinutes { get; set; }

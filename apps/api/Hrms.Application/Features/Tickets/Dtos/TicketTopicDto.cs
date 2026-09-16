@@ -12,4 +12,6 @@ public record TicketTopicDto(
     int SortOrder,
     bool IsActive,
     TicketRoutingMode RoutingMode,
-    bool SyncToExternalRepairSystem);
+    bool SyncToExternalRepairSystem,
+    string? NameEn = null,
+    string? NameId = null);

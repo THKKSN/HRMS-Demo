@@ -6,6 +6,8 @@ public class RoleLabel : BaseEntity
 {
     public Guid CompanyId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? NameEn { get; set; }
+    public string? NameId { get; set; }
     public bool IsActive { get; set; } = true;
 
     public Company Company { get; set; } = null!;

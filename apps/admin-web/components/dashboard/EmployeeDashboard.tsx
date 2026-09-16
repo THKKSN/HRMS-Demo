@@ -1,5 +1,6 @@
 'use client'
 
+import { useTranslations } from 'next-intl'
 import { useMyDashboard } from '@/hooks/use-dashboard'
 import { AttendanceTodayCard } from './widgets/AttendanceTodayCard'
 import { LeaveBalanceCards } from './widgets/LeaveBalanceCards'
@@ -37,9 +38,10 @@ function DashboardSkeleton() {
 }
 
 function ErrorState() {
+  const t = useTranslations('admin.dashboard')
   return (
     <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-6 text-center text-sm text-red-600">
-      โหลดข้อมูล dashboard ไม่สำเร็จ กรุณาลองใหม่
+      {t('loadFailed')}
     </div>
   )
 }

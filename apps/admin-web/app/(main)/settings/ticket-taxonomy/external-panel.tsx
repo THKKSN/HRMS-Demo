@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 import { FolderTree, Pencil, Plus, Power, PowerOff, Settings2, Tags } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
@@ -8,11 +9,13 @@ import type {
   ExternalTicketSubjectDto,
   ExternalTicketTopicDto,
 } from '@hrms/shared-types'
+import { localizedName, type Locale } from '@hrms/i18n'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { LocalizedNameHint } from '@/components/ui/localized-name-hint'
 import { Modal } from '@/components/ui/modal'
 import {
   useCreateExternalTicketCategory,
@@ -27,22 +30,21 @@ import {
   useUpdateExternalTicketSubject,
   useUpdateExternalTicketTopic,
 } from '@/hooks/use-external-ticket-taxonomy'
+import { useApiError } from '@/hooks/use-api-error'
 
 type ExternalTaxonomyItem = ExternalTicketCategoryDto | ExternalTicketTopicDto | ExternalTicketSubjectDto
 type ExternalTaxonomyKind = 'category' | 'topic' | 'subject'
 type ExternalEditorState = { kind: ExternalTaxonomyKind; item?: ExternalTaxonomyItem }
 type ExternalToggleState = { kind: ExternalTaxonomyKind; item: ExternalTaxonomyItem }
 
-function apiMessage(error: unknown) {
-  return (error as { response?: { data?: { message?: string } } })?.response?.data?.message
-    ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-}
-
 function EmptyRow({ text }: { text: string }) {
   return <div className="px-4 py-12 text-center text-sm text-muted-foreground">{text}</div>
 }
 
 function ConfigPanel() {
+  const t = useTranslations('admin.settings.taxonomy')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
   const { data: config, isLoading, error } = useExternalTicketConfiguration()
   const updateConfig = useUpdateExternalTicketConfiguration()
 
@@ -63,22 +65,22 @@ function ConfigPanel() {
         isEnabled,
         expectedUpdatedAt: config.updatedAt,
       })
-      toast.success('บันทึกการตั้งค่าช่องทางบุคคลภายนอกสำเร็จ')
+      toast.success(t('externalConfigSaved'))
     } catch (err) {
-      toast.error(apiMessage(err))
+      toast.error(apiError(err, tCommon('state.error')))
     }
   }
 
   if (isLoading) return <div className="h-40 animate-pulse rounded-md bg-whited" />
   if (error) {
-    return <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{apiMessage(error)}</div>
+    return <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{apiError(error, tCommon('state.error'))}</div>
   }
 
   return (
     <div className="max-w-xl space-y-4 rounded-md border border-border bg-background p-4">
       <div className="flex items-center gap-2">
         <Settings2 className="h-4 w-4 text-primary" />
-        <h2 className="text-sm font-semibold">ตั้งค่าช่องทางแจ้งเรื่องบุคคลภายนอก</h2>
+        <h2 className="text-sm font-semibold">{t('externalConfigTitle')}</h2>
       </div>
 
       <div className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3">
@@ -90,7 +92,7 @@ function ConfigPanel() {
           onChange={event => setRequireOaFriendship(event.target.checked)}
         />
         <Label htmlFor="external-config-oa" className="text-sm font-normal">
-          บังคับให้เพิ่มเพื่อน LINE OA ก่อนแจ้งเรื่อง
+          {t('externalRequireOa')}
         </Label>
       </div>
 
@@ -103,12 +105,12 @@ function ConfigPanel() {
           onChange={event => setIsEnabled(event.target.checked)}
         />
         <Label htmlFor="external-config-enabled" className="text-sm font-normal">
-          เปิดใช้งานช่องทางแจ้งเรื่องสำหรับบุคคลภายนอก
+          {t('externalEnabled')}
         </Label>
       </div>
 
       <div className="flex justify-end">
-        <Button loading={updateConfig.isPending} onClick={save}>บันทึกการตั้งค่า</Button>
+        <Button loading={updateConfig.isPending} onClick={save}>{t('externalConfigSave')}</Button>
       </div>
     </div>
   )
@@ -123,21 +125,30 @@ function ExternalTaxonomyEditor({
   onClose: () => void
   onSave: (values: {
     name: string
+    nameEn?: string
+    nameId?: string
     description?: string
     sortOrder: number
   }) => Promise<void>
 }) {
   const [name, setName] = useState(state.item?.name ?? '')
+  const [nameEn, setNameEn] = useState(state.item?.nameEn ?? '')
+  const [nameId, setNameId] = useState(state.item?.nameId ?? '')
   const [description, setDescription] = useState(state.item?.description ?? '')
   const [sortOrder, setSortOrder] = useState(state.item?.sortOrder ?? 10)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const label = state.kind === 'category' ? 'หมวด' : state.kind === 'topic' ? 'หมวดย่อย' : 'หัวข้อ'
+  const t = useTranslations('admin.settings.taxonomy')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  // ชื่อหัวเรื่อง modal ของช่องทางภายนอกแยกคีย์ต่อชนิด — ห้ามต่อ string ข้ามภาษา
+  const titleKey = state.kind === 'category' ? 'externalCategory' : state.kind === 'topic' ? 'externalTopic' : 'externalSubject'
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!name.trim()) {
-      setError(`กรุณากรอกชื่อ${label}`)
+      setError(t(`${state.kind}.nameRequired`))
       return
     }
     setSaving(true)
@@ -145,22 +156,24 @@ function ExternalTaxonomyEditor({
     try {
       await onSave({
         name: name.trim(),
+        nameEn: nameEn.trim(),
+        nameId: nameId.trim(),
         description: description.trim() || undefined,
         sortOrder,
       })
       onClose()
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiError(err, tCommon('state.error')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal open onClose={onClose} title={`${state.item ? 'แก้ไข' : 'เพิ่ม'}${label}สำหรับบุคคลภายนอก`}>
+    <Modal open onClose={onClose} title={state.item ? t(`${titleKey}EditTitle`) : t(`${titleKey}AddTitle`)}>
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="external-taxonomy-name">ชื่อ{label} *</Label>
+          <Label htmlFor="external-taxonomy-name">{t(`${state.kind}.nameLabel`)} *</Label>
           <Input
             id="external-taxonomy-name"
             value={name}
@@ -169,8 +182,19 @@ function ExternalTaxonomyEditor({
             autoFocus
           />
         </div>
+        {/* ผู้แจ้งภายนอก (รวมภาษาอินโดฯ) เห็นชื่อพวกนี้ตอนเลือกหมวด — ควรกรอกให้ครบ */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="external-taxonomy-name-en">{tOrg('nameEn')}</Label>
+            <Input id="external-taxonomy-name-en" value={nameEn} onChange={event => setNameEn(event.target.value)} maxLength={200} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="external-taxonomy-name-id">{tOrg('nameId')}</Label>
+            <Input id="external-taxonomy-name-id" value={nameId} onChange={event => setNameId(event.target.value)} maxLength={200} />
+          </div>
+        </div>
         <div className="space-y-1.5">
-          <Label htmlFor="external-taxonomy-description">คำอธิบาย</Label>
+          <Label htmlFor="external-taxonomy-description">{t('description')}</Label>
           <textarea
             id="external-taxonomy-description"
             value={description}
@@ -181,7 +205,7 @@ function ExternalTaxonomyEditor({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="external-taxonomy-order">ลำดับการแสดง</Label>
+          <Label htmlFor="external-taxonomy-order">{t('sortOrder')}</Label>
           <Input
             id="external-taxonomy-order"
             type="number"
@@ -193,13 +217,13 @@ function ExternalTaxonomyEditor({
         </div>
         {state.kind === 'subject' && (
           <p className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-            ตั้งค่า Template และ Suggest ได้ที่แท็บ &quot;Template และ Suggest&quot;
+            {t('templateTabHint')}
           </p>
         )}
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button type="submit" loading={saving}>บันทึก</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{tCommon('action.cancel')}</Button>
+          <Button type="submit" loading={saving}>{tCommon('action.save')}</Button>
         </div>
       </form>
     </Modal>
@@ -207,6 +231,10 @@ function ExternalTaxonomyEditor({
 }
 
 export function ExternalTaxonomyPanel() {
+  const t = useTranslations('admin.settings.taxonomy')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const locale = useLocale() as Locale
   const [categoryId, setCategoryId] = useState('')
   const [topicId, setTopicId] = useState('')
   const [editor, setEditor] = useState<ExternalEditorState | null>(null)
@@ -241,6 +269,8 @@ export function ExternalTaxonomyPanel() {
 
   async function saveEditor(values: {
     name: string
+    nameEn?: string
+    nameId?: string
     description?: string
     template?: string
     suggestions?: string[]
@@ -281,7 +311,7 @@ export function ExternalTaxonomyPanel() {
         ...values,
       })
     }
-    toast.success(`บันทึก${editor.kind === 'category' ? 'หมวด' : editor.kind === 'topic' ? 'หมวดย่อย' : 'หัวข้อ'}สำเร็จ`)
+    toast.success(t(`${editor.kind}.saved`))
   }
 
   async function confirmToggle() {
@@ -320,10 +350,12 @@ export function ExternalTaxonomyPanel() {
           isActive: !item.isActive,
         })
       }
-      toast.success(`${item.isActive ? 'ปิด' : 'เปิด'}ใช้งาน "${item.name}" สำเร็จ`)
+      toast.success(item.isActive
+        ? t('deactivated', { name: item.name })
+        : t('activated', { name: item.name }))
       setToggleTarget(null)
     } catch (err) {
-      toast.error(apiMessage(err))
+      toast.error(apiError(err, tCommon('state.error')))
     }
   }
 
@@ -336,16 +368,16 @@ export function ExternalTaxonomyPanel() {
           <div className="flex h-14 items-center justify-between border-b border-border px-4">
             <div className="flex items-center gap-2">
               <FolderTree className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-semibold">หมวด (ภายนอก)</h2>
+              <h2 className="text-sm font-semibold">{t('externalCategoryHeading')}</h2>
             </div>
             <Button size="sm" onClick={() => setEditor({ kind: 'category' })}>
-              <Plus className="h-4 w-4" /> เพิ่มหมวด
+              <Plus className="h-4 w-4" /> {t('category.add')}
             </Button>
           </div>
           {categoriesLoading ? (
-            <EmptyRow text="กำลังโหลดหมวด..." />
+            <EmptyRow text={t('category.loading')} />
           ) : categories.length === 0 ? (
-            <EmptyRow text="ยังไม่มีหมวดแจ้งเรื่องสำหรับบุคคลภายนอก" />
+            <EmptyRow text={t('externalCategoryEmpty')} />
           ) : (
             <div className="divide-y divide-border">
               {categories.map(category => (
@@ -359,20 +391,23 @@ export function ExternalTaxonomyPanel() {
                     className="min-w-0 flex-1 px-2 py-3 text-left"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{category.name}</span>
-                      {!category.isActive && <Badge variant="secondary">ปิดใช้งาน</Badge>}
+                      <span className="truncate text-sm font-medium">{localizedName(category, locale)}</span>
+                      {!category.isActive && <Badge variant="secondary">{t('inactiveBadge')}</Badge>}
                     </div>
+                    <LocalizedNameHint nameEn={category.nameEn} nameId={category.nameId} />
                     <p className="mt-1 truncate text-xs text-muted-foreground">
-                      ลำดับ {category.sortOrder}{category.description ? ` · ${category.description}` : ''}
+                      {category.description
+                        ? t('orderWithDescription', { order: category.sortOrder, description: category.description })
+                        : t('order', { order: category.sortOrder })}
                     </p>
                   </button>
-                  <Button size="icon" variant="ghost" title="แก้ไขหมวด" onClick={() => setEditor({ kind: 'category', item: category })}>
+                  <Button size="icon" variant="ghost" title={t('category.edit')} onClick={() => setEditor({ kind: 'category', item: category })}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
-                    title={category.isActive ? 'ปิดใช้งานหมวด' : 'เปิดใช้งานหมวด'}
+                    title={category.isActive ? t('category.deactivate') : t('category.activate')}
                     onClick={() => setToggleTarget({ kind: 'category', item: category })}
                   >
                     {category.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
@@ -388,20 +423,22 @@ export function ExternalTaxonomyPanel() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Tags className="h-4 w-4 text-primary" />
-                <h2 className="truncate text-sm font-semibold">หมวดย่อย (ภายนอก)</h2>
+                <h2 className="truncate text-sm font-semibold">{t('externalTopicHeading')}</h2>
               </div>
-              {selectedCategory && <p className="mt-0.5 truncate text-xs text-muted-foreground">{selectedCategory.name}</p>}
+              {selectedCategory && (
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{localizedName(selectedCategory, locale)}</p>
+              )}
             </div>
             <Button size="sm" disabled={!categoryId} onClick={() => setEditor({ kind: 'topic' })}>
-              <Plus className="h-4 w-4" /> เพิ่มหมวดย่อย
+              <Plus className="h-4 w-4" /> {t('topic.add')}
             </Button>
           </div>
           {!categoryId ? (
-            <EmptyRow text="เลือกหมวดเพื่อดูหมวดย่อย" />
+            <EmptyRow text={t('topic.selectFirst')} />
           ) : topicsLoading ? (
-            <EmptyRow text="กำลังโหลดหมวดย่อย..." />
+            <EmptyRow text={t('topic.loading')} />
           ) : topics.length === 0 ? (
-            <EmptyRow text="ยังไม่มีหมวดย่อยในหมวดนี้" />
+            <EmptyRow text={t('topic.empty')} />
           ) : (
             <div className="divide-y divide-border">
               {topics.map(topic => (
@@ -411,20 +448,23 @@ export function ExternalTaxonomyPanel() {
                 >
                   <button type="button" onClick={() => setTopicId(topic.id)} className="min-w-0 flex-1 px-2 py-3 text-left">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{topic.name}</span>
-                      {!topic.isActive && <Badge variant="secondary">ปิดใช้งาน</Badge>}
+                      <span className="truncate text-sm font-medium">{localizedName(topic, locale)}</span>
+                      {!topic.isActive && <Badge variant="secondary">{t('inactiveBadge')}</Badge>}
                     </div>
+                    <LocalizedNameHint nameEn={topic.nameEn} nameId={topic.nameId} />
                     <p className="mt-1 truncate text-xs text-muted-foreground">
-                      ลำดับ {topic.sortOrder}{topic.description ? ` · ${topic.description}` : ''}
+                      {topic.description
+                        ? t('orderWithDescription', { order: topic.sortOrder, description: topic.description })
+                        : t('order', { order: topic.sortOrder })}
                     </p>
                   </button>
-                  <Button size="icon" variant="ghost" title="แก้ไขหมวดย่อย" onClick={() => setEditor({ kind: 'topic', item: topic })}>
+                  <Button size="icon" variant="ghost" title={t('topic.edit')} onClick={() => setEditor({ kind: 'topic', item: topic })}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
-                    title={topic.isActive ? 'ปิดใช้งานหมวดย่อย' : 'เปิดใช้งานหมวดย่อย'}
+                    title={topic.isActive ? t('topic.deactivate') : t('topic.activate')}
                     onClick={() => setToggleTarget({ kind: 'topic', item: topic })}
                   >
                     {topic.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
@@ -440,42 +480,49 @@ export function ExternalTaxonomyPanel() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Tags className="h-4 w-4 text-primary" />
-                <h2 className="truncate text-sm font-semibold">หัวข้อ (ภายนอก)</h2>
+                <h2 className="truncate text-sm font-semibold">{t('externalSubjectHeading')}</h2>
               </div>
-              {selectedTopic && <p className="mt-0.5 truncate text-xs text-muted-foreground">{selectedTopic.name}</p>}
+              {selectedTopic && (
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{localizedName(selectedTopic, locale)}</p>
+              )}
             </div>
             <Button size="sm" disabled={!topicId} onClick={() => setEditor({ kind: 'subject' })}>
-              <Plus className="h-4 w-4" /> เพิ่มหัวข้อ
+              <Plus className="h-4 w-4" /> {t('subject.add')}
             </Button>
           </div>
           {!topicId ? (
-            <EmptyRow text="เลือกหมวดย่อยเพื่อดูหัวข้อ" />
+            <EmptyRow text={t('subject.selectFirst')} />
           ) : subjectsLoading ? (
-            <EmptyRow text="กำลังโหลดหัวข้อ..." />
+            <EmptyRow text={t('subject.loading')} />
           ) : subjects.length === 0 ? (
-            <EmptyRow text="ยังไม่มีหัวข้อในหมวดย่อยนี้" />
+            <EmptyRow text={t('subject.empty')} />
           ) : (
             <div className="divide-y divide-border">
               {subjects.map(subject => (
                 <div key={subject.id} className="flex min-h-16 items-center gap-2 px-2 hover:bg-whited/40">
                   <div className="min-w-0 flex-1 px-2 py-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate text-sm font-medium">{subject.name}</span>
-                      {!subject.isActive && <Badge variant="secondary">ปิดใช้งาน</Badge>}
-                      {subject.template && <Badge variant="default">มี Template</Badge>}
-                      {subject.suggestions.length > 0 && <Badge variant="default">Suggest {subject.suggestions.length}</Badge>}
+                      <span className="truncate text-sm font-medium">{localizedName(subject, locale)}</span>
+                      {!subject.isActive && <Badge variant="secondary">{t('inactiveBadge')}</Badge>}
+                      {subject.template && <Badge variant="default">{t('hasTemplate')}</Badge>}
+                      {subject.suggestions.length > 0 && (
+                        <Badge variant="default">{t('suggestCount', { count: subject.suggestions.length })}</Badge>
+                      )}
                     </div>
+                    <LocalizedNameHint nameEn={subject.nameEn} nameId={subject.nameId} />
                     <p className="mt-1 truncate text-xs text-muted-foreground">
-                      ลำดับ {subject.sortOrder}{subject.description ? ` · ${subject.description}` : ''}
+                      {subject.description
+                        ? t('orderWithDescription', { order: subject.sortOrder, description: subject.description })
+                        : t('order', { order: subject.sortOrder })}
                     </p>
                   </div>
-                  <Button size="icon" variant="ghost" title="แก้ไขหัวข้อ" onClick={() => setEditor({ kind: 'subject', item: subject })}>
+                  <Button size="icon" variant="ghost" title={t('subject.edit')} onClick={() => setEditor({ kind: 'subject', item: subject })}>
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
-                    title={subject.isActive ? 'ปิดใช้งานหัวข้อ' : 'เปิดใช้งานหัวข้อ'}
+                    title={subject.isActive ? t('subject.deactivate') : t('subject.activate')}
                     onClick={() => setToggleTarget({ kind: 'subject', item: subject })}
                   >
                     {subject.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
@@ -499,11 +546,13 @@ export function ExternalTaxonomyPanel() {
         open={!!toggleTarget}
         onClose={() => setToggleTarget(null)}
         onConfirm={confirmToggle}
-        title={`${toggleTarget?.item.isActive ? 'ปิด' : 'เปิด'}การใช้งาน`}
+        title={toggleTarget?.item.isActive ? t('toggleOffTitle') : t('toggleOnTitle')}
         description={toggleTarget
-          ? `ยืนยัน${toggleTarget.item.isActive ? 'ปิด' : 'เปิด'}ใช้งาน "${toggleTarget.item.name}"?`
+          ? (toggleTarget.item.isActive
+              ? t('confirmDeactivate', { name: toggleTarget.item.name })
+              : t('confirmActivate', { name: toggleTarget.item.name }))
           : undefined}
-        confirmLabel="ยืนยัน"
+        confirmLabel={tCommon('action.confirm')}
         variant={toggleTarget?.item.isActive ? 'destructive' : 'default'}
         loading={updateCategory.isPending || updateTopic.isPending || updateSubject.isPending}
       />

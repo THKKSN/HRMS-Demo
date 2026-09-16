@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Tickets.Dtos;
@@ -18,10 +19,10 @@ public class GetTicketCommentsHandler(
     public async Task<IReadOnlyList<TicketCommentDto>> Handle(GetTicketCommentsQuery request, CancellationToken ct)
     {
         var ticket = await db.Tickets.AsNoTracking().FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketAccess.EnsureCanViewAsync(db, currentUser, permissions, ticket, ct);
-        var isRequester = currentUser.EmployeeId == ticket.RequesterEmployeeId;
-        var canSeeInternal = !isRequester &&
+        // ไม่กัน isRequester แล้ว — หัวหน้าแผนกที่เปิดเรื่องเข้าแผนกตัวเองต้องเห็นบันทึกภายในของแผนกตัวเอง
+        var canSeeInternal =
             await permissions.HasPermissionAsync(currentUser, "ticket:add-internal-note", ct) &&
             (currentUser.HasRole(RoleType.Admin) ||
                 await TicketAccess.IsDepartmentManagerAsync(db, currentUser, ticket, ct));

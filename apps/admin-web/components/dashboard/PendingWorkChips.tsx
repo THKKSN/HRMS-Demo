@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { useTicketPendingCounts } from '@/hooks/use-tickets'
 
 // แถวสรุปงานคงค้างของผู้ใช้ปัจจุบัน — แสดงเฉพาะรายการที่มีสิทธิ์เห็นและมีจำนวน > 0
@@ -24,16 +25,21 @@ const BADGE_TONES = {
 type ChipTone = keyof typeof CHIP_TONES
 
 export function PendingWorkChips() {
+  const t = useTranslations('admin.dashboard.pendingWork')
   const { data: counts, isError } = useTicketPendingCounts()
   if (isError || !counts) return null
 
-  const allChips: { key: string; label: string; href: string; count?: number | null; tone: ChipTone }[] = [
-    { key: 'inboxUntriaged', label: 'เรื่องใหม่รอจัดการ', href: '/tickets/inbox', count: counts.inboxUntriaged, tone: 'sky' },
-    { key: 'cancellationPending', label: 'คำขอยกเลิกรอตัดสิน', href: '/tickets/inbox', count: counts.cancellationPending, tone: 'rose' },
-    { key: 'assignedActive', label: 'งานที่รับไว้กำลังทำ', href: '/tickets/assigned', count: counts.assignedActive, tone: 'violet' },
-    { key: 'assignedWaitingInfo', label: 'งานรอข้อมูล', href: '/tickets/assigned', count: counts.assignedWaitingInfo, tone: 'amber' },
-    { key: 'claimable', label: 'งานใหม่รอรับ', href: '/tickets/assigned', count: counts.claimable, tone: 'amber' },
-    { key: 'awaitingMyConfirmation', label: 'เรื่องที่แจ้งรอตรวจรับ', href: '/tickets', count: counts.awaitingMyConfirmation, tone: 'emerald' },
+  // key ตรงกับคีย์ข้อความใน messages (admin.dashboard.pendingWork.*)
+  const allChips: { key: string; href: string; count?: number | null; tone: ChipTone }[] = [
+    { key: 'inboxUntriaged', href: '/tickets/inbox', count: counts.inboxUntriaged, tone: 'sky' },
+    { key: 'cancellationPending', href: '/tickets/inbox', count: counts.cancellationPending, tone: 'rose' },
+    { key: 'assignedActive', href: '/tickets/assigned', count: counts.assignedActive, tone: 'violet' },
+    { key: 'assignedWaitingInfo', href: '/tickets/assigned', count: counts.assignedWaitingInfo, tone: 'amber' },
+    { key: 'claimable', href: '/tickets/assigned', count: counts.claimable, tone: 'amber' },
+    { key: 'awaitingMyConfirmation', href: '/tickets', count: counts.awaitingMyConfirmation, tone: 'emerald' },
+    // count ทั้งสองตัวถูก gate ด้วยสิทธิ์ฝั่ง API แล้ว (memo:approve / memo:view-inbox) จึงเป็น 0 สำหรับคนที่ไม่เกี่ยว
+    { key: 'memoAwaitingApproval', href: '/memos/approvals', count: counts.memoAwaitingApproval, tone: 'rose' },
+    { key: 'memoAwaitingAck', href: '/memos/inbox', count: counts.memoAwaitingAck, tone: 'sky' },
   ]
   const chips = allChips.filter(chip => (chip.count ?? 0) > 0)
 
@@ -47,7 +53,7 @@ export function PendingWorkChips() {
           href={chip.href}
           className={`flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium shadow-sm transition-opacity hover:opacity-80 ${CHIP_TONES[chip.tone]}`}
         >
-          {chip.label}
+          {t(chip.key)}
           <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold text-white ${BADGE_TONES[chip.tone]}`}>
             {(chip.count ?? 0) > 99 ? '99+' : chip.count}
           </span>

@@ -5,4 +5,6 @@ public record ExternalTicketCategoryDto(
     string Name,
     string? Description,
     int SortOrder,
-    bool IsActive);
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null);

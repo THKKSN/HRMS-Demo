@@ -9,13 +9,17 @@ public record ExternalTicketFormCategoryDto(
     Guid Id,
     string Name,
     string? Description,
-    IReadOnlyList<ExternalTicketFormTopicDto> Topics);
+    IReadOnlyList<ExternalTicketFormTopicDto> Topics,
+    string? NameEn = null,
+    string? NameId = null);
 
 public record ExternalTicketFormTopicDto(
     Guid Id,
     string Name,
     string? Description,
-    IReadOnlyList<ExternalTicketFormSubjectDto> Subjects);
+    IReadOnlyList<ExternalTicketFormSubjectDto> Subjects,
+    string? NameEn = null,
+    string? NameId = null);
 
 // ห้ามคืน internal taxonomy identifier หรือ mapping ไปยังฝั่งใน — ตามที่ระบุไว้ใน spec
 public record ExternalTicketFormSubjectDto(
@@ -23,4 +27,6 @@ public record ExternalTicketFormSubjectDto(
     string Name,
     string? Description,
     string? Template,
-    IReadOnlyList<string> Suggestions);
+    IReadOnlyList<string> Suggestions,
+    string? NameEn = null,
+    string? NameId = null);

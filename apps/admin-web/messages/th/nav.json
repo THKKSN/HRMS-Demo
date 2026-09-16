@@ -1,0 +1,31 @@
+{
+  "group": {
+    "overview": "ภาพรวม",
+    "personal": "ส่วนตัว",
+    "tickets": "การแจ้งเรื่อง",
+    "hr": "HR management",
+    "organization": "โครงสร้างองค์กร",
+    "system": "ตั้งค่าระบบ"
+  },
+  "item": {
+    "dashboard": "แดชบอร์ด",
+    "profile": "โปรไฟล์",
+    "ticket": "Ticket",
+    "memo": "Memo",
+    "employees": "พนักงาน",
+    "attendance": "บันทึกการเข้างาน",
+    "leaveHistory": "ประวัติการลา",
+    "leaveTypes": "ประเภทการลา",
+    "leaveBalances": "สิทธิ์วันลา",
+    "companies": "บริษัท",
+    "locations": "สถานที่",
+    "roleLabels": "ตำแหน่ง",
+    "settings": "ตั้งค่าระบบ"
+  },
+  "action": {
+    "openMenu": "เปิดเมนู",
+    "closeMenu": "ปิดเมนู",
+    "expandMenu": "ขยายเมนู",
+    "collapseMenu": "พับเมนู"
+  }
+}

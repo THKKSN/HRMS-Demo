@@ -13,6 +13,8 @@ public class MemoCategoryConfiguration : IEntityTypeConfiguration<MemoCategory>
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.MemoTypeId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.NameEn).HasMaxLength(200);
+        builder.Property(x => x.NameId).HasMaxLength(200);
         builder.Property(x => x.IsActive).HasColumnType("tinyint(1)");
         builder.Property(x => x.CreatedAt).HasColumnType("datetime");
         builder.Property(x => x.UpdatedAt).HasColumnType("datetime");

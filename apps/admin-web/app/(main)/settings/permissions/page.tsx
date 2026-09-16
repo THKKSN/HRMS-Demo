@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, type ReactNode } from 'react'
+import { useTranslations } from 'next-intl'
 import { usePermissions, useAllRolePermissions, useSetRolePermissions } from '@/hooks/use-permissions'
 import type { PermissionDto } from '@hrms/shared-types'
 import { toast } from 'sonner'
@@ -20,24 +21,25 @@ type Role = (typeof ROLES)[number]
 
 const MODULES = ['employee', 'leave', 'attendance', 'company', 'ticket', 'ticket-taxonomy', 'expense', 'memo', 'system'] as const
 
+// ชื่อโมดูลอยู่ที่ `admin.settings.permissions.module.*` และชื่อ role ที่ `status.roleType` — ที่นี่เหลือแค่ไอคอน/โทนสี
 const MODULE_META = {
-  employee:   { label: 'พนักงาน',   Icon: Users,     color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-200',   dot: 'bg-blue-500'   },
-  leave:      { label: 'วันลา',     Icon: Calendar,  color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500' },
-  attendance: { label: 'การเข้างาน', Icon: Clock,     color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-200',  dot: 'bg-amber-500'  },
-  company:    { label: 'บริษัท',    Icon: Building2, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', dot: 'bg-violet-500' },
-  ticket:     { label: 'แจ้งเรื่อง', Icon: FolderTree, color: 'text-cyan-700',  bg: 'bg-cyan-50',   border: 'border-cyan-200',   dot: 'bg-cyan-500'   },
-  'ticket-taxonomy': { label: 'ตั้งค่าแจ้งเรื่อง', Icon: FolderTree, color: 'text-teal-700', bg: 'bg-teal-50', border: 'border-teal-200', dot: 'bg-teal-500' },
-  expense:    { label: 'วางบิล',     Icon: ReceiptText, color: 'text-rose-700', bg: 'bg-rose-50',   border: 'border-rose-200',   dot: 'bg-rose-500'   },
-  memo:       { label: 'Memo', Icon: ReceiptText, color: 'text-lime-700', bg: 'bg-lime-50', border: 'border-lime-200', dot: 'bg-lime-500' },
-  system:     { label: 'ระบบ',      Icon: Settings,  color: 'text-slate-600',  bg: 'bg-slate-100', border: 'border-slate-200',  dot: 'bg-slate-500'  },
+  employee:   { Icon: Users,     color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-200',   dot: 'bg-blue-500'   },
+  leave:      { Icon: Calendar,  color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+  attendance: { Icon: Clock,     color: 'text-amber-600',  bg: 'bg-amber-50',  border: 'border-amber-200',  dot: 'bg-amber-500'  },
+  company:    { Icon: Building2, color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-200', dot: 'bg-violet-500' },
+  ticket:     { Icon: FolderTree, color: 'text-cyan-700',  bg: 'bg-cyan-50',   border: 'border-cyan-200',   dot: 'bg-cyan-500'   },
+  'ticket-taxonomy': { Icon: FolderTree, color: 'text-teal-700', bg: 'bg-teal-50', border: 'border-teal-200', dot: 'bg-teal-500' },
+  expense:    { Icon: ReceiptText, color: 'text-rose-700', bg: 'bg-rose-50',   border: 'border-rose-200',   dot: 'bg-rose-500'   },
+  memo:       { Icon: ReceiptText, color: 'text-lime-700', bg: 'bg-lime-50', border: 'border-lime-200', dot: 'bg-lime-500' },
+  system:     { Icon: Settings,  color: 'text-slate-600',  bg: 'bg-slate-100', border: 'border-slate-200',  dot: 'bg-slate-500'  },
 } as const
 
-const ROLE_META: Record<Role, { label: string; color: string; bg: string; border: string; checkBg: string }> = {
-  Employee:   { label: 'พนักงาน',  color: 'text-slate-700',   bg: 'bg-slate-100',   border: 'border-slate-300',  checkBg: 'bg-slate-600'   },
-  Supervisor: { label: 'หัวหน้า',  color: 'text-blue-700',    bg: 'bg-blue-100',    border: 'border-blue-300',   checkBg: 'bg-blue-600'    },
-  Hr:         { label: 'HR',       color: 'text-emerald-700', bg: 'bg-emerald-100', border: 'border-emerald-300', checkBg: 'bg-emerald-600' },
-  Executive:  { label: 'ผู้บริหาร', color: 'text-purple-700',  bg: 'bg-purple-100',  border: 'border-purple-300', checkBg: 'bg-purple-600'  },
-  Admin:      { label: 'Admin',    color: 'text-amber-700',   bg: 'bg-amber-100',   border: 'border-amber-300',  checkBg: 'bg-amber-500'   },
+const ROLE_META: Record<Role, { color: string; bg: string; border: string; checkBg: string }> = {
+  Employee:   { color: 'text-slate-700',   bg: 'bg-slate-100',   border: 'border-slate-300',  checkBg: 'bg-slate-600'   },
+  Supervisor: { color: 'text-blue-700',    bg: 'bg-blue-100',    border: 'border-blue-300',   checkBg: 'bg-blue-600'    },
+  Hr:         { color: 'text-emerald-700', bg: 'bg-emerald-100', border: 'border-emerald-300', checkBg: 'bg-emerald-600' },
+  Executive:  { color: 'text-purple-700',  bg: 'bg-purple-100',  border: 'border-purple-300', checkBg: 'bg-purple-600'  },
+  Admin:      { color: 'text-amber-700',   bg: 'bg-amber-100',   border: 'border-amber-300',  checkBg: 'bg-amber-500'   },
 }
 
 // permission ที่อ่อนไหวสูง อนุญาตให้ผูกกับ role ที่กำหนดไว้เท่านั้น ต้องตรงกับ
@@ -66,6 +68,9 @@ function buildMatrix(
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function PermissionsPage() {
+  const t = useTranslations('admin.settings.permissions')
+  const tRole = useTranslations('status.roleType')
+  const tCommon = useTranslations('common')
   const { data: permissions = [], isLoading: loadingPerms } = usePermissions()
   const { data: roleData = [], isLoading: loadingRoles } = useAllRolePermissions()
   const setRolePerms = useSetRolePermissions()
@@ -120,15 +125,14 @@ export default function PermissionsPage() {
         ),
       )
       setDraft(null)
-      toast.success('บันทึกสิทธิ์เรียบร้อย')
+      toast.success(t('saved'))
     } catch {
-      toast.error('บันทึกไม่สำเร็จ กรุณาลองใหม่')
+      toast.error(t('saveFailed'))
     }
   }
 
   const isLoading = loadingPerms || loadingRoles
   const isDirty = draft !== null
-  const totalPerms = permissions.length
 
   return (
     <div className="relative min-h-screen pb-24">
@@ -139,50 +143,15 @@ export default function PermissionsPage() {
             <Shield className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-foreground">สิทธิ์การใช้งาน</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              กำหนดสิทธิ์การเข้าถึงของแต่ละ Role — Admin มีสิทธิ์ทุกอย่างเสมอ
-            </p>
+            <h1 className="text-xl font-semibold text-foreground">{t('title')}</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">{t('subtitle')}</p>
           </div>
         </div>
         <Button onClick={handleSave} disabled={!isDirty || setRolePerms.isPending} loading={setRolePerms.isPending} size="md">
           <Save className="h-4 w-4" />
-          บันทึก
+          {tCommon('action.save')}
         </Button>
       </div>
-
-      {/* ── Role Summary Cards ── */}
-      {/* <div className="grid grid-cols-5 gap-3 mb-6">
-        {ROLES.map((role) => {
-          const meta = ROLE_META[role]
-          const count = role === 'Admin' ? totalPerms : (matrix[role]?.size ?? 0)
-          const pct = totalPerms > 0 ? Math.round((count / totalPerms) * 100) : 0
-          return (
-            <div
-              key={role}
-              className={cn(
-                'rounded-xl border p-3.5 flex flex-col gap-2',
-                meta.bg, meta.border,
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <span className={cn('text-xs font-semibold', meta.color)}>{meta.label}</span>
-                {role === 'Admin' && <Lock className="h-3 w-3 text-amber-500" />}
-              </div>
-              <div className={cn('text-2xl font-bold', meta.color)}>{count}</div>
-              <div className="space-y-1">
-                <div className="h-1.5 rounded-full bg-black/10 overflow-hidden">
-                  <div
-                    className={cn('h-full rounded-full transition-all', meta.checkBg)}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">{pct}% จาก {totalPerms} สิทธิ์</p>
-              </div>
-            </div>
-          )
-        })}
-      </div> */}
 
       {/* ── Module Filter ── */}
       <div className="flex gap-2 flex-wrap mb-5">
@@ -190,7 +159,7 @@ export default function PermissionsPage() {
           active={selectedModule === 'all'}
           onClick={() => setSelectedModule('all')}
           icon={<LayoutGrid className="h-3.5 w-3.5" />}
-          label="ทั้งหมด"
+          label={t('allModules')}
           count={permissions.length}
         />
         {MODULES.map((mod) => {
@@ -202,7 +171,7 @@ export default function PermissionsPage() {
               active={selectedModule === mod}
               onClick={() => setSelectedModule(mod)}
               icon={<meta.Icon className="h-3.5 w-3.5" />}
-              label={meta.label}
+              label={t(`module.${mod}`)}
               count={count}
               activeColor={meta.color}
               activeBg={meta.bg}
@@ -222,7 +191,7 @@ export default function PermissionsPage() {
               <thead>
                 <tr className="border-b border-border bg-whited/40">
                   <th className="text-left px-5 py-3.5 font-semibold text-muted-foreground w-72">
-                    สิทธิ์การใช้งาน
+                    {t('columnPermission')}
                   </th>
                   {ROLES.map((role) => {
                     const meta = ROLE_META[role]
@@ -230,11 +199,11 @@ export default function PermissionsPage() {
                       <th key={role} className="px-4 py-3.5 text-center min-w-27.5">
                         <div className="flex flex-col items-center gap-1">
                           <span className={cn('text-xs font-bold px-2.5 py-1 rounded-full', meta.bg, meta.color, 'border', meta.border)}>
-                            {meta.label}
+                            {tRole(role)}
                           </span>
                           {role === 'Admin' && (
                             <span className="text-[10px] text-amber-500 font-medium flex items-center gap-0.5">
-                              <Lock className="h-2.5 w-2.5" /> ทุกสิทธิ์
+                              <Lock className="h-2.5 w-2.5" /> {t('adminAllAccess')}
                             </span>
                           )}
                         </div>
@@ -264,14 +233,14 @@ export default function PermissionsPage() {
       {isDirty && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg border bg-background border-amber-300">
           <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-          <p className="text-sm font-medium">มีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก</p>
+          <p className="text-sm font-medium">{t('unsavedChanges')}</p>
           <div className="flex gap-2 ml-2">
             <Button variant="outline" size="sm" onClick={handleReset}>
-              ยกเลิก
+              {tCommon('action.cancel')}
             </Button>
             <Button size="sm" onClick={handleSave} loading={setRolePerms.isPending}>
               <Save className="h-3.5 w-3.5" />
-              บันทึก
+              {tCommon('action.save')}
             </Button>
           </div>
         </div>
@@ -328,6 +297,7 @@ function ModuleGroup({
   onToggle: (role: string, permId: string) => void
   showHeader: boolean
 }) {
+  const t = useTranslations('admin.settings.permissions')
   const meta = MODULE_META[module as keyof typeof MODULE_META]
   if (!meta) return null
   const { Icon } = meta
@@ -342,9 +312,9 @@ function ModuleGroup({
                 <Icon className={cn('h-3.5 w-3.5', meta.color)} />
               </div>
               <span className={cn('text-xs font-bold uppercase tracking-wider', meta.color)}>
-                {meta.label}
+                {t(`module.${module as keyof typeof MODULE_META}`)}
               </span>
-              <span className="text-xs text-muted-foreground">— {permissions.length} สิทธิ์</span>
+              <span className="text-xs text-muted-foreground">{t('countInGroup', { count: permissions.length })}</span>
             </div>
           </td>
         </tr>
@@ -372,6 +342,7 @@ function PermissionRow({
   onToggle: (role: string, permId: string) => void
   isLast: boolean
 }) {
+  const t = useTranslations('admin.settings.permissions')
   return (
     <tr className={cn(
       'group transition-colors hover:bg-whited/30',
@@ -404,7 +375,7 @@ function PermissionRow({
               type="button"
               disabled={isLocked}
               onClick={() => !isLocked && onToggle(role, perm.id)}
-              title={isRestricted ? `permission นี้กำหนดให้เฉพาะ ${restrictedTo.join('/')} เท่านั้น` : undefined}
+              title={isRestricted ? t('restrictedHint', { roles: restrictedTo.join(' / ') }) : undefined}
               className={cn(
                 'inline-flex items-center justify-center w-6 h-6 rounded-md border-2 transition-all',
                 checked

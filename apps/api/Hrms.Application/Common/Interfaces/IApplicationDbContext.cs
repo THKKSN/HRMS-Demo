@@ -50,6 +50,10 @@ public interface IApplicationDbContext
     DbSet<TicketProgressEntry> TicketProgressEntries { get; }
     DbSet<TicketWorkflowDefinition> TicketWorkflowDefinitions { get; }
     DbSet<TicketSubjectGuidanceConfig> TicketSubjectGuidanceConfigs { get; }
+    DbSet<TicketCloseoutReason> TicketCloseoutReasons { get; } // table: ticket_closeout_reasons
+    DbSet<TicketCloseoutReasonCategory> TicketCloseoutReasonCategories { get; } // table: ticket_closeout_reason_categories
+    DbSet<TicketTeamTemplate> TicketTeamTemplates { get; } // table: ticket_team_templates
+    DbSet<TicketTeamTemplateMember> TicketTeamTemplateMembers { get; } // table: ticket_team_template_members
     DbSet<EmployeeResponsibility> EmployeeResponsibilities { get; }
     DbSet<NotificationOutbox> NotificationOutboxes { get; }
     DbSet<ExternalRepairSyncOutbox> ExternalRepairSyncOutboxes { get; }
@@ -63,6 +67,10 @@ public interface IApplicationDbContext
     DbSet<MemoSubCategory> MemoSubCategories { get; } // table: memo_sub_categories
     DbSet<Memo> Memos { get; } // table: memos
     DbSet<MemoMonthlySequence> MemoMonthlySequences { get; }
+    DbSet<MemoWorkflowStep> MemoWorkflowSteps { get; } // table: memo_workflow_steps
+    DbSet<MemoStepInstance> MemoStepInstances { get; } // table: memo_step_instances
+    DbSet<MemoAttachment> MemoAttachments { get; } // table: memo_attachments
+    DbSet<MemoActivity> MemoActivities { get; } // table: memo_activities
 
     // Address reference data — read-only, imported directly to DB
     DbSet<Province>    Provinces    { get; }

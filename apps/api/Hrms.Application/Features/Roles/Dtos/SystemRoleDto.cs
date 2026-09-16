@@ -1,3 +1,3 @@
 namespace Hrms.Application.Features.Roles.Dtos;
 
-public record SystemRoleDto(Guid Id, string Code, string NameTh);
+public record SystemRoleDto(Guid Id, string Code, string NameTh, string? NameEn = null, string? NameId = null);

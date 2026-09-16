@@ -1,0 +1,45 @@
+{
+  "title": "Attendance",
+  "checkIn": "Check in",
+  "checkOut": "Check out",
+  "checkInAction": "Check in",
+  "checkOutAction": "Check out",
+  "viewHistory": "View attendance history",
+  "confirmCheckIn": "Confirm check-in",
+  "confirmCheckOut": "Confirm check-out",
+  "checkInSuccess": "Checked in at {time}",
+  "checkOutSuccess": "Checked out at {time}",
+  "distance": "~{meters} m",
+  "noLocations": "No work locations have been set up yet. Please contact HR.",
+  "outsideGeofence": "You are outside the work area",
+  "outsideGeofenceNearest": "You are outside the work area (~{meters} m from {name})",
+  "gps": {
+    "denied": "Please allow the app to access your location",
+    "unavailable": "Could not determine your location. Please try again.",
+    "timeout": "Location request timed out. Please try again.",
+    "error": "GPS error"
+  },
+  "history": {
+    "title": "Calendar",
+    "late": "late {duration}",
+    "location": "Location",
+    "leave": "On leave — {type}",
+    "weekend": "Weekend",
+    "noRecord": "No attendance recorded for this day",
+    "future": "This day has not come yet",
+    "legend": {
+      "present": "Present",
+      "late": "Late",
+      "absent": "Absent",
+      "leave": "Leave",
+      "holiday": "Holiday"
+    },
+    "summary": {
+      "present": "Present",
+      "late": "Late",
+      "absent": "Absent",
+      "leave": "Leave",
+      "holiday": "Holiday"
+    }
+  }
+}

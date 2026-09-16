@@ -14,6 +14,7 @@ import { Modal } from '@/components/ui/modal'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
 import { useLeaveTypes, useCreateLeaveType, useUpdateLeaveType, useToggleLeaveTypeStatus } from '@/hooks/use-leave-types'
 import type { LeaveTypeAdminDto } from '@/types/admin'
+import { useApiError } from '@/hooks/use-api-error'
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ const createSchema = z.object({
     .regex(/^[A-Z0-9_]+$/, 'ต้องเป็นตัวพิมพ์ใหญ่ ตัวเลข หรือ _'),
   nameTh: z.string().min(1, 'กรุณากรอกชื่อภาษาไทย'),
   nameEn: z.string().optional(),
+  nameId: z.string().optional(),
   defaultDaysPerYear: z.number().int().min(0).max(365),
   requiresAttachment: z.boolean(),
 })
@@ -32,6 +34,7 @@ const createSchema = z.object({
 const editSchema = z.object({
   nameTh: z.string().min(1, 'กรุณากรอกชื่อภาษาไทย'),
   nameEn: z.string().optional(),
+  nameId: z.string().optional(),
   defaultDaysPerYear: z.number().int().min(0).max(365),
   requiresAttachment: z.boolean(),
 })
@@ -47,6 +50,7 @@ function FieldError({ message }: { message?: string }) {
 // ── Create Modal ──────────────────────────────────────────────────────────────
 
 function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const apiError = useApiError()
   const create = useCreateLeaveType()
   const {
     register, handleSubmit, setError, reset,
@@ -62,6 +66,7 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         code: values.code,
         nameTh: values.nameTh,
         nameEn: values.nameEn || undefined,
+        nameId: values.nameId ?? '',
         defaultDaysPerYear: values.defaultDaysPerYear,
         requiresAttachment: values.requiresAttachment,
       })
@@ -73,8 +78,9 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
       if (apiErr?.error === 'DUPLICATE_CODE')
         setError('code', { message: 'รหัสนี้มีอยู่แล้วในระบบ' })
       else {
-        setError('root', { message: 'เกิดข้อผิดพลาด กรุณาลองใหม่' })
-        toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+        const msg = apiError(err, 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+        setError('root', { message: msg })
+        toast.error(msg)
       }
     }
   }
@@ -96,6 +102,10 @@ function CreateModal({ open, onClose }: { open: boolean; onClose: () => void }) 
         <div className="space-y-1.5">
           <Label htmlFor="c-nameEn">ชื่อภาษาอังกฤษ</Label>
           <Input id="c-nameEn" placeholder="Annual Leave" {...register('nameEn')} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="c-nameId">ชื่อภาษาอินโดนีเซีย</Label>
+          <Input id="c-nameId" placeholder="Cuti Tahunan" {...register('nameId')} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="c-days">จำนวนวันต่อปี *</Label>
@@ -129,6 +139,7 @@ function EditModal({ item, onClose }: { item: LeaveTypeAdminDto; onClose: () => 
     defaultValues: {
       nameTh: item.nameTh,
       nameEn: item.nameEn ?? '',
+      nameId: item.nameId ?? '',
       defaultDaysPerYear: item.defaultDaysPerYear,
       requiresAttachment: item.requiresAttachment,
     },
@@ -139,6 +150,7 @@ function EditModal({ item, onClose }: { item: LeaveTypeAdminDto; onClose: () => 
       await update.mutateAsync({
         nameTh: values.nameTh,
         nameEn: values.nameEn || undefined,
+        nameId: values.nameId ?? '',
         defaultDaysPerYear: values.defaultDaysPerYear,
         requiresAttachment: values.requiresAttachment,
       })
@@ -167,6 +179,10 @@ function EditModal({ item, onClose }: { item: LeaveTypeAdminDto; onClose: () => 
           <Input id="e-nameEn" {...register('nameEn')} />
         </div>
         <div className="space-y-1.5">
+          <Label htmlFor="e-nameId">ชื่อภาษาอินโดนีเซีย</Label>
+          <Input id="e-nameId" {...register('nameId')} />
+        </div>
+        <div className="space-y-1.5">
           <Label htmlFor="e-days">จำนวนวันต่อปี *</Label>
           <Input id="e-days" type="number" min={0} max={365}
             {...register('defaultDaysPerYear', { valueAsNumber: true })} />
@@ -189,6 +205,7 @@ function EditModal({ item, onClose }: { item: LeaveTypeAdminDto; onClose: () => 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function LeaveTypesPage() {
+  const apiError = useApiError()
   const { data: leaveTypes, isLoading } = useLeaveTypes()
   const toggle = useToggleLeaveTypeStatus()
 
@@ -204,9 +221,7 @@ export default function LeaveTypesPage() {
       setToggleTarget(null)
     } catch (err: unknown) {
       const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
-      toast.error(apiErr?.error === 'IN_USE'
-        ? 'มีคำขอลาที่ยังรออนุมัติอยู่ ไม่สามารถปิดได้'
-        : 'เกิดข้อผิดพลาด กรุณาลองใหม่')
+      toast.error(apiError(err, 'เกิดข้อผิดพลาด กรุณาลองใหม่'))
       setToggleTarget(null)
     }
   }

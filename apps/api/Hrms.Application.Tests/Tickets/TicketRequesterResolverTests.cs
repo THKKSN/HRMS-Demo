@@ -101,7 +101,7 @@ public class TicketRequesterResolverTests
             null);
 
         TicketCommandSupport.QueueNotification(
-            fixture.Db, "TicketAccepted", Guid.NewGuid(), requester, "accepted", ticket);
+            fixture.Db, "TicketAccepted", Guid.NewGuid(), requester, "ticket.accepted.toRequester", null, ticket);
 
         var notification = fixture.Db.NotificationOutboxes.Local.Single();
         notification.RecipientEmployeeId.Should().BeNull();

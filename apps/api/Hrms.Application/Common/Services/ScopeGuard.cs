@@ -60,7 +60,7 @@ public class ScopeGuard(ICurrentUser currentUser, IApplicationDbContext db) : IS
     public async Task ThrowIfCannotAccessAsync(Guid companyId, CancellationToken ct = default)
     {
         if (!await CanAccessCompanyAsync(companyId, ct))
-            throw new AppForbiddenException($"ไม่มีสิทธิ์เข้าถึงบริษัทนี้");
+            throw new AppForbiddenException("COMPANY_ACCESS_FORBIDDEN", "You are not allowed to access this company.");
     }
 
     public async Task<IReadOnlySet<Guid>?> GetAccessibleCompanyIdsAsync(CancellationToken ct = default)

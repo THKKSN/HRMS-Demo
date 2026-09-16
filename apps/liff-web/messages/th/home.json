@@ -1,0 +1,59 @@
+{
+  "greeting": "สวัสดี, {name} 👋",
+  "defaultName": "คุณ",
+  "links": {
+    "newTicket": "แจ้งเรื่อง",
+    "myTickets": "เรื่องที่แจ้ง",
+    "newMemo": "ขอ Memo",
+    "myMemos": "Memo ของฉัน",
+    "externalTicket": "แจ้งเรื่องภายนอก",
+    "assignedTickets": "งานที่รับผิดชอบ",
+    "ticketInbox": "กล่องงาน",
+    "newLeave": "ลางาน",
+    "myExpenses": "บิลของฉัน",
+    "newOt": "ขอ OT"
+  },
+  "quickActions": {
+    "newLeave": "ขอลางาน",
+    "attendance": "ลงเวลา",
+    "history": "ประวัติ",
+    "profile": "โปรไฟล์"
+  },
+  "attendance": {
+    "title": "การลงเวลาวันนี้",
+    "checkIn": "เข้างาน",
+    "checkOut": "ออกงาน",
+    "noShift": "ไม่มีกะงาน",
+    "checkInAction": "เช็คอิน",
+    "checkOutAction": "เช็คเอาต์",
+    "lateBy": "มาสาย {minutes} นาที"
+  },
+  "leaveBalance": {
+    "title": "วันลาคงเหลือ",
+    "empty": "ยังไม่มีข้อมูลวันลา",
+    "ofTotal": "/{total} วัน"
+  },
+  "holidays": {
+    "title": "วันหยุดที่กำลังจะมาถึง",
+    "today": "วันนี้",
+    "tomorrow": "พรุ่งนี้",
+    "inDays": "อีก {count} วัน"
+  },
+  "pendingApproval": {
+    "title": "รายการรออนุมัติ",
+    "count": "{count} รายการรอการดำเนินการ",
+    "empty": "ไม่มีรายการรออนุมัติ"
+  },
+  "pendingWork": {
+    "title": "งานคงค้างของฉัน",
+    "empty": "ไม่มีงานคงค้าง 🎉",
+    "assignedActive": "งานที่รับไว้กำลังทำ",
+    "assignedWaitingInfo": "งานรอข้อมูลเพิ่มเติม",
+    "claimable": "งานใหม่รอรับ",
+    "awaitingMyConfirmation": "เรื่องที่แจ้งรอตรวจรับงาน",
+    "inboxUntriaged": "เรื่องใหม่รอจัดการ",
+    "cancellationPending": "คำขอยกเลิกรอตัดสิน",
+    "memoAwaitingAck": "Memo รอรับทราบ",
+    "memoAwaitingApproval": "Memo รออนุมัติ"
+  }
+}

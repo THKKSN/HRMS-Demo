@@ -5,5 +5,5 @@ public enum OrgType
     Holding,
     Subsidiary,
     School,
-    Other
+    Branch
 }

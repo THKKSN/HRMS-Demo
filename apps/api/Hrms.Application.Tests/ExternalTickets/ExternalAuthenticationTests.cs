@@ -33,8 +33,9 @@ public sealed class ExternalAuthenticationTests
 
         var act = () => handler.Handle(new ExternalLineLoginCommand("line-access-token"), default);
 
+        // ต้องอยู่ที่ `Code` ไม่ใช่ `Message` — หน้าจอ external ใช้ code นี้เลือกจอ "กรุณาแอดเพื่อน"
         await act.Should().ThrowAsync<AppForbiddenException>()
-            .WithMessage("LINE_OA_FRIEND_REQUIRED");
+            .Where(e => e.Code == "LINE_OA_FRIEND_REQUIRED");
         (await db.ExternalReporters.CountAsync()).Should().Be(0);
     }
 
@@ -105,7 +106,7 @@ public sealed class ExternalAuthenticationTests
         var act = () => handler.Handle(new ExternalLineLoginCommand("line-access-token"), default);
 
         await act.Should().ThrowAsync<AppForbiddenException>()
-            .WithMessage("EXTERNAL_REPORTER_INACTIVE");
+            .Where(e => e.Code == "EXTERNAL_REPORTER_INACTIVE");
     }
 
     [Fact]
@@ -126,14 +127,43 @@ public sealed class ExternalAuthenticationTests
 
         var result = await handler.Handle(new UpdateExternalReporterProfileCommand(
             "  สมชาย ผู้แจ้ง  ",
-            " 0812345678 ",
+            " +66 81-234-5678 ",
             " SOMCHAI@EXAMPLE.COM ",
-            " Supplier A "), default);
+            " Supplier A ",
+            " th "), default);
 
         result.FullName.Should().Be("สมชาย ผู้แจ้ง");
-        result.Phone.Should().Be("0812345678");
+        result.Phone.Should().Be("+66812345678");
+        result.PhoneCountry.Should().Be("TH");
         result.Email.Should().Be("somchai@example.com");
         result.Organization.Should().Be("Supplier A");
+    }
+
+    [Fact]
+    public async Task UpdateProfile_ShouldStoreForeignNumberAsGiven()
+    {
+        await using var db = CreateDb();
+        var reporter = new ExternalReporter
+        {
+            LineUserId = "U-foreign",
+            LineDisplayName = "Overseas Reporter",
+            LastLoginAt = DateTime.UtcNow
+        };
+        db.ExternalReporters.Add(reporter);
+        await db.SaveChangesAsync();
+        var handler = new UpdateExternalReporterProfileHandler(
+            db,
+            new TestExternalCurrentUser(reporter.Id, reporter.LineUserId));
+
+        var result = await handler.Handle(new UpdateExternalReporterProfileCommand(
+            "Lim Wei",
+            "+65 9123 4567",
+            "lim@example.sg",
+            "Supplier SG",
+            "SG"), default);
+
+        result.Phone.Should().Be("+6591234567");
+        result.PhoneCountry.Should().Be("SG");
     }
 
     [Fact]
@@ -198,11 +228,53 @@ public sealed class ExternalAuthenticationTests
     public void ProfileValidation_ShouldRejectInvalidContactFields()
     {
         var result = new UpdateExternalReporterProfileCommandValidator().Validate(
-            new UpdateExternalReporterProfileCommand("", "123", "not-email", ""));
+            new UpdateExternalReporterProfileCommand("", "123", "not-email", "", ""));
 
         result.IsValid.Should().BeFalse();
         result.Errors.Select(x => x.PropertyName).Should().Contain([
-            "FullName", "Phone", "Email", "Organization"]);
+            "FullName", "Phone", "Email", "Organization", "PhoneCountry"]);
+    }
+
+    [Theory]
+    [InlineData("+66812345678", "TH")]     // ไทย
+    [InlineData("+6591234567", "SG")]      // สิงคโปร์ ไม่มี 0 นำหน้า
+    [InlineData("+447911123456", "GB")]    // อังกฤษ
+    [InlineData("+1 202-555-0123", "US")]  // มีอักขระคั่นติดมา — normalize ก่อนตรวจ
+    public void ProfileValidation_ShouldAcceptE164Numbers(string phone, string country)
+    {
+        var result = new UpdateExternalReporterProfileCommandValidator().Validate(
+            new UpdateExternalReporterProfileCommand("ผู้แจ้ง", phone, "user@example.com", "Supplier", country));
+
+        result.IsValid.Should().BeTrue(because: $"{phone} เป็น E.164 ที่ถูกต้อง");
+    }
+
+    [Theory]
+    [InlineData("0812345678")]      // รูปแบบไทยเดิม ไม่มีรหัสประเทศ
+    [InlineData("0066812345678")]   // 00 นำหน้าแทน + ใช้ไม่ได้ข้ามประเทศ
+    [InlineData("+0812345678")]     // รหัสประเทศขึ้นต้นด้วย 0
+    [InlineData("+66123")]          // สั้นกว่าสเปก
+    [InlineData("+6612345678901234")] // 16 หลัก ยาวเกินสเปก E.164
+    public void ProfileValidation_ShouldRejectNonE164Numbers(string phone)
+    {
+        var result = new UpdateExternalReporterProfileCommandValidator().Validate(
+            new UpdateExternalReporterProfileCommand("ผู้แจ้ง", phone, "user@example.com", "Supplier", "TH"));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Select(x => x.PropertyName).Should().Contain("Phone");
+    }
+
+    [Theory]
+    [InlineData("THA")]  // alpha-3 ไม่ใช่รูปแบบที่เก็บ
+    [InlineData("T")]
+    [InlineData("66")]
+    public void ProfileValidation_ShouldRejectInvalidCountryCode(string country)
+    {
+        var result = new UpdateExternalReporterProfileCommandValidator().Validate(
+            new UpdateExternalReporterProfileCommand(
+                "ผู้แจ้ง", "+66812345678", "user@example.com", "Supplier", country));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Select(x => x.PropertyName).Should().Contain("PhoneCountry");
     }
 
     [Fact]

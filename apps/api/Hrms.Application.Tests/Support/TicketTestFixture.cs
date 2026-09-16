@@ -194,6 +194,64 @@ internal sealed class TicketTestFixture : IAsyncDisposable
         return await Db.Tickets.FirstAsync(x => x.Id == ticket.Id);
     }
 
+    /// <summary>
+    /// เพิ่ม master ประเภทปัญหา/เหตุผลปิดงาน — ไม่ Clear tracker เพราะเทสต์ส่วนใหญ่เรียกหลัง AddTicketAsync
+    /// แล้วยังต้องแก้ ticket ที่ track อยู่ต่อ
+    /// </summary>
+    public async Task<TicketCloseoutReason> AddCloseoutReasonAsync(
+        string name = "ระบบบกพร่อง",
+        bool departmentScoped = false,
+        params Guid[] categoryIds)
+    {
+        var reason = new TicketCloseoutReason
+        {
+            CompanyId = CompanyId,
+            DepartmentId = departmentScoped ? TargetDepartmentId : null,
+            Name = name,
+            IsActive = true,
+            SortOrder = 10
+        };
+        foreach (var categoryId in categoryIds)
+            reason.Categories.Add(new TicketCloseoutReasonCategory { CloseoutReasonId = reason.Id, CategoryId = categoryId });
+        Db.TicketCloseoutReasons.Add(reason);
+        await Db.SaveChangesAsync();
+        return reason;
+    }
+
+    /// <summary>เพิ่มพนักงานเพิ่มเติมในบริษัทเดียวกัน (แผนกปลายทาง) ใช้เป็นผู้ร่วมงานในทีม</summary>
+    public async Task<Guid> AddEmployeeAsync(string firstName)
+    {
+        var id = Guid.NewGuid();
+        Db.Employees.Add(Employee(id, TargetDepartmentId, firstName, $"line-{firstName.ToLowerInvariant()}"));
+        await Db.SaveChangesAsync();
+        Db.ChangeTracker.Clear();
+        return id;
+    }
+
+    /// <summary>
+    /// เพิ่มแถวผู้ร่วมงาน (Member) ให้ ticket โดยตรง — ActiveSlot ต้องเป็น null
+    /// เพราะ unique index (TicketId, ActiveSlot) สงวนค่า "Primary" ให้ผู้รับผิดชอบหลัก
+    /// </summary>
+    public async Task<TicketAssignment> AddTeamMemberAsync(Guid ticketId, Guid employeeId)
+    {
+        var assignment = new TicketAssignment
+        {
+            TicketId = ticketId,
+            AssignedToEmployeeId = employeeId,
+            AssignedByEmployeeId = SupervisorId,
+            AssignedAt = DateTime.UtcNow.AddHours(7),
+            MemberRole = TicketAssignmentRole.Member,
+            IsPrimary = false,
+            IsActive = true,
+            ActiveSlot = null,
+            AssignmentSource = TicketAssignmentSource.Manual
+        };
+        Db.TicketAssignments.Add(assignment);
+        await Db.SaveChangesAsync();
+        Db.ChangeTracker.Clear();
+        return assignment;
+    }
+
     public Employee Employee(Guid id, Guid departmentId, string firstName, string? lineUserId)
         => new()
         {

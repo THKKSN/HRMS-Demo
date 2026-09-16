@@ -1,0 +1,121 @@
+{
+  "list": {
+    "title": "ประวัติการลา",
+    "checkBalance": "ตรวจสอบสิทธิ์",
+    "tabs": {
+      "all": "ทั้งหมด",
+      "pending": "รออนุมัติ",
+      "approved": "อนุมัติแล้ว",
+      "rejected": "ถูกปฏิเสธ"
+    },
+    "empty": "ยังไม่มีประวัติการลา",
+    "emptyHint": "กดปุ่ม + เพื่อส่งคำขอลาใหม่",
+    "requestNow": "ขอลาเลย"
+  },
+  "new": {
+    "title": "ขอลางาน",
+    "subtitle": "เลือกประเภทและช่วงวันที่ลา",
+    "amount": "จำนวน",
+    "leaveType": "ประเภทการลา",
+    "remaining": "คงเหลือ <b>{days}</b> วัน",
+    "noTypes": "ไม่มีประเภทการลาที่มีโควต้าเหลือ",
+    "selectDates": "เลือกวันที่ลา",
+    "specifyTime": "ระบุเวลา",
+    "shift": "กะ {from}–{to}",
+    "notRequired": "ไม่บังคับ",
+    "timeFrom": "เวลาเริ่มต้น",
+    "timeTo": "เวลาสิ้นสุด",
+    "quickDuration": "เลือกระยะเวลาด่วน",
+    "presets": {
+      "m30": "30 นาที",
+      "h1": "1 ชม.",
+      "h1_5": "1.5 ชม.",
+      "h2": "2 ชม.",
+      "h3": "3 ชม.",
+      "h4": "4 ชม.",
+      "halfDay": "ครึ่งวัน",
+      "fullDay": "เต็มวัน"
+    },
+    "clearTime": "ล้างเวลา",
+    "reason": "เหตุผล",
+    "reasonPlaceholder": "ระบุเหตุผลการลา...",
+    "attachments": "เอกสารแนบ",
+    "fileCount": "{count} ไฟล์",
+    "tapToAdd": "แตะเพื่อเพิ่มไฟล์อีก",
+    "tapToSelect": "แตะเพื่อเลือกไฟล์",
+    "fileHint": ".jpg .jpeg .png .pdf · สูงสุด 10 MB/ไฟล์ · ไม่เกิน {max} ไฟล์",
+    "filesFull": "แนบครบ {max} ไฟล์แล้ว",
+    "fileTooBig": "ไฟล์ต่อไปนี้ใหญ่เกิน 10 MB: {names}",
+    "tooManyFiles": "แนบได้สูงสุด {max} ไฟล์",
+    "submitting": "กำลังส่งคำขอ...",
+    "submit": "ยืนยันการขอลา",
+    "validation": {
+      "leaveTypeRequired": "กรุณาเลือกประเภทการลา",
+      "dateFromRequired": "กรุณาเลือกวันเริ่มต้น",
+      "dateToRequired": "กรุณาเลือกวันสิ้นสุด",
+      "dateOrder": "วันสิ้นสุดต้องไม่ก่อนวันเริ่มต้น",
+      "timeOrder": "เวลาสิ้นสุดต้องหลังเวลาเริ่มต้น"
+    }
+  },
+  "detail": {
+    "title": "รายละเอียดการลา",
+    "notFound": "ไม่พบคำขอลาที่ระบุ",
+    "timeline": {
+      "submitted": "ยื่นคำขอแล้ว",
+      "supervisorApproved": "หัวหน้าอนุมัติ",
+      "hrApproved": "HR อนุมัติ"
+    },
+    "cancellationPendingTitle": "รอ HR ดำเนินการยกเลิก",
+    "cancellationPendingBody": "คำขอยกเลิกถูกส่งแล้ว HR กำลังพิจารณา",
+    "status": "สถานะ",
+    "requester": "ผู้ขอลา",
+    "reason": "เหตุผล",
+    "supervisor": "หัวหน้าผู้อนุมัติ",
+    "supervisorComment": "ความเห็นหัวหน้า",
+    "hr": "HR ผู้อนุมัติ",
+    "hrComment": "ความเห็น HR",
+    "submittedAt": "ยื่นเมื่อ",
+    "attachments": "เอกสารแนบ ({count})",
+    "fileN": "ไฟล์ {n}",
+    "actions": "ดำเนินการ",
+    "commentPlaceholder": "ความเห็น (ถ้ามี)...",
+    "reject": "ปฏิเสธ",
+    "approve": "อนุมัติ",
+    "approving": "กำลังอนุมัติ...",
+    "confirmRejectTitle": "ยืนยันการปฏิเสธคำขอลา?",
+    "confirmReject": "ยืนยันปฏิเสธ",
+    "cancelRequest": "ยกเลิกคำขอลา",
+    "confirmCancelTitle": "ยืนยันการยกเลิกคำขอลา?",
+    "irreversible": "การกระทำนี้ไม่สามารถย้อนกลับได้",
+    "keep": "ไม่ยกเลิก",
+    "cancelling": "กำลังยกเลิก...",
+    "confirmCancel": "ยืนยันยกเลิก",
+    "requestCancel": "ขอยกเลิกการลา (รอ HR อนุมัติ)",
+    "requestCancelTitle": "ขอยกเลิกการลา",
+    "requestCancelBody": "คำขอนี้จะถูกส่งให้ HR พิจารณา ยังไม่ยกเลิกทันที",
+    "cancelReasonPlaceholder": "เหตุผลที่ต้องการยกเลิก (ถ้ามี)...",
+    "sendCancelRequest": "ส่งคำขอยกเลิก",
+    "errors": {
+      "cancelFailed": "ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+      "requestCancelFailed": "ส่งคำขอยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+      "approveFailed": "อนุมัติไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+      "rejectFailed": "ปฏิเสธไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
+    }
+  },
+  "balance": {
+    "title": "สิทธิ์การลา {year}",
+    "empty": "ยังไม่มีข้อมูลสิทธิ์การลา",
+    "remaining": "คงเหลือ {days} วัน",
+    "used": "ใช้ไป {days} วัน",
+    "pending": " + รออนุมัติ {days} วัน",
+    "total": "ทั้งหมด {days} วัน",
+    "legendApproved": "อนุมัติแล้ว",
+    "legendPending": "รออนุมัติ"
+  },
+  "pending": {
+    "title": "รออนุมัติ",
+    "empty": "ไม่มีคำขอรออนุมัติ",
+    "emptyHint": "ทุกรายการได้รับการดำเนินการแล้ว",
+    "count": "{count} รายการรออนุมัติ"
+  }
+}

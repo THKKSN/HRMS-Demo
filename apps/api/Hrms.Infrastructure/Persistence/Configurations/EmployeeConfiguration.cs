@@ -22,6 +22,7 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(x => x.NationalId).HasMaxLength(13);
         builder.Property(x => x.LineUserId).HasMaxLength(100);
         builder.Property(x => x.AvatarUrl).HasMaxLength(500);
+        builder.Property(x => x.PreferredLanguage).HasMaxLength(5).HasDefaultValue("th").IsRequired();
         builder.Property(x => x.IsActive).HasColumnType("tinyint(1)");
         builder.Property(x => x.CreatedAt).HasColumnType("datetime");
         builder.Property(x => x.UpdatedAt).HasColumnType("datetime");

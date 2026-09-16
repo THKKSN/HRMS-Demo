@@ -1,0 +1,45 @@
+{
+  "title": "ลงเวลา",
+  "checkIn": "เข้างาน",
+  "checkOut": "ออกงาน",
+  "checkInAction": "เช็คอิน",
+  "checkOutAction": "เช็คเอาต์",
+  "viewHistory": "ดูประวัติการลงเวลา",
+  "confirmCheckIn": "ยืนยันเข้างาน",
+  "confirmCheckOut": "ยืนยันออกงาน",
+  "checkInSuccess": "เช็คอินสำเร็จ เวลา {time}",
+  "checkOutSuccess": "เช็คเอาต์สำเร็จ เวลา {time}",
+  "distance": "~{meters} ม.",
+  "noLocations": "ยังไม่มีสถานที่ทำงานในระบบ กรุณาติดต่อ HR",
+  "outsideGeofence": "อยู่นอกพื้นที่ทำงาน",
+  "outsideGeofenceNearest": "อยู่นอกพื้นที่ทำงาน (~{meters} ม. จาก {name})",
+  "gps": {
+    "denied": "กรุณาอนุญาตให้แอปเข้าถึง GPS",
+    "unavailable": "ไม่สามารถระบุตำแหน่งได้ กรุณาลองใหม่",
+    "timeout": "หมดเวลา กรุณาลองใหม่",
+    "error": "เกิดข้อผิดพลาด GPS"
+  },
+  "history": {
+    "title": "ปฏิทิน",
+    "late": "สาย {duration}",
+    "location": "สถานที่",
+    "leave": "ลางาน — {type}",
+    "weekend": "วันหยุดสุดสัปดาห์",
+    "noRecord": "ยังไม่มีการลงเวลาวันนี้",
+    "future": "ยังไม่ถึงวันนี้",
+    "legend": {
+      "present": "ทำงาน",
+      "late": "สาย",
+      "absent": "ขาด",
+      "leave": "ลางาน",
+      "holiday": "วันหยุด"
+    },
+    "summary": {
+      "present": "ทำงาน",
+      "late": "สาย",
+      "absent": "ขาดงาน",
+      "leave": "ลางาน",
+      "holiday": "วันหยุด"
+    }
+  }
+}

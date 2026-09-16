@@ -1,0 +1,38 @@
+[
+  {
+    "file": "S__25092104_0.jpg",
+    "sourceFile": "S__25092104_0.jpg",
+    "documentType": "PaymentOrder",
+    "variant": "resize-1000",
+    "originalSize": [
+      1774,
+      2364
+    ],
+    "outputSize": [
+      750,
+      1000
+    ],
+    "operations": [
+      "exif_transpose",
+      "resize_max_side:1000"
+    ]
+  },
+  {
+    "file": "S__25092105_0.jpg",
+    "sourceFile": "S__25092105_0.jpg",
+    "documentType": "Receipt",
+    "variant": "resize-1000",
+    "originalSize": [
+      1774,
+      2364
+    ],
+    "outputSize": [
+      750,
+      1000
+    ],
+    "operations": [
+      "exif_transpose",
+      "resize_max_side:1000"
+    ]
+  }
+]

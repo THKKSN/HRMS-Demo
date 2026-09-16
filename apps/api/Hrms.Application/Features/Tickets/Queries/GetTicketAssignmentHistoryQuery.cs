@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Tickets.Dtos;
 using MediatR;
@@ -18,7 +19,7 @@ public class GetTicketAssignmentHistoryHandler(
         GetTicketAssignmentHistoryQuery request, CancellationToken ct)
     {
         var ticket = await db.Tickets.AsNoTracking().FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketSupervisorAccess.EnsureTicketAsync(
             db, currentUser, permissionService, "ticket:view-team", ticket, ct);
 

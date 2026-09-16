@@ -134,7 +134,9 @@ public class GetClaimableTicketsHandler(
                     t.CurrentWorkState,
                     t.CurrentBlockerReason,
                     t.CurrentNextAction,
-                    t.UpdatedAt);
+                    t.UpdatedAt,
+                    // งานในคิว routing ยังไม่มีใครรับ — ถ้ารับแล้วจะกลายเป็นผู้รับผิดชอบหลัก
+                    Hrms.Domain.Enums.TicketAssignmentRole.Owner);
             })
             .ToList();
 

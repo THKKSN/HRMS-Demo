@@ -21,7 +21,7 @@ public class RefreshTokenHandler(
             .FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
 
         if (stored is null)
-            throw new AppUnauthorizedException("Invalid refresh token.");
+            throw new AppUnauthorizedException("INVALID_REFRESH_TOKEN", "Invalid refresh token.");
 
         // Token reuse detected — revoke ทุก session ของ employee นี้ทันที (token theft response)
         if (stored.RevokedAt is not null)
@@ -36,11 +36,11 @@ public class RefreshTokenHandler(
         }
 
         if (stored.ExpiresAt <= DateTime.UtcNow)
-            throw new AppUnauthorizedException("Refresh token has expired.");
+            throw new AppUnauthorizedException("REFRESH_TOKEN_EXPIRED", "Refresh token has expired.");
 
         var employee = stored.Employee;
         if (!employee.IsActive)
-            throw new AppUnauthorizedException("Employee is inactive.");
+            throw new AppUnauthorizedException("EMPLOYEE_INACTIVE", "Employee is inactive.");
 
         var (accessToken, accessExpires) = jwt.GenerateAccessToken(employee, employee.Roles);
         var (newRefreshToken, newHash, refreshExpires) = jwt.GenerateRefreshToken();

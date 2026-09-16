@@ -36,7 +36,14 @@ try
     var builder = WebApplication.CreateBuilder(new WebApplicationOptions
     {
         Args = args,
-        ContentRootPath = AppContext.BaseDirectory
+        ContentRootPath = AppContext.BaseDirectory,
+        // ต้องระบุ WebRootPath ตรงๆ คู่กับ ContentRootPath ข้างบน:
+        // ASP.NET Core จะ default WebRootPath เป็น null ถ้าโฟลเดอร์ wwwroot ยังไม่มีอยู่ตอน start
+        // ซึ่งเกิดขึ้นเสมอตอน dev เพราะ dotnet build ไม่ copy wwwroot ไป bin (ต่างจาก publish)
+        // ผลคือ Path.Combine(env.WebRootPath, ...) ใน LocalFileStorageService โยน ArgumentNullException
+        // ทำให้อัปโหลดไฟล์ทุกโมดูลที่เก็บใต้ wwwroot (memo/leave/expense/general) พังเป็น 500
+        // ระบุไว้แล้ว framework จะสร้างโฟลเดอร์ให้เองถ้ายังไม่มี — prod ไม่เปลี่ยนพฤติกรรม
+        WebRootPath = "wwwroot"
     });
 
     builder.Host.UseSerilog((ctx, lc) => lc
@@ -109,8 +116,8 @@ try
         catch (Exception ex)
         {
             throw new InvalidOperationException(
-                $"ไม่สามารถสร้าง/เข้าถึงโฟลเดอร์ DataProtection:KeysPath '{dataProtectionKeysPath}' ได้ " +
-                "กรุณาสร้างโฟลเดอร์และให้สิทธิ์ write กับ identity ของ IIS App Pool", ex);
+                $"Cannot create or access DataProtection:KeysPath '{dataProtectionKeysPath}'. " +
+                "Create the folder and grant write access to the IIS App Pool identity.", ex);
         }
 
         dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
@@ -176,8 +183,9 @@ try
                     await context.Response.WriteAsJsonAsync(new
                     {
                         traceId = context.HttpContext.TraceIdentifier,
-                        error   = "UNAUTHORIZED",
-                        message = "กรุณาเข้าสู่ระบบก่อนใช้งาน"
+                        // ใช้ code เดียวกับที่ handler ทั้งระบบ throw (AppUnauthorizedException) — ความหมายเดียวกัน
+                        error   = "UNAUTHENTICATED",
+                        message = "Authentication is required."
                     });
                 },
                 OnForbidden = async context =>
@@ -188,7 +196,7 @@ try
                     {
                         traceId = context.HttpContext.TraceIdentifier,
                         error   = "FORBIDDEN",
-                        message = "คุณไม่มีสิทธิ์ดำเนินการนี้"
+                        message = "You do not have permission to do this."
                     });
                 }
             };
@@ -219,7 +227,7 @@ try
                     {
                         traceId = context.HttpContext.TraceIdentifier,
                         error = "EXTERNAL_UNAUTHORIZED",
-                        message = "กรุณาเข้าสู่ระบบผู้แจ้งภายนอกอีกครั้ง"
+                        message = "External reporter authentication is required."
                     });
                 },
                 OnForbidden = async context =>
@@ -230,7 +238,7 @@ try
                     {
                         traceId = context.HttpContext.TraceIdentifier,
                         error = "EXTERNAL_FORBIDDEN",
-                        message = "ไม่มีสิทธิ์เข้าถึงข้อมูลผู้แจ้งภายนอก"
+                        message = "You do not have access to external reporter data."
                     });
                 }
             };
@@ -282,7 +290,7 @@ try
             {
                 traceId    = context.HttpContext.TraceIdentifier,
                 error      = "RATE_LIMIT_EXCEEDED",
-                message    = "คำขอมากเกินไป กรุณารอสักครู่แล้วลองใหม่",
+                message    = "Too many requests. Please wait and try again.",
                 retryAfter = retryAfterSecs
             }, ct);
         };
@@ -401,6 +409,9 @@ try
     // ทุกคนตกลง partition ตาม IP ร่วมกัน (โดน 429 ทั้งออฟฟิศหลัง NAT เดียวกัน)
     app.UseRateLimiter();
     app.UseAuthorization();
+    // ต้องอยู่หลัง UseAuthorization — ผู้แจ้งภายนอกใช้ authentication scheme แยก
+    // context.User จะมี claim ของกลุ่มนั้นหลัง authorization middleware ตรวจ policy เสร็จแล้วเท่านั้น
+    app.UseMiddleware<PreferredLanguageMiddleware>();
 
     // Health check endpoints (ไม่ผ่าน rate limiter / auth)
     var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };

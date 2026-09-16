@@ -27,25 +27,24 @@ public class GetTicketAttachmentContentHandler(
     {
         var ticket = await db.Tickets.AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketAccess.EnsureCanViewAsync(db, currentUser, permissions, ticket, ct);
         var attachment = await db.TicketAttachments.AsNoTracking()
             .FirstOrDefaultAsync(a => a.Id == request.AttachmentId && a.TicketId == ticket.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบไฟล์แนบ");
+            ?? throw new NotFoundException("TicketAttachment", request.AttachmentId, "TICKET_ATTACHMENT_NOT_FOUND");
 
         if (attachment.Visibility == TicketAttachmentVisibility.Internal)
         {
-            var isRequester = currentUser.EmployeeId == ticket.RequesterEmployeeId;
-            var canSeeInternal = !isRequester &&
+            var canSeeInternal =
                 await permissions.HasPermissionAsync(currentUser, "ticket:add-internal-note", ct) &&
                 (currentUser.HasRole(RoleType.Admin) ||
                     await TicketAccess.IsDepartmentManagerAsync(db, currentUser, ticket, ct));
             if (!canSeeInternal)
-                throw new AppForbiddenException("ไม่มีสิทธิ์เปิดไฟล์ภายใน");
+                throw new AppForbiddenException("TICKET_INTERNAL_ATTACHMENT_VIEW_FORBIDDEN", "You are not allowed to open internal files.");
         }
 
         var key = attachment.StorageKey ?? ExtractLegacyKey(attachment.Url)
-            ?? throw new FileNotFoundException("ไม่พบตำแหน่งไฟล์");
+            ?? throw new NotFoundException("TicketAttachmentFile", request.AttachmentId, "TICKET_ATTACHMENT_NOT_FOUND");
         return new TicketAttachmentContentDto(
             key,
             attachment.FileName ?? "attachment",

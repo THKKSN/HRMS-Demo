@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 import { FolderTree, Pencil, Plus, Power, PowerOff, Tags } from 'lucide-react'
 import { toast } from 'sonner'
 import type { MemoCategoryDto, MemoSubCategoryDto, MemoTypeDto } from '@hrms/shared-types'
+import { MemoFlowEditor } from '@/components/memos/memo-flow-editor'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ConfirmModal } from '@/components/ui/confirm-modal'
@@ -28,6 +30,8 @@ import {
 import { companyOptionLabel, useCompanyOptions } from '@/hooks/use-company-options'
 import { useDepartments } from '@/hooks/use-departments'
 import { useMe } from '@/hooks/use-me'
+import { localizedName, type Locale } from '@hrms/i18n'
+import { useApiError } from '@/hooks/use-api-error'
 
 type TaxonomyItem = MemoCategoryDto | MemoSubCategoryDto
 type TaxonomyKind = 'category' | 'subCategory'
@@ -38,39 +42,42 @@ type EditorState =
   | { kind: 'type'; item?: MemoTypeDto }
   | { kind: TaxonomyKind; item?: TaxonomyItem }
 
-function apiMessage(error: unknown) {
-  return (error as { response?: { data?: { message?: string } } })?.response?.data?.message
-    ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-}
+type LocalizedNameValues = { name: string; nameEn: string; nameId: string }
 
 function NameOnlyEditor({
   title,
-  initialName,
+  initial,
   onClose,
   onSave,
 }: {
   title: string
-  initialName?: string
+  initial?: { name: string; nameEn?: string | null; nameId?: string | null }
   onClose: () => void
-  onSave: (name: string) => Promise<void>
+  onSave: (values: LocalizedNameValues) => Promise<void>
 }) {
-  const [name, setName] = useState(initialName ?? '')
+  const t = useTranslations('admin.settings.memo')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const [name, setName] = useState(initial?.name ?? '')
+  const [nameEn, setNameEn] = useState(initial?.nameEn ?? '')
+  const [nameId, setNameId] = useState(initial?.nameId ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!name.trim()) {
-      setError('กรุณากรอกชื่อ')
+      setError(t('nameRequired'))
       return
     }
     setSaving(true)
     setError('')
     try {
-      await onSave(name.trim())
+      await onSave({ name: name.trim(), nameEn: nameEn.trim(), nameId: nameId.trim() })
       onClose()
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiError(err, tCommon('state.error')))
     } finally {
       setSaving(false)
     }
@@ -80,7 +87,7 @@ function NameOnlyEditor({
     <Modal open onClose={onClose} title={title}>
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="memo-editor-name">ชื่อ *</Label>
+          <Label htmlFor="memo-editor-name">{t('name')} *</Label>
           <Input
             id="memo-editor-name"
             value={name}
@@ -89,16 +96,28 @@ function NameOnlyEditor({
             autoFocus
           />
         </div>
+        {/* ชื่อภาษาอื่นสำหรับหน้าจอที่สลับภาษา — ว่างได้ ระบบจะแสดงชื่อไทยแทน */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="memo-editor-name-en">{tOrg('nameEn')}</Label>
+            <Input id="memo-editor-name-en" value={nameEn} onChange={event => setNameEn(event.target.value)} maxLength={200} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="memo-editor-name-id">{tOrg('nameId')}</Label>
+            <Input id="memo-editor-name-id" value={nameId} onChange={event => setNameId(event.target.value)} maxLength={200} />
+          </div>
+        </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button type="submit" loading={saving}>บันทึก</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{tCommon('action.cancel')}</Button>
+          <Button type="submit" loading={saving}>{tCommon('action.save')}</Button>
         </div>
       </form>
     </Modal>
   )
 }
 
+// ผู้อนุมัติด่านแรกไม่อยู่ในฟอร์มนี้ — ตั้งที่การ์ด "ลำดับขั้นตอน" ให้เห็นภาพรวม flow พร้อมกัน
 function MemoTypeEditor({
   initial,
   onClose,
@@ -106,8 +125,13 @@ function MemoTypeEditor({
 }: {
   initial?: MemoTypeDto
   onClose: () => void
-  onSave: (values: { name: string; companyId: string; departmentId: string }) => Promise<void>
+  onSave: (values: LocalizedNameValues & { companyId: string; departmentId: string }) => Promise<void>
 }) {
+  const t = useTranslations('admin.settings.memo')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const locale = useLocale() as Locale
   const { options: companyOptions } = useCompanyOptions()
   const { data: me } = useMe()
   const isSupervisor = !!me?.roles.some(r => r.role === 'Supervisor') && !me?.roles.some(r => r.role === 'Admin' || r.role === 'Executive')
@@ -117,6 +141,8 @@ function MemoTypeEditor({
   const locked = isSupervisorScoped
 
   const [name, setName] = useState(initial?.name ?? '')
+  const [nameEn, setNameEn] = useState(initial?.nameEn ?? '')
+  const [nameId, setNameId] = useState(initial?.nameId ?? '')
   const [companyId, setCompanyId] = useState(initial?.companyId ?? '')
   const [departmentId, setDepartmentId] = useState(initial?.departmentId ?? '')
   const [saving, setSaving] = useState(false)
@@ -133,37 +159,45 @@ function MemoTypeEditor({
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!name.trim()) return setError('กรุณากรอกชื่อ')
-    if (!companyId) return setError('กรุณาเลือกบริษัท')
-    if (!departmentId) return setError('กรุณาเลือกแผนก')
+    if (!name.trim()) return setError(t('nameRequired'))
+    if (!companyId) return setError(t('companyRequired'))
+    if (!departmentId) return setError(t('departmentRequired'))
 
     setSaving(true)
     setError('')
     try {
-      await onSave({ name: name.trim(), companyId, departmentId })
+      await onSave({ name: name.trim(), nameEn: nameEn.trim(), nameId: nameId.trim(), companyId, departmentId })
       onClose()
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiError(err, tCommon('state.error')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal open onClose={onClose} title={initial ? 'แก้ไขประเภทเรื่อง' : 'เพิ่มประเภทเรื่อง'}>
+    <Modal open onClose={onClose} title={initial ? t('editTypeTitle') : t('addTypeTitle')}>
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="memo-type-name">ชื่อประเภทเรื่อง *</Label>
+          <Label htmlFor="memo-type-name">{t('typeName')} *</Label>
           <Input id="memo-type-name" value={name} onChange={event => setName(event.target.value)} maxLength={200} autoFocus />
         </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="memo-type-name-en">{tOrg('nameEn')}</Label>
+            <Input id="memo-type-name-en" value={nameEn} onChange={event => setNameEn(event.target.value)} maxLength={200} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="memo-type-name-id">{tOrg('nameId')}</Label>
+            <Input id="memo-type-name-id" value={nameId} onChange={event => setNameId(event.target.value)} maxLength={200} />
+          </div>
+        </div>
         <div className="space-y-1.5">
-          <Label htmlFor="memo-type-company">บริษัทปลายทาง *</Label>
+          <Label htmlFor="memo-type-company">{t('targetCompany')} *</Label>
           <p className="text-xs text-muted-foreground">
             {locked
-              ? (initial
-                  ? 'คุณเป็น Supervisor — ไม่สามารถเปลี่ยนปลายทางของประเภทเรื่องนี้ได้'
-                  : 'คุณเป็น Supervisor — ระบบล็อคปลายทางเป็นหน่วยงานของคุณโดยอัตโนมัติ')
-              : 'เมื่อ Executive อนุมัติเรื่องประเภทนี้แล้ว ระบบจะแจ้งเตือน Supervisor ของหน่วยงานนี้'}
+              ? (initial ? t('targetLockedEdit') : t('targetLockedCreate'))
+              : t('targetHint')}
           </p>
           <Select
             id="memo-type-company"
@@ -171,30 +205,31 @@ function MemoTypeEditor({
             disabled={locked}
             onChange={event => { setCompanyId(event.target.value); setDepartmentId('') }}
           >
-            <option value="">— เลือกบริษัท —</option>
+            <option value="">{tOrg('selectCompany')}</option>
             {companyOptions.map(option => (
               <option key={option.id} value={option.id}>{companyOptionLabel(option)}</option>
             ))}
           </Select>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="memo-type-department">แผนกปลายทาง *</Label>
+          <Label htmlFor="memo-type-department">{t('targetDepartment')} *</Label>
           <Select
             id="memo-type-department"
             value={departmentId}
             disabled={!companyId || locked}
             onChange={event => setDepartmentId(event.target.value)}
           >
-            <option value="">— เลือกแผนก —</option>
+            <option value="">{t('selectDepartment')}</option>
             {departments.map(department => (
-              <option key={department.id} value={department.id}>{department.name}</option>
+              <option key={department.id} value={department.id}>{localizedName(department, locale)}</option>
             ))}
           </Select>
         </div>
+
         {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button type="submit" loading={saving}>บันทึก</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{tCommon('action.cancel')}</Button>
+          <Button type="submit" loading={saving}>{tCommon('action.save')}</Button>
         </div>
       </form>
     </Modal>
@@ -206,6 +241,10 @@ function EmptyRow({ text }: { text: string }) {
 }
 
 export default function MemoSettingsPage() {
+  const t = useTranslations('admin.settings.memo')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const locale = useLocale() as Locale
   const [memoTypeId, setMemoTypeId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [editorOpen, setEditorOpen] = useState<EditorState | null>(null)
@@ -243,35 +282,36 @@ export default function MemoSettingsPage() {
       if (kind === 'type') await toggleType.mutateAsync({ id: item.id, isActive: !item.isActive })
       else if (kind === 'category') await toggleCategory.mutateAsync({ id: item.id, isActive: !item.isActive })
       else await toggleSubCategory.mutateAsync({ id: item.id, isActive: !item.isActive })
-      toast.success(`${item.isActive ? 'ปิด' : 'เปิด'}ใช้งาน "${item.name}" สำเร็จ`)
+      toast.success(item.isActive
+        ? t('deactivated', { name: item.name })
+        : t('activated', { name: item.name }))
       setToggleTarget(null)
     } catch (error) {
-      toast.error(apiMessage(error))
+      toast.error(apiError(error, tCommon('state.error')))
     }
   }
 
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold text-foreground">บันทึกข้อความ (Memo)</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          ประเภทเรื่อง หมวดหมู่ และหัวข้อย่อย — ผู้อนุมัติคือผู้บริหาร (Executive) เสมอ
-          หลังอนุมัติแล้วระบบแจ้งเตือน Supervisor ของหน่วยงานปลายทางอัตโนมัติ
-        </p>
+        <h1 className="text-xl font-semibold text-foreground">{t('title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
       </div>
 
       <div className="flex flex-col gap-3 border-y border-border py-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-sm flex-1 space-y-1.5">
-          <Label htmlFor="memo-type-select">ประเภทเรื่อง</Label>
+          <Label htmlFor="memo-type-select">{t('memoType')}</Label>
           <Select
             id="memo-type-select"
             value={memoTypeId}
             disabled={typesLoading || !memoTypes.length}
             onChange={event => { setMemoTypeId(event.target.value); setCategoryId('') }}
           >
-            <option value="">— เลือกประเภทเรื่อง —</option>
+            <option value="">{t('selectMemoType')}</option>
             {memoTypes.map(type => (
-              <option key={type.id} value={type.id}>{type.name}{!type.isActive ? ' (ปิดใช้งาน)' : ''}</option>
+              <option key={type.id} value={type.id}>
+                {localizedName(type, locale)}{!type.isActive ? t('inactiveSuffix') : ''}
+              </option>
             ))}
           </Select>
         </div>
@@ -283,7 +323,7 @@ export default function MemoSettingsPage() {
                 size="sm"
                 onClick={() => setEditorOpen({ kind: 'type', item: selectedMemoType })}
               >
-                <Pencil className="h-4 w-4" /> แก้ไข
+                <Pencil className="h-4 w-4" /> {tCommon('action.edit')}
               </Button>
               <Button
                 variant="outline"
@@ -291,42 +331,36 @@ export default function MemoSettingsPage() {
                 onClick={() => setToggleTarget({ kind: 'type', item: selectedMemoType })}
               >
                 {selectedMemoType.isActive
-                  ? <><PowerOff className="h-4 w-4" /> ปิดใช้งานประเภทนี้</>
-                  : <><Power className="h-4 w-4" /> เปิดใช้งานประเภทนี้</>}
+                  ? <><PowerOff className="h-4 w-4" /> {t('deactivateType')}</>
+                  : <><Power className="h-4 w-4" /> {t('activateType')}</>}
               </Button>
             </>
           )}
           <Button size="sm" onClick={() => setEditorOpen({ kind: 'type' })}>
-            <Plus className="h-4 w-4" /> เพิ่มประเภทเรื่อง
+            <Plus className="h-4 w-4" /> {t('addType')}
           </Button>
         </div>
       </div>
 
-      {memoTypeId && selectedMemoType && (
-        <p className="text-sm text-muted-foreground">
-          ปลายทางแจ้งเตือนหลังอนุมัติ: <span className="font-medium text-foreground">{selectedMemoType.companyName}</span>
-          {' / '}
-          <span className="font-medium text-foreground">{selectedMemoType.departmentName}</span>
-        </p>
-      )}
+      {selectedMemoType && <MemoFlowEditor memoType={selectedMemoType} />}
 
       <div className="grid min-h-[420px] gap-4 md:grid-cols-2">
         <section className="overflow-hidden rounded-md border border-border bg-background">
           <div className="flex h-14 items-center justify-between border-b border-border px-4">
             <div className="flex items-center gap-2">
               <FolderTree className="h-4 w-4 text-primary" />
-              <h2 className="text-sm font-semibold">หมวดหมู่</h2>
+              <h2 className="text-sm font-semibold">{t('categories')}</h2>
             </div>
             <Button size="sm" disabled={!memoTypeId} onClick={() => setEditorOpen({ kind: 'category' })}>
-              <Plus className="h-4 w-4" /> เพิ่มหมวดหมู่
+              <Plus className="h-4 w-4" /> {t('addCategory')}
             </Button>
           </div>
           {!memoTypeId ? (
-            <EmptyRow text="เลือกประเภทเรื่องก่อนเพิ่มหมวดหมู่" />
+            <EmptyRow text={t('selectTypeFirst')} />
           ) : categoriesLoading ? (
-            <EmptyRow text="กำลังโหลดหมวดหมู่..." />
+            <EmptyRow text={t('loadingCategories')} />
           ) : categories.length === 0 ? (
-            <EmptyRow text="ยังไม่มีหมวดหมู่ในประเภทเรื่องนี้" />
+            <EmptyRow text={t('noCategories')} />
           ) : (
             <div className="divide-y divide-border">
               {categories.map(category => (
@@ -340,14 +374,14 @@ export default function MemoSettingsPage() {
                     className="min-w-0 flex-1 px-2 py-3 text-left"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{category.name}</span>
-                      {!category.isActive && <Badge variant="secondary">ปิดใช้งาน</Badge>}
+                      <span className="truncate text-sm font-medium">{localizedName(category, locale)}</span>
+                      {!category.isActive && <Badge variant="secondary">{t('inactiveBadge')}</Badge>}
                     </div>
                   </button>
                   <Button
                     size="icon"
                     variant="ghost"
-                    title="แก้ไขหมวดหมู่"
+                    title={t('editCategory')}
                     onClick={() => setEditorOpen({ kind: 'category', item: category })}
                   >
                     <Pencil className="h-4 w-4" />
@@ -355,7 +389,7 @@ export default function MemoSettingsPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    title={category.isActive ? 'ปิดใช้งานหมวดหมู่' : 'เปิดใช้งานหมวดหมู่'}
+                    title={category.isActive ? t('deactivateCategory') : t('activateCategory')}
                     onClick={() => setToggleTarget({ kind: 'category', item: category })}
                   >
                     {category.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
@@ -371,34 +405,38 @@ export default function MemoSettingsPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <Tags className="h-4 w-4 text-primary" />
-                <h2 className="truncate text-sm font-semibold">หัวข้อย่อย</h2>
+                <h2 className="truncate text-sm font-semibold">{t('subCategories')}</h2>
               </div>
-              {categoryId && <p className="mt-0.5 truncate text-xs text-muted-foreground">{categories.find(c => c.id === categoryId)?.name}</p>}
+              {categoryId && (
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {localizedName(categories.find(c => c.id === categoryId), locale)}
+                </p>
+              )}
             </div>
             <Button size="sm" disabled={!categoryId} onClick={() => setEditorOpen({ kind: 'subCategory' })}>
-              <Plus className="h-4 w-4" /> เพิ่มหัวข้อย่อย
+              <Plus className="h-4 w-4" /> {t('addSubCategory')}
             </Button>
           </div>
           {!categoryId ? (
-            <EmptyRow text="เลือกหมวดหมู่เพื่อดูหัวข้อย่อย" />
+            <EmptyRow text={t('selectCategoryFirst')} />
           ) : subCategoriesLoading ? (
-            <EmptyRow text="กำลังโหลดหัวข้อย่อย..." />
+            <EmptyRow text={t('loadingSubCategories')} />
           ) : subCategories.length === 0 ? (
-            <EmptyRow text="ยังไม่มีหัวข้อย่อยในหมวดหมู่นี้" />
+            <EmptyRow text={t('noSubCategories')} />
           ) : (
             <div className="divide-y divide-border">
               {subCategories.map(subCategory => (
                 <div key={subCategory.id} className="flex min-h-16 items-center gap-2 px-2 hover:bg-whited/40">
                   <div className="min-w-0 flex-1 px-2 py-3">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{subCategory.name}</span>
-                      {!subCategory.isActive && <Badge variant="secondary">ปิดใช้งาน</Badge>}
+                      <span className="truncate text-sm font-medium">{localizedName(subCategory, locale)}</span>
+                      {!subCategory.isActive && <Badge variant="secondary">{t('inactiveBadge')}</Badge>}
                     </div>
                   </div>
                   <Button
                     size="icon"
                     variant="ghost"
-                    title="แก้ไขหัวข้อย่อย"
+                    title={t('editSubCategory')}
                     onClick={() => setEditorOpen({ kind: 'subCategory', item: subCategory })}
                   >
                     <Pencil className="h-4 w-4" />
@@ -406,7 +444,7 @@ export default function MemoSettingsPage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    title={subCategory.isActive ? 'ปิดใช้งานหัวข้อย่อย' : 'เปิดใช้งานหัวข้อย่อย'}
+                    title={subCategory.isActive ? t('deactivateSubCategory') : t('activateSubCategory')}
                     onClick={() => setToggleTarget({ kind: 'subCategory', item: subCategory })}
                   >
                     {subCategory.isActive ? <PowerOff className="h-4 w-4" /> : <Power className="h-4 w-4" />}
@@ -425,43 +463,43 @@ export default function MemoSettingsPage() {
           onSave={async values => {
             if (editorOpen.item) {
               await updateType.mutateAsync({ id: editorOpen.item.id, ...values })
-              toast.success('แก้ไขประเภทเรื่องสำเร็จ')
+              toast.success(t('typeUpdated'))
             } else {
               const created = await createType.mutateAsync(values)
               setMemoTypeId(created.id)
-              toast.success('สร้างประเภทเรื่องสำเร็จ')
+              toast.success(t('typeCreated'))
             }
           }}
         />
       )}
       {editorOpen?.kind === 'category' && (
         <NameOnlyEditor
-          title={editorOpen.item ? 'แก้ไขหมวดหมู่' : 'เพิ่มหมวดหมู่'}
-          initialName={editorOpen.item?.name}
+          title={editorOpen.item ? t('categoryEditTitle') : t('categoryAddTitle')}
+          initial={editorOpen.item}
           onClose={() => setEditorOpen(null)}
-          onSave={async name => {
+          onSave={async values => {
             if (editorOpen.item) {
-              await updateCategory.mutateAsync({ id: editorOpen.item.id, name })
-              toast.success('แก้ไขหมวดหมู่สำเร็จ')
+              await updateCategory.mutateAsync({ id: editorOpen.item.id, ...values })
+              toast.success(t('categoryUpdated'))
             } else {
-              await createCategory.mutateAsync({ memoTypeId, name })
-              toast.success('สร้างหมวดหมู่สำเร็จ')
+              await createCategory.mutateAsync({ memoTypeId, ...values })
+              toast.success(t('categoryCreated'))
             }
           }}
         />
       )}
       {editorOpen?.kind === 'subCategory' && (
         <NameOnlyEditor
-          title={editorOpen.item ? 'แก้ไขหัวข้อย่อย' : 'เพิ่มหัวข้อย่อย'}
-          initialName={editorOpen.item?.name}
+          title={editorOpen.item ? t('subCategoryEditTitle') : t('subCategoryAddTitle')}
+          initial={editorOpen.item}
           onClose={() => setEditorOpen(null)}
-          onSave={async name => {
+          onSave={async values => {
             if (editorOpen.item) {
-              await updateSubCategory.mutateAsync({ id: editorOpen.item.id, name })
-              toast.success('แก้ไขหัวข้อย่อยสำเร็จ')
+              await updateSubCategory.mutateAsync({ id: editorOpen.item.id, ...values })
+              toast.success(t('subCategoryUpdated'))
             } else {
-              await createSubCategory.mutateAsync({ memoCategoryId: categoryId, name })
-              toast.success('สร้างหัวข้อย่อยสำเร็จ')
+              await createSubCategory.mutateAsync({ memoCategoryId: categoryId, ...values })
+              toast.success(t('subCategoryCreated'))
             }
           }}
         />
@@ -471,11 +509,13 @@ export default function MemoSettingsPage() {
         open={!!toggleTarget}
         onClose={() => setToggleTarget(null)}
         onConfirm={confirmToggle}
-        title={`${toggleTarget?.item.isActive ? 'ปิด' : 'เปิด'}การใช้งาน`}
+        title={toggleTarget?.item.isActive ? t('toggleOffTitle') : t('toggleOnTitle')}
         description={toggleTarget
-          ? `ยืนยัน${toggleTarget.item.isActive ? 'ปิด' : 'เปิด'}ใช้งาน "${toggleTarget.item.name}"?`
+          ? (toggleTarget.item.isActive
+              ? t('confirmDeactivate', { name: toggleTarget.item.name })
+              : t('confirmActivate', { name: toggleTarget.item.name }))
           : undefined}
-        confirmLabel="ยืนยัน"
+        confirmLabel={tCommon('action.confirm')}
         variant={toggleTarget?.item.isActive ? 'destructive' : 'default'}
         loading={toggleType.isPending || toggleCategory.isPending || toggleSubCategory.isPending}
       />

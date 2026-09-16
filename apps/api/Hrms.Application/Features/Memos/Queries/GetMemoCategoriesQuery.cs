@@ -19,7 +19,7 @@ public class GetMemoCategoriesHandler(IApplicationDbContext db)
 
         return await query
             .OrderBy(x => x.Name)
-            .Select(x => new MemoCategoryDto(x.Id, x.MemoTypeId, x.Name, x.IsActive))
+            .Select(x => new MemoCategoryDto(x.Id, x.MemoTypeId, x.Name, x.IsActive, x.NameEn, x.NameId))
             .ToListAsync(ct);
     }
 }

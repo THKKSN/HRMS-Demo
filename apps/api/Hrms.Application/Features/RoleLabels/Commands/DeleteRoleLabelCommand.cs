@@ -16,14 +16,14 @@ public class DeleteRoleLabelHandler(IApplicationDbContext db, ICurrentUser curre
         await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-departments", ct);
 
         var entity = await db.RoleLabels.FirstOrDefaultAsync(r => r.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบ Role Label");
+            ?? throw new NotFoundException("RoleLabel", request.Id, "ROLE_LABEL_NOT_FOUND");
 
         if (!currentUser.CanManageCompany(entity.CompanyId))
-            throw new AppForbiddenException("ไม่มีสิทธิ์จัดการ company นี้");
+            throw new AppForbiddenException("COMPANY_MANAGE_FORBIDDEN", "You are not allowed to manage this company.");
 
         var inUse = await db.Employees.AnyAsync(e => e.RoleLabelId == request.Id, ct);
         if (inUse)
-            throw new ConflictException("ROLE_LABEL_IN_USE", "ไม่สามารถลบได้ — มีพนักงานที่ใช้ตำแหน่งนี้อยู่");
+            throw new ConflictException("ROLE_LABEL_IN_USE", "This job title cannot be removed while employees still use it.");
 
         entity.IsActive  = false;
         entity.UpdatedAt = DateTime.UtcNow.AddHours(7);

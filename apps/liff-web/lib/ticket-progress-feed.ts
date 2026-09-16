@@ -38,8 +38,9 @@ const LANE_VISUALS: Record<
     surfaceClass: 'border-amber-200 border-l-4 border-l-amber-500 bg-background dark:border-amber-500/30 dark:border-l-amber-400 dark:bg-amber-950/30',
     iconClass: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-950/60 dark:text-amber-200',
   },
+  // laneLabel เป็นค่าตั้งต้นสำหรับ test/non-React — หน้าจอแปลจาก key ผ่าน liff.ticket.progressLane.<lane>
   waiting: {
-    laneLabel: 'ต้องทำอะไรต่อ',
+    laneLabel: 'Next',
     badgeClass: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-950/60 dark:text-emerald-200',
     surfaceClass: 'border-emerald-200 border-l-4 border-l-emerald-500 bg-background dark:border-emerald-500/30 dark:border-l-emerald-400 dark:bg-emerald-950/30',
     iconClass: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-950/60 dark:text-emerald-200',

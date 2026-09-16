@@ -10,4 +10,6 @@ public record TicketPendingCountsDto(
     int? InboxUntriaged,
     int? CancellationPending,
     int? MemoAwaitingAck,
-    int? MemoAwaitingApproval);
+    int? MemoAwaitingApproval,
+    // ขั้นตอน workflow ที่รอผู้เรียกดำเนินการ — ไม่ผูก permission จึงคำนวณให้ทุกคน (0 ถ้าไม่มี)
+    int? MemoStepTasks);

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 import { ClipboardList, FilePenLine, Pencil, Plus, Sparkles, Target, Trash2, Wand2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type {
@@ -10,6 +11,7 @@ import type {
   TicketSubjectGuidanceConfigDto,
   TicketTopicDto,
 } from '@hrms/shared-types'
+import { localizedName, type Locale } from '@hrms/i18n'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,42 +24,22 @@ import {
   useTicketGuidanceConfigs,
   useUpdateTicketGuidanceConfig,
 } from '@/hooks/use-ticket-workflow-masters'
+import { useApiError } from '@/hooks/use-api-error'
 
 type GuidanceEditorState = { item?: TicketSubjectGuidanceConfigDto }
 type SuggestionForm = { id: string; label: string; value: string }
 
-const TEMPLATE_FIELD_LIBRARY = [
-  { label: 'ชื่อเอกสาร', value: 'ชื่อเอกสาร:' },
-  { label: 'เลขที่เอกสาร', value: 'เลขที่เอกสาร:' },
-  { label: 'ปัญหา', value: 'ปัญหา:' },
-  { label: 'ทะเบียนรถ', value: 'ทะเบียนรถ:' },
-  { label: 'เบอร์รถ', value: 'เบอร์รถ:' },
-  { label: 'อาการที่พบ', value: 'อาการที่พบ:' },
-  { label: 'สถานที่ล่าสุด', value: 'สถานที่ล่าสุด:' },
-]
+// หัวข้อ/ตัวเลือก/ขั้นบอร์ดสำเร็จรูป — ข้อความจริงมาจาก `admin.settings.template.*`
+// ค่าที่เติมลง template เป็นภาษาที่ผู้ดูแลกำลังใช้อยู่ เพราะเป็นเนื้อหาที่เก็บลง DB เอง
+const TEMPLATE_FIELD_KEYS = [
+  'documentName', 'documentNumber', 'problem', 'plateNumber', 'vehicleNumber', 'symptom', 'lastLocation',
+] as const
 
-const QUICK_SUGGESTIONS = [
-  'ใบแจ้งซ่อม',
-  'ใบส่งซ่อม',
-  'การส่งซ่อม',
-  'ใบแจ้งงาน',
-  'รายการซ่อมบำรุง',
-  'ใบปะหน้าค่าใช้จ่าย',
-]
+const QUICK_SUGGESTION_KEYS = [
+  'repairRequest', 'repairOrder', 'sendForRepair', 'jobOrder', 'maintenanceList', 'expenseCover',
+] as const
 
-const STANDARD_TICKET_BOARD_STEPS = [
-  'แจ้งเรื่อง',
-  'รับเรื่อง',
-  'จ่ายงาน',
-  'In progress',
-  'ปิดงานตรวจจบ',
-  'คนแจ้งเรื่องบันทึกจบงานตรวจรับ',
-]
-
-function apiMessage(error: unknown) {
-  return (error as { response?: { data?: { message?: string } } })?.response?.data?.message
-    ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่'
-}
+const BOARD_STEP_KEYS = ['report', 'accept', 'assign', 'inProgress', 'review', 'requesterConfirm'] as const
 
 function makeId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
@@ -96,11 +78,12 @@ function ScopePills({
   topicLabel: string
   subjectLabel: string
 }) {
+  const t = useTranslations('admin.settings.template')
   return (
     <div className="flex flex-wrap gap-2">
-      <Badge variant="outline">หมวด: {categoryLabel}</Badge>
-      <Badge variant="outline">หมวดย่อย: {topicLabel}</Badge>
-      <Badge variant="outline">หัวข้อ: {subjectLabel}</Badge>
+      <Badge variant="outline">{t('pillCategory', { name: categoryLabel })}</Badge>
+      <Badge variant="outline">{t('pillTopic', { name: topicLabel })}</Badge>
+      <Badge variant="outline">{t('pillSubject', { name: subjectLabel })}</Badge>
     </div>
   )
 }
@@ -124,6 +107,8 @@ function SuggestionEditor({
   onTargetLabelChange: (value: string) => void
   onChange: (rows: SuggestionForm[]) => void
 }) {
+  const t = useTranslations('admin.settings.template')
+
   function updateRow(id: string, patch: Partial<SuggestionForm>) {
     onChange(rows.map(row => row.id === id ? { ...row, ...patch } : row))
   }
@@ -132,25 +117,26 @@ function SuggestionEditor({
     onChange([...rows, { id: makeId('suggestion'), label, value }])
   }
 
-  const remainingQuickSuggestions = QUICK_SUGGESTIONS.filter(item => !rows.some(row => row.label === item))
+  const quickSuggestions = QUICK_SUGGESTION_KEYS.map(key => t(`internalQuickSuggestion.${key}`))
+  const remainingQuickSuggestions = quickSuggestions.filter(item => !rows.some(row => row.label === item))
 
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
         <div className="flex items-center gap-2">
           <Target className="h-4 w-4 text-primary" />
-          <p className="text-sm font-semibold text-foreground">ตำแหน่งที่ระบบจะใส่ค่าจาก Suggest</p>
+          <p className="text-sm font-semibold text-foreground">{t('suggestTargetTitle')}</p>
         </div>
         <div className="mt-3 space-y-1.5">
-          <Label>Label เป้าหมาย</Label>
-          <Input value={targetLabel} onChange={event => onTargetLabelChange(event.target.value)} placeholder="ชื่อเอกสาร:" />
+          <Label>{t('suggestTargetLabel')}</Label>
+          <Input value={targetLabel} onChange={event => onTargetLabelChange(event.target.value)} placeholder={t('suggestTargetPlaceholder')} />
         </div>
       </div>
 
       <div className="rounded-xl border border-border bg-background p-4">
-        <p className="text-sm font-semibold text-foreground">Quick add ตัวเลือกยอดนิยม</p>
+        <p className="text-sm font-semibold text-foreground">{t('quickAdd')}</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {remainingQuickSuggestions.length === 0 && <p className="text-sm text-muted-foreground">เพิ่มตัวเลือกยอดนิยมครบแล้ว</p>}
+          {remainingQuickSuggestions.length === 0 && <p className="text-sm text-muted-foreground">{t('quickAddDone')}</p>}
           {remainingQuickSuggestions.map(item => (
             <Button key={item} type="button" variant="outline" size="sm" className="rounded-full" onClick={() => addSuggestion(item, item)}>
               <Plus className="h-3.5 w-3.5" /> {item}
@@ -162,25 +148,25 @@ function SuggestionEditor({
       <div className="space-y-3">
         {rows.length === 0 && (
           <div className="rounded-xl border border-dashed border-border bg-muted/40 px-4 py-8 text-center text-sm text-muted-foreground">
-            ยังไม่มีตัวเลือก suggest
+            {t('noSuggestions')}
           </div>
         )}
 
         {rows.map((row, index) => (
           <div key={row.id} className="rounded-xl border border-border bg-background p-4">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold">ตัวเลือกที่ {index + 1}</p>
+              <p className="text-sm font-semibold">{t('suggestionIndex', { index: index + 1 })}</p>
               <Button type="button" size="icon" variant="ghost" onClick={() => onChange(rows.filter(item => item.id !== row.id))}>
                 <Trash2 className="h-4 w-4 text-destructive" />
               </Button>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>ข้อความที่แสดง</Label>
+                <Label>{t('suggestionDisplay')}</Label>
                 <Input value={row.label} onChange={event => updateRow(row.id, { label: event.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <Label>ค่าที่ใช้จริง</Label>
+                <Label>{t('suggestionValue')}</Label>
                 <Input value={row.value} onChange={event => updateRow(row.id, { value: event.target.value })} />
               </div>
             </div>
@@ -194,7 +180,7 @@ function SuggestionEditor({
         className="w-full rounded-xl border-dashed"
         onClick={() => addSuggestion()}
       >
-        <Plus className="h-4 w-4" /> เพิ่มตัวเลือก Suggest
+        <Plus className="h-4 w-4" /> {t('addSuggestion')}
       </Button>
     </div>
   )
@@ -226,11 +212,19 @@ function GuidanceEditor({
     isActive: boolean
   }) => Promise<void>
 }) {
+  const t = useTranslations('admin.settings.template')
+  const tTaxonomy = useTranslations('admin.settings.taxonomy')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const locale = useLocale() as Locale
   const [categoryId, setCategoryId] = useState(state.item?.categoryId ?? '')
   const [topicId, setTopicId] = useState(state.item?.topicId ?? '')
   const [subjectId, setSubjectId] = useState(state.item?.subjectId ?? '')
   const [name, setName] = useState(state.item?.name ?? '')
-  const [suggestionTargetLabel, setSuggestionTargetLabel] = useState(state.item?.suggestionTargetLabel ?? 'ชื่อเอกสาร:')
+  // ค่าตั้งต้นเป็นหัวข้อ "ชื่อเอกสาร:" ตามภาษาที่ผู้ดูแลใช้อยู่ (เดิม hardcode ไทย)
+  const [suggestionTargetLabel, setSuggestionTargetLabel] = useState(
+    state.item?.suggestionTargetLabel ?? `${t('internalField.documentName')}:`,
+  )
   const [suggestions, setSuggestions] = useState<SuggestionForm[]>(() => toSuggestionForms(state.item?.suggestions))
   const [template, setTemplate] = useState(state.item?.template ?? '')
   const [priority, setPriority] = useState(state.item?.priority ?? 10)
@@ -246,15 +240,18 @@ function GuidanceEditor({
     () => subjects.filter(item => (!categoryId || item.categoryId === categoryId) && (!topicId || item.topicId === topicId)),
     [subjects, categoryId, topicId],
   )
-  const selectedCategoryLabel = categoryId ? categories.find(item => item.id === categoryId)?.name ?? '-' : 'ทุกหมวด'
-  const selectedTopicLabel = topicId ? availableTopics.find(item => item.id === topicId)?.name ?? '-' : 'ทุกหมวดย่อย'
-  const selectedSubjectLabel = subjectId ? availableSubjects.find(item => item.id === subjectId)?.name ?? '-' : 'ทุกหัวข้อ'
+  const selectedCategory = categories.find(item => item.id === categoryId)
+  const selectedTopic = availableTopics.find(item => item.id === topicId)
+  const selectedSubject = availableSubjects.find(item => item.id === subjectId)
+  const selectedCategoryLabel = categoryId ? (selectedCategory ? localizedName(selectedCategory, locale) : '-') : t('allCategories')
+  const selectedTopicLabel = topicId ? (selectedTopic ? localizedName(selectedTopic, locale) : '-') : t('allTopics')
+  const selectedSubjectLabel = subjectId ? (selectedSubject ? localizedName(selectedSubject, locale) : '-') : t('allSubjects')
   const previewSuggestions = useMemo(() => toSuggestions(suggestions), [suggestions])
   const renderedTemplatePreview = useMemo(() => {
-    const firstSuggestion = previewSuggestions[0]?.label ?? '[ค่าจาก Suggest]'
+    const firstSuggestion = previewSuggestions[0]?.label ?? t('previewSuggestPlaceholder')
     if (!suggestionTargetLabel.trim()) return template.trim()
     return template.replaceAll(suggestionTargetLabel, `${suggestionTargetLabel} ${firstSuggestion}`)
-  }, [previewSuggestions, suggestionTargetLabel, template])
+  }, [previewSuggestions, suggestionTargetLabel, template, t])
 
   useEffect(() => {
     if (!availableTopics.some(item => item.id === topicId)) setTopicId('')
@@ -267,7 +264,7 @@ function GuidanceEditor({
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!name.trim() || !template.trim()) {
-      setError('กรุณากรอกชื่อ config และ template')
+      setError(t('nameAndTemplateRequired'))
       return
     }
 
@@ -288,14 +285,14 @@ function GuidanceEditor({
       })
       onClose()
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiError(err, tCommon('state.error')))
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <Modal open onClose={onClose} title={state.item ? 'แก้ไข Suggest และ Template' : 'สร้าง Suggest และ Template'} size="xl">
+    <Modal open onClose={onClose} title={state.item ? t('editorEditTitle') : t('editorAddTitle')} size="xl">
       <form onSubmit={submit} className="space-y-6">
         <section className="rounded-2xl border border-border bg-muted/40 p-5">
           <div className="flex items-start gap-3">
@@ -303,10 +300,8 @@ function GuidanceEditor({
               <Wand2 className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-foreground">Suggest และ Template ของ Ticket</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                กำหนดข้อมูลที่ผู้ใช้ควรเลือกและควรกรอก แยกตามหมวดงาน โดย workflow ใช้มาตรฐานของระบบ
-              </p>
+              <h3 className="text-base font-semibold text-foreground">{t('internalEditorHeading')}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{t('internalEditorSubtitle')}</p>
             </div>
           </div>
         </section>
@@ -316,60 +311,60 @@ function GuidanceEditor({
             <div className="rounded-2xl border border-border bg-background p-5">
               <div className="mb-4 flex items-center gap-2">
                 <FilePenLine className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold">ขอบเขตของ Template และ Suggest</h3>
+                <h3 className="text-sm font-semibold">{t('internalScopeHeading')}</h3>
               </div>
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label>ชื่อ Config</Label>
+                  <Label>{t('configName')}</Label>
                   <Input value={name} onChange={event => setName(event.target.value)} />
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-1.5">
-                    <Label>หมวด</Label>
+                    <Label>{tTaxonomy('category.heading')}</Label>
                     <Select value={categoryId} onChange={event => setCategoryId(event.target.value)}>
-                      <option value="">ทุกหมวด</option>
-                      {categories.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      <option value="">{t('allCategories')}</option>
+                      {categories.map(item => <option key={item.id} value={item.id}>{localizedName(item, locale)}</option>)}
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>หมวดย่อย</Label>
+                    <Label>{tTaxonomy('topic.heading')}</Label>
                     <Select value={topicId} onChange={event => setTopicId(event.target.value)}>
-                      <option value="">ทุกหมวดย่อย</option>
-                      {availableTopics.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      <option value="">{t('allTopics')}</option>
+                      {availableTopics.map(item => <option key={item.id} value={item.id}>{localizedName(item, locale)}</option>)}
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label>หัวข้อ</Label>
+                    <Label>{tTaxonomy('subject.heading')}</Label>
                     <Select value={subjectId} onChange={event => setSubjectId(event.target.value)}>
-                      <option value="">ทุกหัวข้อ</option>
-                      {availableSubjects.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      <option value="">{t('allSubjects')}</option>
+                      {availableSubjects.map(item => <option key={item.id} value={item.id}>{localizedName(item, locale)}</option>)}
                     </Select>
                   </div>
                 </div>
               </div>
 
               <div className="mt-4 space-y-3 rounded-xl border border-border bg-muted/40 p-4">
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Scope Preview</p>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">{t('scopePreview')}</p>
                 <ScopePills categoryLabel={selectedCategoryLabel} topicLabel={selectedTopicLabel} subjectLabel={selectedSubjectLabel} />
               </div>
 
               <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 p-4">
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary">Board Workflow</p>
-                <p className="mt-3 text-sm font-semibold text-foreground">ระบบใช้ Standard Ticket Board อัตโนมัติ</p>
+                <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary">{t('boardWorkflow')}</p>
+                <p className="mt-3 text-sm font-semibold text-foreground">{t('standardBoard')}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {STANDARD_TICKET_BOARD_STEPS.map(step => <StepChip key={step}>{step}</StepChip>)}
+                  {BOARD_STEP_KEYS.map(step => <StepChip key={step}>{t(`boardStep.${step}`)}</StepChip>)}
                 </div>
               </div>
 
               <div className="mt-4 grid gap-4 md:grid-cols-[1fr_160px]">
                 <div className="space-y-1.5">
-                  <Label>Priority</Label>
+                  <Label>{t('priority')}</Label>
                   <Input type="number" min={0} max={9999} value={priority} onChange={event => setPriority(Number(event.target.value))} />
                 </div>
                 <label className="flex items-center gap-2 pt-7 text-sm font-medium text-foreground">
                   <input type="checkbox" checked={isActive} onChange={event => setIsActive(event.target.checked)} />
-                  เปิดใช้งาน
+                  {t('active')}
                 </label>
               </div>
             </div>
@@ -377,7 +372,7 @@ function GuidanceEditor({
             <div className="rounded-2xl border border-border bg-muted/30 p-5">
               <div className="mb-4 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold">ตัวเลือก Suggest</h3>
+                <h3 className="text-sm font-semibold">{t('previewSuggestions')}</h3>
               </div>
               <SuggestionEditor
                 rows={suggestions}
@@ -390,23 +385,26 @@ function GuidanceEditor({
             <div className="rounded-2xl border border-border bg-background p-5">
               <div className="mb-4 flex items-center gap-2">
                 <ClipboardList className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold">Template สำหรับกรอกเรื่อง</h3>
+                <h3 className="text-sm font-semibold">{t('templateHeading')}</h3>
               </div>
               <div className="mb-4 rounded-xl border border-border bg-muted/40 p-4">
-                <p className="text-sm font-semibold text-foreground">Template helper</p>
+                <p className="text-sm font-semibold text-foreground">{t('templateHelper')}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {TEMPLATE_FIELD_LIBRARY.map(field => (
-                    <Button
-                      key={field.value}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full"
-                      onClick={() => setTemplate(current => appendTemplateLine(current, field.value))}
-                    >
-                      <Plus className="h-3.5 w-3.5" /> {field.label}
-                    </Button>
-                  ))}
+                  {TEMPLATE_FIELD_KEYS.map(key => {
+                    const label = t(`internalField.${key}`)
+                    return (
+                      <Button
+                        key={key}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full"
+                        onClick={() => setTemplate(current => appendTemplateLine(current, `${label}:`))}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> {label}
+                      </Button>
+                    )
+                  })}
                 </div>
               </div>
               <Textarea value={template} onChange={event => setTemplate(event.target.value)} rows={10} />
@@ -417,29 +415,29 @@ function GuidanceEditor({
             <div className="rounded-2xl border border-primary/30 bg-primary/5 p-5">
               <div className="flex items-center gap-2">
                 <Wand2 className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold text-foreground">Preview ฝั่งผู้ใช้</h3>
+                <h3 className="text-sm font-semibold text-foreground">{t('previewUserHeading')}</h3>
               </div>
               <div className="mt-4 space-y-4">
                 <div className="rounded-xl border border-border bg-background p-4">
-                  <p className="text-xs text-muted-foreground">หัวข้อที่ผูกอยู่</p>
-                  <p className="mt-1 text-sm font-semibold">{name.trim() || 'ยังไม่ได้ตั้งชื่อ config'}</p>
+                  <p className="text-xs text-muted-foreground">{t('previewSubject')}</p>
+                  <p className="mt-1 text-sm font-semibold">{name.trim() || t('previewUnnamedConfig')}</p>
                   <div className="mt-3">
                     <ScopePills categoryLabel={selectedCategoryLabel} topicLabel={selectedTopicLabel} subjectLabel={selectedSubjectLabel} />
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-border bg-background p-4">
-                  <p className="text-xs text-muted-foreground">Workflow ที่ระบบจะใช้</p>
-                  <p className="mt-1 text-sm font-semibold">Standard Ticket Board</p>
+                  <p className="text-xs text-muted-foreground">{t('workflowUsed')}</p>
+                  <p className="mt-1 text-sm font-semibold">{t('standardBoardName')}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {STANDARD_TICKET_BOARD_STEPS.map(step => <StepChip key={step}>{step}</StepChip>)}
+                    {BOARD_STEP_KEYS.map(step => <StepChip key={step}>{t(`boardStep.${step}`)}</StepChip>)}
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-border bg-background p-4">
-                  <p className="text-xs text-muted-foreground">ตัวเลือก Suggest</p>
+                  <p className="text-xs text-muted-foreground">{t('previewSuggestions')}</p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {previewSuggestions.length === 0 && <p className="text-sm text-muted-foreground">ยังไม่มีตัวเลือก</p>}
+                    {previewSuggestions.length === 0 && <p className="text-sm text-muted-foreground">{t('previewNoSuggestions')}</p>}
                     {previewSuggestions.map(item => (
                       <span key={`${item.label}-${item.value}`} className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
                         {item.label}
@@ -449,21 +447,25 @@ function GuidanceEditor({
                 </div>
 
                 <div className="rounded-xl border border-border bg-background p-4">
-                  <p className="text-xs text-muted-foreground">Template ที่ผู้ใช้จะเห็น</p>
-                  <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-6 text-foreground">{renderedTemplatePreview.trim() || 'ยังไม่ได้กำหนด template'}</pre>
+                  <p className="text-xs text-muted-foreground">{t('previewTemplateUser')}</p>
+                  <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-6 text-foreground">{renderedTemplatePreview.trim() || t('previewNoTemplate')}</pre>
                 </div>
 
                 <div className="rounded-xl border border-border bg-background p-4">
-                  <p className="text-xs text-muted-foreground">ความครบของ config</p>
+                  <p className="text-xs text-muted-foreground">{t('configCompleteness')}</p>
                   <div className="mt-3 grid gap-2">
                     <div className="rounded-lg bg-muted/60 px-3 py-2 text-sm text-foreground">
-                      Suggest {previewSuggestions.length > 0 ? `พร้อม ${previewSuggestions.length} ตัวเลือก` : 'ยังไม่มีตัวเลือก'}
+                      {previewSuggestions.length > 0
+                        ? t('suggestReady', { count: previewSuggestions.length })
+                        : t('suggestEmpty')}
                     </div>
                     <div className="rounded-lg bg-muted/60 px-3 py-2 text-sm text-foreground">
-                      Template {template.trim() ? `พร้อม ${template.trim().split('\n').filter(Boolean).length} บรรทัด` : 'ยังไม่ถูกกำหนด'}
+                      {template.trim()
+                        ? t('templateReady', { count: template.trim().split('\n').filter(Boolean).length })
+                        : t('templateEmpty')}
                     </div>
                     <div className="rounded-lg bg-muted/60 px-3 py-2 text-sm text-foreground">
-                      Workflow ใช้มาตรฐานของระบบ
+                      {t('workflowStandard')}
                     </div>
                   </div>
                 </div>
@@ -475,8 +477,8 @@ function GuidanceEditor({
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-          <Button type="submit" loading={saving}>บันทึก Config</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{tCommon('action.cancel')}</Button>
+          <Button type="submit" loading={saving}>{t('saveConfig')}</Button>
         </div>
       </form>
     </Modal>
@@ -496,9 +498,11 @@ function GuidanceCard({
   subjectNameById: Record<string, string>
   onEdit: () => void
 }) {
-  const scopeCategory = item.categoryId ? categoryNameById[item.categoryId] : 'ทุกหมวด'
-  const scopeTopic = item.topicId ? topicNameById[item.topicId] : 'ทุกหมวดย่อย'
-  const scopeSubject = item.subjectId ? subjectNameById[item.subjectId] : 'ทุกหัวข้อ'
+  const t = useTranslations('admin.settings.template')
+  const tTaxonomy = useTranslations('admin.settings.taxonomy')
+  const scopeCategory = item.categoryId ? categoryNameById[item.categoryId] : t('allCategories')
+  const scopeTopic = item.topicId ? topicNameById[item.topicId] : t('allTopics')
+  const scopeSubject = item.subjectId ? subjectNameById[item.subjectId] : t('allSubjects')
   const templateLines = item.template.split('\n').map(line => line.trim()).filter(Boolean).length
 
   return (
@@ -507,11 +511,11 @@ function GuidanceCard({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate text-base font-semibold text-foreground">{item.name}</p>
-            {!item.isActive && <Badge variant="secondary">ปิดใช้งาน</Badge>}
+            {!item.isActive && <Badge variant="secondary">{tTaxonomy('inactiveBadge')}</Badge>}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">Workflow: Standard Ticket Board</p>
+          <p className="mt-1 text-xs text-muted-foreground">{t('cardWorkflow')}</p>
         </div>
-        <Button size="icon" variant="ghost" onClick={onEdit} title="แก้ไข Config">
+        <Button size="icon" variant="ghost" onClick={onEdit} title={t('editConfig')}>
           <Pencil className="h-4 w-4" />
         </Button>
       </div>
@@ -527,12 +531,14 @@ function GuidanceCard({
               {suggestion.label}
             </span>
           ))}
-          {item.suggestions.length > 4 && <Badge variant="outline">+{item.suggestions.length - 4} เพิ่มเติม</Badge>}
+          {item.suggestions.length > 4 && (
+            <Badge variant="outline">{t('moreSuggestions', { count: item.suggestions.length - 4 })}</Badge>
+          )}
         </div>
       )}
 
       <p className="mt-4 border-t border-border pt-3 text-xs text-muted-foreground">
-        {item.suggestions.length} suggest · {templateLines} template lines · workflow มาตรฐาน
+        {t('cardSummaryInternal', { suggestions: item.suggestions.length, lines: templateLines })}
       </p>
     </div>
   )
@@ -551,14 +557,19 @@ export function WorkflowGuidancePanel({
   topics: TicketTopicDto[]
   subjects: TicketSubjectDto[]
 }) {
+  const t = useTranslations('admin.settings.template')
+  const locale = useLocale() as Locale
   const { data: guidances = [], isLoading: guidancesLoading } = useTicketGuidanceConfigs(companyId, departmentId)
   const createGuidance = useCreateTicketGuidanceConfig()
   const updateGuidance = useUpdateTicketGuidanceConfig()
   const [guidanceEditor, setGuidanceEditor] = useState<GuidanceEditorState | null>(null)
 
-  const categoryNameById = useMemo(() => Object.fromEntries(categories.map(item => [item.id, item.name])), [categories])
-  const topicNameById = useMemo(() => Object.fromEntries(topics.map(item => [item.id, item.name])), [topics])
-  const subjectNameById = useMemo(() => Object.fromEntries(subjects.map(item => [item.id, item.name])), [subjects])
+  const categoryNameById = useMemo(
+    () => Object.fromEntries(categories.map(item => [item.id, localizedName(item, locale)])), [categories, locale])
+  const topicNameById = useMemo(
+    () => Object.fromEntries(topics.map(item => [item.id, localizedName(item, locale)])), [topics, locale])
+  const subjectNameById = useMemo(
+    () => Object.fromEntries(subjects.map(item => [item.id, localizedName(item, locale)])), [subjects, locale])
 
   const activeCount = guidances.filter(item => item.isActive).length
 
@@ -580,7 +591,7 @@ export function WorkflowGuidancePanel({
     } else {
       await createGuidance.mutateAsync({ companyId, departmentId, ...payload })
     }
-    toast.success('บันทึก suggest/template สำเร็จ')
+    toast.success(t('saved'))
   }
 
   return (
@@ -588,21 +599,19 @@ export function WorkflowGuidancePanel({
       <section className="rounded-2xl border border-border bg-muted/40 p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Template Studio</p>
-            <h2 className="mt-2 text-2xl font-semibold text-foreground">จัดการ Suggest และ Template ของ Ticket</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              กำหนดสิ่งที่ผู้ใช้ควรเลือกและควรกรอก แยกตามหมวด หมวดย่อย และหัวข้อ โดย workflow การทำงานใช้ Standard Ticket Board ของระบบ
-            </p>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">{t('studioLabel')}</p>
+            <h2 className="mt-2 text-2xl font-semibold text-foreground">{t('internalHeading')}</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('internalSubtitle')}</p>
           </div>
           <Button size="lg" disabled={!companyId || !departmentId} onClick={() => setGuidanceEditor({})}>
-            <Sparkles className="h-4 w-4" /> สร้าง Suggest / Template
+            <Sparkles className="h-4 w-4" /> {t('create')}
           </Button>
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:max-w-md">
           {[
-            ['Config ทั้งหมด', guidances.length.toString()],
-            ['เปิดใช้งาน', activeCount.toString()],
+            [t('statTotalConfigs'), guidances.length.toString()],
+            [t('statActive'), activeCount.toString()],
           ].map(([label, value]) => (
             <div key={label} className="rounded-xl border border-border bg-background px-4 py-3">
               <p className="text-xs text-muted-foreground">{label}</p>
@@ -615,21 +624,21 @@ export function WorkflowGuidancePanel({
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold text-foreground">Suggest และ Template</h3>
-            <p className="text-sm text-muted-foreground">จัดการข้อความแนะนำและ template ของการเปิด ticket</p>
+            <h3 className="text-lg font-semibold text-foreground">{t('listHeading')}</h3>
+            <p className="text-sm text-muted-foreground">{t('internalListSubtitle')}</p>
           </div>
-          <Badge variant="outline">{guidances.length} config</Badge>
+          <Badge variant="outline">{t('configCount', { count: guidances.length })}</Badge>
         </div>
 
         {guidancesLoading ? (
           <div className="rounded-2xl border border-border bg-background px-5 py-12 text-center text-sm text-muted-foreground">
-            กำลังโหลด suggest/template...
+            {t('loadingConfigs')}
           </div>
         ) : guidances.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-muted/30 px-5 py-12 text-center">
             <Wand2 className="mx-auto h-8 w-8 text-muted-foreground/60" />
-            <p className="mt-3 text-sm font-medium text-foreground">ยังไม่มี config ของ suggest/template</p>
-            <p className="mt-1 text-sm text-muted-foreground">สร้าง config แรกเพื่อช่วยให้ผู้ใช้กรอกเรื่องได้ครบและเร็วขึ้น</p>
+            <p className="mt-3 text-sm font-medium text-foreground">{t('noConfigsTitle')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('noConfigsHint')}</p>
           </div>
         ) : (
           <div className="grid gap-4 xl:grid-cols-2">

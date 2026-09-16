@@ -1,3 +1,3 @@
 namespace Hrms.Application.Features.Tickets.Dtos;
 
-public record TicketLookupDepartmentDto(Guid Id, Guid CompanyId, string Name);
+public record TicketLookupDepartmentDto(Guid Id, Guid CompanyId, string Name, string? NameEn = null, string? NameId = null);

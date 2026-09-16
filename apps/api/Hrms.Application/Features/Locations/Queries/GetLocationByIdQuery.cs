@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Locations.Dtos;
 using MediatR;
@@ -17,7 +18,7 @@ public class GetLocationByIdHandler(IApplicationDbContext db)
             .Include(x => x.District)
             .Include(x => x.SubDistrict)
             .FirstOrDefaultAsync(x => x.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูล Location");
+            ?? throw new NotFoundException("Location", request.Id, "LOCATION_NOT_FOUND");
 
         return new LocationDto(
             l.Id,
@@ -33,6 +34,8 @@ public class GetLocationByIdHandler(IApplicationDbContext db)
             l.District?.DistrictName,
             l.SubDistrictId,
             l.SubDistrict?.SubDistrictName,
-            l.IsActive);
+            l.IsActive,
+            NameEn: l.NameEn,
+            NameId: l.NameId);
     }
 }

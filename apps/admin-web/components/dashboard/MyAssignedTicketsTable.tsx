@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { Wrench } from 'lucide-react'
 import type { TicketPriority, TicketStatus } from '@hrms/shared-types'
 import { useAssignedTickets } from '@/hooks/use-tickets'
-import { TICKET_STATUS_LABEL } from '@/lib/ticket-status'
+import * as fmt from '@hrms/i18n/format'
 
 // สถานะที่ถือว่า "ยังค้างอยู่ในมือ" ของผู้รับงาน
 const PENDING_STATUSES: TicketStatus[] = ['Assigned', 'InProgress', 'WaitingInfo', 'Resolved']
@@ -17,10 +18,6 @@ const STATUS_TONE: Partial<Record<TicketStatus, string>> = {
   Resolved: 'bg-teal-100 text-teal-700 dark:bg-teal-500/15 dark:text-teal-300',
 }
 
-const PRIORITY_LABEL: Record<TicketPriority, string> = {
-  Low: 'ปกติ', Medium: 'กลาง', High: 'ด่วน', Critical: 'ด่วนมาก',
-}
-
 const PRIORITY_TONE: Record<TicketPriority, string> = {
   Low: 'text-muted-foreground',
   Medium: 'text-muted-foreground',
@@ -29,11 +26,15 @@ const PRIORITY_TONE: Record<TicketPriority, string> = {
 }
 
 function thaiDate(value: string) {
-  return new Date(value).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })
+  return fmt.formatDate(new Date(value), { day: 'numeric', month: 'short' })
 }
 
 // ตารางงานที่ได้รับมอบหมายที่ยังค้างอยู่ — ให้พนักงานเห็นว่ามีงานอะไรรอทำ/รอปิดบ้าง
 export function MyAssignedTicketsTable() {
+  const t = useTranslations('admin.dashboard.assignedTickets')
+  const tCommon = useTranslations('common')
+  const tStatus = useTranslations('status.ticket')
+  const tPriority = useTranslations('status.ticketPriority')
   const { data, isLoading, isError } = useAssignedTickets({ pageSize: 50 })
   // 403 (ไม่มีสิทธิ์ ticket:view-assigned) — ซ่อนทั้งการ์ด
   if (isError) return null
@@ -51,13 +52,15 @@ export function MyAssignedTicketsTable() {
           <span className="inline-flex rounded-xl bg-violet-100 p-2 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400">
             <Wrench className="h-4 w-4" />
           </span>
-          <p className="text-sm font-semibold">งานที่ได้รับมอบหมาย</p>
+          <p className="text-sm font-semibold">{t('title')}</p>
           <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-bold text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
-            ค้าง {workingCount}{waitingReviewCount > 0 ? ` · รอตรวจรับ ${waitingReviewCount}` : ''}
+            {waitingReviewCount > 0
+              ? t('summaryWithReview', { working: workingCount, review: waitingReviewCount })
+              : t('summary', { working: workingCount })}
           </span>
         </div>
         <Link href="/tickets/assigned" className="text-xs font-medium text-violet-600 hover:underline dark:text-violet-400">
-          ดูทั้งหมด
+          {tCommon('action.viewAll')}
         </Link>
       </div>
 
@@ -71,10 +74,10 @@ export function MyAssignedTicketsTable() {
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="px-4 py-2 font-medium">Ticket</th>
-                <th className="py-2 pr-3 font-medium">เรื่อง</th>
-                <th className="py-2 pr-3 font-medium">สถานะ</th>
-                <th className="py-2 pr-3 font-medium">ความเร่งด่วน</th>
-                <th className="py-2 pr-4 text-right font-medium">อัปเดตล่าสุด</th>
+                <th className="py-2 pr-3 font-medium">{t('colSubject')}</th>
+                <th className="py-2 pr-3 font-medium">{t('colStatus')}</th>
+                <th className="py-2 pr-3 font-medium">{t('colPriority')}</th>
+                <th className="py-2 pr-4 text-right font-medium">{t('colUpdatedAt')}</th>
               </tr>
             </thead>
             <tbody>
@@ -88,11 +91,11 @@ export function MyAssignedTicketsTable() {
                   <td className="max-w-60 truncate py-2.5 pr-3">{item.title}</td>
                   <td className="py-2.5 pr-3 whitespace-nowrap">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_TONE[item.status] ?? 'bg-muted text-muted-foreground'}`}>
-                      {TICKET_STATUS_LABEL[item.status]}
+                      {tStatus(item.status)}
                     </span>
                   </td>
                   <td className={`py-2.5 pr-3 text-xs whitespace-nowrap ${PRIORITY_TONE[item.priority]}`}>
-                    {PRIORITY_LABEL[item.priority]}
+                    {tPriority(item.priority)}
                   </td>
                   <td className="py-2.5 pr-4 text-right text-xs text-muted-foreground whitespace-nowrap tabular-nums">
                     {thaiDate(item.updatedAt)}
@@ -103,7 +106,7 @@ export function MyAssignedTicketsTable() {
           </table>
           {pending.length > MAX_ROWS && (
             <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
-              และอีก {pending.length - MAX_ROWS} งาน — ดูทั้งหมดที่หน้ากล่องงาน
+              {t('more', { count: pending.length - MAX_ROWS })}
             </p>
           )}
         </div>

@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.Memos.Commands;
 
-public record CreateMemoSubCategoryCommand(Guid MemoCategoryId, string Name) : IRequest<MemoSubCategoryDto>;
+public record CreateMemoSubCategoryCommand(Guid MemoCategoryId, string Name, string? NameEn = null, string? NameId = null) : IRequest<MemoSubCategoryDto>;
 
 public class CreateMemoSubCategoryValidator : AbstractValidator<CreateMemoSubCategoryCommand>
 {
@@ -16,6 +16,8 @@ public class CreateMemoSubCategoryValidator : AbstractValidator<CreateMemoSubCat
     {
         RuleFor(x => x.MemoCategoryId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.NameEn).MaximumLength(200).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(200).When(x => x.NameId is not null);
     }
 }
 
@@ -25,21 +27,23 @@ public class CreateMemoSubCategoryHandler(IApplicationDbContext db, IAuditLogSer
     public async Task<MemoSubCategoryDto> Handle(CreateMemoSubCategoryCommand request, CancellationToken ct)
     {
         var category = await db.MemoCategories.FirstOrDefaultAsync(x => x.Id == request.MemoCategoryId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบหมวดหมู่");
+            ?? throw new NotFoundException("MemoCategory", request.MemoCategoryId, "MEMO_CATEGORY_NOT_FOUND");
 
         if (!category.IsActive)
-            throw new ConflictException("MEMO_CATEGORY_INACTIVE", "หมวดหมู่นี้ถูกปิดใช้งานแล้ว ไม่สามารถเพิ่มหัวข้อย่อยได้");
+            throw new ConflictException("MEMO_CATEGORY_INACTIVE", "This category is inactive.");
 
         var name = request.Name.Trim();
 
         if (await db.MemoSubCategories.AnyAsync(x =>
                 x.MemoCategoryId == request.MemoCategoryId && x.Name == name && x.IsActive, ct))
-            throw new ConflictException("DUPLICATE_NAME", $"หัวข้อย่อย '{name}' มีอยู่แล้วในหมวดหมู่นี้");
+            throw new ConflictException("DUPLICATE_MEMO_SUB_CATEGORY", $"Sub-category '{name}' already exists in this category.");
 
         var subCategory = new MemoSubCategory
         {
             MemoCategoryId = request.MemoCategoryId,
             Name = name,
+            NameEn = Common.Helpers.NameText.Normalize(request.NameEn),
+            NameId = Common.Helpers.NameText.Normalize(request.NameId),
             IsActive = true,
         };
 
@@ -56,6 +60,6 @@ public class CreateMemoSubCategoryHandler(IApplicationDbContext db, IAuditLogSer
             newValues:   new { subCategory.MemoCategoryId, subCategory.Name },
             ct:          ct);
 
-        return new MemoSubCategoryDto(subCategory.Id, subCategory.MemoCategoryId, subCategory.Name, subCategory.IsActive);
+        return new MemoSubCategoryDto(subCategory.Id, subCategory.MemoCategoryId, subCategory.Name, subCategory.IsActive, subCategory.NameEn, subCategory.NameId);
     }
 }

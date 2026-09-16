@@ -17,6 +17,17 @@
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --radius: 0.5rem;
+
+  /*
+   * โทนสีช่องทางผู้แจ้งภายนอก (/external) — แยกจาก token หลักเพราะเป็นแบรนด์คนละชุด
+   * brand ใช้เป็นพื้น (header/ปุ่ม) · brand-text ใช้กับตัวอักษร/ไอคอนบนพื้นอ่อนหรือเข้ม
+   */
+  --external-brand: #0f8f72;
+  --external-brand-text: #0f8f72;
+  --external-canvas: #eef7f3;
+  --external-surface: #ffffff;
+  --external-line: #e2e8f0;
+  --external-muted: #64748b;
 }
 
 @theme inline {
@@ -28,6 +39,12 @@
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-destructive: var(--destructive);
+  --color-external-brand: var(--external-brand);
+  --color-external-brand-text: var(--external-brand-text);
+  --color-external-canvas: var(--external-canvas);
+  --color-external-surface: var(--external-surface);
+  --color-external-line: var(--external-line);
+  --color-external-muted: var(--external-muted);
   --font-sans: var(--font-noto-sans-thai);
 }
 
@@ -38,6 +55,14 @@
   --muted-foreground: #a3a3a3;
   --border: #262626;
   color-scheme: dark;
+
+  /* โหมดมืดของ external: พื้นเป็นเขียวอมดำให้ยังรู้สึกเป็นช่องทางเดียวกัน ไม่ใช่ดำล้วนแบบฝั่งพนักงาน */
+  --external-brand: #0f8f72;
+  --external-brand-text: #3fcaa7;
+  --external-canvas: #0d1512;
+  --external-surface: #151f1c;
+  --external-line: #253430;
+  --external-muted: #9bada7;
 }
 
 body {

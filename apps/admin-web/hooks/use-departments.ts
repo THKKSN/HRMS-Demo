@@ -33,6 +33,8 @@ export function useUpdateDepartment() {
     }: {
       id: string
       name: string
+      nameEn?: string
+      nameId?: string
       deptType?: string
       managerEmployeeId?: string
       shiftId?: string | null

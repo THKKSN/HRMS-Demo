@@ -1,5 +1,6 @@
 using Hrms.Application.Common.Helpers;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Common.Localization;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -11,7 +12,8 @@ public record HandleLineAttendancePromptCommand(string LineUserId, string ReplyT
 public class HandleLineAttendancePromptHandler(
     IApplicationDbContext db,
     ILineMessagingService line,
-    IDistributedCache cache)
+    IDistributedCache cache,
+    ILineMessageTextFactory messageText)
     : IRequestHandler<HandleLineAttendancePromptCommand, Unit>
 {
     public async Task<Unit> Handle(HandleLineAttendancePromptCommand request, CancellationToken ct)
@@ -19,10 +21,11 @@ public class HandleLineAttendancePromptHandler(
         var employee = await db.Employees
             .FirstOrDefaultAsync(e => e.LineUserId == request.LineUserId && e.IsActive, ct);
 
+        var text = messageText.For(employee?.PreferredLanguage);
+
         if (employee is null)
         {
-            await line.ReplyAsync(request.ReplyToken,
-                "ยังไม่ได้ผูกบัญชี LINE กรุณากด 'เข้าสู่ระบบ' ก่อนใช้งาน", ct);
+            await line.ReplyAsync(request.ReplyToken, text.Of("webhook.accountNotLinkedLogin"), ct);
             return Unit.Value;
         }
 
@@ -39,25 +42,28 @@ public class HandleLineAttendancePromptHandler(
         if (record?.CheckInTime == null)
         {
             await cache.SetStringAsync(cacheKey, "checkin", opts, ct);
-            var card = LineFlexBuilder.BuildAttendancePromptCard(employeeName, isCheckIn: true);
-            await line.ReplyFlexWithLocationRequestAsync(request.ReplyToken, "เช็คอินเริ่มงาน", card, ct);
+            var card = LineFlexBuilder.BuildAttendancePromptCard(text, employeeName, isCheckIn: true);
+            await line.ReplyFlexWithLocationRequestAsync(
+                request.ReplyToken, text.Of("attendance.checkIn.title"), card, text, ct);
         }
         else if (record.CheckOutTime == null)
         {
             var checkInStr = record.CheckInTime.Value.ToString("HH:mm");
             await cache.SetStringAsync(cacheKey, "checkout", opts, ct);
-            var card = LineFlexBuilder.BuildAttendancePromptCard(employeeName, isCheckIn: false, checkInTime: checkInStr);
-            await line.ReplyFlexWithLocationRequestAsync(request.ReplyToken, "เช็คเอาต์ออกงาน", card, ct);
+            var card = LineFlexBuilder.BuildAttendancePromptCard(text, employeeName, isCheckIn: false, checkInTime: checkInStr);
+            await line.ReplyFlexWithLocationRequestAsync(
+                request.ReplyToken, text.Of("attendance.checkOut.title"), card, text, ct);
         }
         else
         {
             var card = LineFlexBuilder.BuildAttendanceTodayCard(
+                text,
                 $"{employee.FirstName} {employee.LastName}",
                 today.ToString("dd/MM/yyyy"),
                 record.CheckInTime?.ToString("HH:mm"),
                 record.CheckOutTime?.ToString("HH:mm"),
                 record.Status.ToString());
-            await line.ReplyFlexMessageAsync(request.ReplyToken, "สรุปการเข้างานวันนี้", card, ct);
+            await line.ReplyFlexMessageAsync(request.ReplyToken, text.Of("attendance.today.title"), card, ct);
         }
 
         return Unit.Value;

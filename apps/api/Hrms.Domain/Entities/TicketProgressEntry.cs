@@ -15,10 +15,14 @@ public class TicketProgressEntry : BaseEntity
     public DateTime? DueAt { get; set; }
     public Guid? CreatedByEmployeeId { get; set; }
     public Guid? CreatedByExternalReporterId { get; set; }
+    /// <summary>เวลาที่ปักหมุดการ์ด (UTC+7) — null = ไม่ได้ปัก ใช้เรียงการ์ดที่ปักไว้ขึ้นบนสุดของบอร์ด</summary>
+    public DateTime? PinnedAt { get; set; }
+    public Guid? PinnedByEmployeeId { get; set; }
 
     public Ticket Ticket { get; set; } = null!;
     public Employee? OwnerEmployee { get; set; }
     public Employee? CreatedByEmployee { get; set; }
+    public Employee? PinnedByEmployee { get; set; }
     public ExternalReporter? CreatedByExternalReporter { get; set; }
     public ICollection<TicketAttachment> Attachments { get; set; } = new List<TicketAttachment>();
 }

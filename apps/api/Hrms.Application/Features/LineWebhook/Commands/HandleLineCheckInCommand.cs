@@ -17,7 +17,8 @@ public class HandleLineCheckInHandler(
     IApplicationDbContext db,
     ILineMessagingService line,
     IGeofenceService geofence,
-    IShiftResolver shiftResolver)
+    IShiftResolver shiftResolver,
+    ILineMessageTextFactory messageText)
     : IRequestHandler<HandleLineCheckInCommand, Unit>
 {
     public async Task<Unit> Handle(HandleLineCheckInCommand request, CancellationToken ct)
@@ -25,10 +26,12 @@ public class HandleLineCheckInHandler(
         var employee = await db.Employees
             .FirstOrDefaultAsync(e => e.LineUserId == request.LineUserId && e.IsActive, ct);
 
+        // ยังไม่รู้จักคนนี้ในระบบ — ไม่มีภาษาที่จำไว้ ตอบเป็นภาษาตั้งต้น
+        var text = messageText.For(employee?.PreferredLanguage);
+
         if (employee is null)
         {
-            await line.ReplyAsync(request.ReplyToken,
-                "ไม่พบข้อมูลผู้ใช้ กรุณาผูกบัญชีก่อนใช้งาน", ct);
+            await line.ReplyAsync(request.ReplyToken, text.Of("webhook.accountNotLinked"), ct);
             return Unit.Value;
         }
 
@@ -41,7 +44,7 @@ public class HandleLineCheckInHandler(
         if (existing?.CheckInTime != null)
         {
             await line.ReplyAsync(request.ReplyToken,
-                $"คุณเช็คอินวันนี้ไปแล้ว เวลา {existing.CheckInTime.Value.ToString("HH:mm")} น.", ct);
+                text.Of("webhook.alreadyCheckedIn", new { time = existing.CheckInTime.Value.ToString("HH:mm") }), ct);
             return Unit.Value;
         }
 
@@ -57,8 +60,7 @@ public class HandleLineCheckInHandler(
 
         if (matchedLocation is null)
         {
-            await line.ReplyAsync(request.ReplyToken,
-                "ตำแหน่งปัจจุบันอยู่นอกพื้นที่ที่กำหนด กรุณาเช็คอินในบริเวณสำนักงาน 📍", ct);
+            await line.ReplyAsync(request.ReplyToken, text.Of("webhook.outsideGeofenceCheckIn"), ct);
             return Unit.Value;
         }
 
@@ -82,10 +84,11 @@ public class HandleLineCheckInHandler(
         await db.SaveChangesAsync(ct);
 
         var card = LineFlexBuilder.BuildCheckInResultCard(
+            text,
             $"{employee.FirstName} {employee.LastName}",
             now, matchedLocation.Name, isLate, lateMinutes);
 
-        await line.ReplyFlexMessageAsync(request.ReplyToken, "เช็คอินสำเร็จ", card, ct);
+        await line.ReplyFlexMessageAsync(request.ReplyToken, text.Of("attendance.checkIn.done"), card, ct);
         return Unit.Value;
     }
 }

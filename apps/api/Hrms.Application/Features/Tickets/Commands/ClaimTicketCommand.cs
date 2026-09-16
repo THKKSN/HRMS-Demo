@@ -31,10 +31,10 @@ public class ClaimTicketHandler(
             .Include(t => t.ExternalReporter)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary))
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
 
         if (ticket.Status != TicketStatus.Open || ticket.Assignments.Count != 0)
-            throw new ConflictException("TICKET_ALREADY_CLAIMED", "ใบแจ้งเรื่องนี้มีผู้รับผิดชอบแล้ว");
+            throw new ConflictException("TICKET_ALREADY_CLAIMED", "This ticket already has an assignee.");
 
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
@@ -48,7 +48,7 @@ public class ClaimTicketHandler(
                 r.Employee.DepartmentId == ticket.TargetDepartmentId)
             .OrderByDescending(r => r.TopicId.HasValue)
             .FirstOrDefaultAsync(ct)
-            ?? throw new AppForbiddenException("คุณไม่ได้อยู่ใน routing ของหมวดหรือหัวข้อนี้");
+            ?? throw new AppForbiddenException("TICKET_NOT_IN_ROUTING", "You are not in the routing for this category or topic.");
 
         var employee = await db.Employees.FirstAsync(e => e.Id == employeeId, ct);
         var now = DateTime.UtcNow.AddHours(7);
@@ -63,6 +63,7 @@ public class ClaimTicketHandler(
             AssignedAt = now,
             IsPrimary = true,
             IsActive = true,
+            MemberRole = TicketAssignmentRole.Owner,
             ActiveSlot = "Primary",
             Note = "Employee accepted from routing queue",
             AssignmentSource = TicketAssignmentSource.SelfClaim,
@@ -85,7 +86,8 @@ public class ClaimTicketHandler(
         var employeeName = TicketCommandSupport.FullName(employee);
         TicketCommandSupport.QueueNotification(
             db, "TicketClaimed", assignment.Id, TicketCommandSupport.Requester(ticket),
-            $"ใบแจ้งเรื่อง {ticket.TicketNo} มีผู้รับผิดชอบแล้ว\nผู้รับผิดชอบ: {employeeName}",
+            "ticket.claimed.toRequester",
+            new { ticketNo = ticket.TicketNo, owner = employeeName },
             ticket);
 
         try
@@ -95,7 +97,7 @@ public class ClaimTicketHandler(
         catch (DbUpdateException)
         {
             throw new ConflictException(
-                "TICKET_ALREADY_CLAIMED", "ใบแจ้งเรื่องนี้มีผู้รับผิดชอบแล้ว กรุณาโหลดรายการใหม่");
+                "TICKET_ALREADY_CLAIMED", "This ticket already has an assignee. Reload the list.");
         }
 
         await auditLog.LogAsync(

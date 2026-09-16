@@ -1,0 +1,86 @@
+{
+  "list": {
+    "title": "คำขอ OT",
+    "request": "ขอ OT",
+    "mine": "ของฉัน",
+    "team": "ของทีม",
+    "tabs": {
+      "all": "ทั้งหมด",
+      "pending": "รออนุมัติ",
+      "pendingHr": "รอ HR",
+      "approved": "อนุมัติแล้ว",
+      "rejected": "ถูกปฏิเสธ",
+      "done": "เสร็จสิ้น"
+    },
+    "empty": "ยังไม่มีคำขอ OT",
+    "requestNow": "ขอ OT เลย"
+  },
+  "rate": {
+    "short": {
+      "Weekday": "1.5×",
+      "Weekend": "2×",
+      "Holiday": "3×"
+    }
+  },
+  "new": {
+    "title": "ขอทำงานล่วงเวลา (OT)",
+    "subtitle": "ระบุวันที่และช่วงเวลา OT",
+    "amount": "จำนวน",
+    "date": "วันที่ทำ OT",
+    "timeRange": "ช่วงเวลา OT",
+    "shiftEnds": "กะสิ้นสุด {time}",
+    "start": "เริ่ม",
+    "end": "สิ้นสุด",
+    "reason": "เหตุผล",
+    "reasonPlaceholder": "ระบุเหตุผลที่ต้องทำ OT...",
+    "submitting": "กำลังส่งคำขอ...",
+    "submit": "ยืนยันขอ OT",
+    "validation": {
+      "dateRequired": "กรุณาเลือกวันที่",
+      "startRequired": "กรุณาระบุเวลาเริ่มต้น",
+      "endRequired": "กรุณาระบุเวลาสิ้นสุด",
+      "timeOrder": "เวลาสิ้นสุดต้องหลังเวลาเริ่มต้น"
+    }
+  },
+  "detail": {
+    "title": "รายละเอียด OT",
+    "notFound": "ไม่พบคำขอ OT ที่ระบุ",
+    "timeline": {
+      "submitted": "ยื่นคำขอ",
+      "supervisorApproved": "หัวหน้าอนุมัติ",
+      "hrApproved": "HR อนุมัติ"
+    },
+    "status": "สถานะ",
+    "requester": "ผู้ขอ OT",
+    "date": "วันที่",
+    "timeRange": "ช่วงเวลา",
+    "timeRangeWithHours": "{range} ({hours})",
+    "type": "ประเภท OT",
+    "reason": "เหตุผล",
+    "supervisor": "หัวหน้าผู้อนุมัติ",
+    "supervisorComment": "ความเห็นหัวหน้า",
+    "approvedAt": "อนุมัติเมื่อ",
+    "hr": "HR ผู้อนุมัติ",
+    "hrComment": "ความเห็น HR",
+    "hrAcknowledgedAt": "HR บันทึกเมื่อ",
+    "submittedAt": "ยื่นเมื่อ",
+    "actions": "ดำเนินการ",
+    "commentPlaceholder": "ความเห็น (ถ้ามี)...",
+    "reject": "ปฏิเสธ",
+    "approve": "อนุมัติ",
+    "approving": "กำลังอนุมัติ...",
+    "confirmRejectTitle": "ยืนยันการปฏิเสธคำขอ OT?",
+    "confirmReject": "ยืนยันปฏิเสธ",
+    "cancelRequest": "ยกเลิกคำขอ OT",
+    "confirmCancelTitle": "ยืนยันการยกเลิกคำขอ OT?",
+    "irreversible": "การกระทำนี้ไม่สามารถย้อนกลับได้",
+    "keep": "ไม่ยกเลิก",
+    "cancelling": "กำลังยกเลิก...",
+    "confirmCancel": "ยืนยันยกเลิก",
+    "errors": {
+      "cancelFailed": "ยกเลิกไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+      "approveFailed": "อนุมัติไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+      "rejectFailed": "ปฏิเสธไม่สำเร็จ กรุณาลองใหม่อีกครั้ง"
+    }
+  }
+}

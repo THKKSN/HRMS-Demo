@@ -16,6 +16,8 @@ public class TicketSubjectConfiguration : IEntityTypeConfiguration<TicketSubject
         builder.Property(x => x.CategoryId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.TopicId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.NameEn).HasMaxLength(200);
+        builder.Property(x => x.NameId).HasMaxLength(200);
         builder.Property(x => x.Description).HasMaxLength(500);
         builder.Property(x => x.CreatedByEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.CreatedAt).HasColumnType("datetime");

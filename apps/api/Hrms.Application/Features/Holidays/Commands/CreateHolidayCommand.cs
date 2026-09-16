@@ -34,7 +34,7 @@ public class CreateHolidayHandler(IApplicationDbContext db, IScopeGuard scope, I
 
             var companyExists = await db.Companies.AnyAsync(c => c.Id == request.CompanyId.Value && c.IsActive, ct);
             if (!companyExists)
-                throw new KeyNotFoundException($"ไม่พบ Company Id '{request.CompanyId}'");
+                throw new NotFoundException("Company", request.CompanyId!, "COMPANY_NOT_FOUND");
         }
 
         var duplicate = await db.Holidays.AnyAsync(
@@ -42,7 +42,7 @@ public class CreateHolidayHandler(IApplicationDbContext db, IScopeGuard scope, I
               && h.CompanyId == request.CompanyId
               && h.IsActive, ct);
         if (duplicate)
-            throw new ConflictException("DUPLICATE_HOLIDAY", $"มีวันหยุดในวันที่ {request.Date:yyyy-MM-dd} ของ scope นี้อยู่แล้ว");
+            throw new ConflictException("DUPLICATE_HOLIDAY", $"A holiday on {request.Date:yyyy-MM-dd} already exists in this scope.");
 
         var holiday = new Holiday
         {

@@ -1,0 +1,153 @@
+{
+  "greeting": {
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening",
+    "withName": "{greeting}, {name}"
+  },
+  "loadFailed": "Could not load the dashboard. Please try again.",
+  "admin": {
+    "companies": "Companies",
+    "departments": "Departments",
+    "employees": "Total employees",
+    "activeEmployees": "Active employees"
+  },
+  "company": {
+    "overview": "Organisation overview",
+    "todayOverview": "Today at a glance",
+    "allCompanies": "All companies",
+    "yourCompany": "Your company",
+    "totalPeople": "{count} people in total",
+    "present": "Present",
+    "late": "Late",
+    "absent": "Absent",
+    "onLeave": "On leave"
+  },
+  "attendance": {
+    "todayTitle": "Today's attendance",
+    "notCheckedIn": "Not checked in yet",
+    "lateBy": "{minutes} minutes late",
+    "onTime": "On time",
+    "checkIn": "Check in",
+    "checkOut": "Check out",
+    "trendTitle": "Attendance trend, last 30 days",
+    "seriesPresent": "Present",
+    "seriesLate": "Late",
+    "seriesAbsent": "Absent",
+    "seriesOnLeave": "On leave"
+  },
+  "leaveBalance": {
+    "title": "Leave balance",
+    "ofTotalDays": "/ {total} days",
+    "pendingDays": "{days} days pending approval"
+  },
+  "monthStats": {
+    "title": "Statistics for {month}",
+    "presentDays": "Present",
+    "lateDays": "Late",
+    "absentDays": "Absent",
+    "leaveDays": "On leave"
+  },
+  "team": {
+    "overview": "Team overview",
+    "size": "Team members",
+    "pendingLeave": "Leave awaiting approval",
+    "lateToday": "Late today",
+    "absentToday": "Absent / on leave today"
+  },
+  "pendingApproval": {
+    "title": "Awaiting approval",
+    "empty": "Nothing awaiting approval",
+    "totalDays": "({days} days)",
+    "review": "Review"
+  },
+  "auditLog": {
+    "title": "Recent audit log",
+    "empty": "No data",
+    "unknownActor": "Unknown"
+  },
+  "pendingWork": {
+    "inboxUntriaged": "New tickets to triage",
+    "cancellationPending": "Cancellation requests to decide",
+    "assignedActive": "Tickets you are working on",
+    "assignedWaitingInfo": "Tickets waiting for information",
+    "claimable": "New tickets to claim",
+    "awaitingMyConfirmation": "Your tickets awaiting your sign-off",
+    "memoAwaitingApproval": "Memos awaiting approval",
+    "memoAwaitingAck": "Memos awaiting department acknowledgement"
+  },
+  "assignedTickets": {
+    "title": "Assigned to me",
+    "summary": "{working} open",
+    "summaryWithReview": "{working} open · {review} awaiting sign-off",
+    "colSubject": "Subject",
+    "colStatus": "Status",
+    "colPriority": "Priority",
+    "colUpdatedAt": "Last updated",
+    "more": "And {count} more — see them all in your ticket box"
+  },
+  "ticketOverview": {
+    "title": "Ticket overview",
+    "range": {
+      "today": "Today",
+      "7d": "7 days",
+      "30d": "30 days",
+      "custom": "Custom range",
+      "to": "to"
+    },
+    "channel": {
+      "all": "All",
+      "internal": "Internal",
+      "external": "External"
+    },
+    "allCompanies": "All companies",
+    "kpi": {
+      "open": "Newly opened",
+      "unassigned": "Unassigned",
+      "active": "In progress",
+      "waitingReview": "Awaiting sign-off",
+      "closed": "Closed",
+      "backlog": "Backlog"
+    },
+    "timeToAccept": "Average time to accept",
+    "totalLeadTime": "Average time to close",
+    "medianHint": "Median {median} · {count} tickets",
+    "channelSplitHint": "Newly opened / backlog",
+    "trendTitle": "Ticket volume · {range}",
+    "seriesOpened": "Opened",
+    "seriesClosed": "Closed",
+    "fullReport": "View full report →",
+    "topSubjects": "Most reported subjects",
+    "staff": "Staff",
+    "emptyRange": "No data for the selected range",
+    "staffCounts": "Accepted {assigned} · In progress {inProgress} · Closed {closed}",
+    "slowClosers": {
+      "title": "Average time to close per person (slowest first)",
+      "hint": "Only people who closed at least {min} tickets in the selected range",
+      "colEmployee": "Employee",
+      "colClosed": "Closed",
+      "colAverage": "Average",
+      "colMedian": "Median",
+      "colWorkingTime": "Average working time"
+    },
+    "dataCompleteFrom": "Duration data is reliable from {date}"
+  },
+  "memoOverview": {
+    "title": "Memo overview",
+    "scopeAll": "All companies",
+    "scopeDepartment": "Your department only",
+    "goToMemo": "Go to memos →",
+    "topSubjects": "Most requested memo subjects",
+    "totalCount": "{count} in total",
+    "empty": "No memo requests in the selected range",
+    "itemCounts": "Awaiting approval {pending} · In progress {inProgress} · Done {completed}",
+    "itemRejected": " · Rejected {rejected}",
+    "statusTitle": "Memo status",
+    "status": {
+      "pending": "Awaiting approval",
+      "inProgress": "In progress",
+      "completed": "Completed",
+      "rejected": "Rejected"
+    }
+  }
+}

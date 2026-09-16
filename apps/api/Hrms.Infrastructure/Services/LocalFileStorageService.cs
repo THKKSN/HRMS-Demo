@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -23,11 +24,11 @@ public class LocalFileStorageService(
         CancellationToken ct = default)
     {
         if (stream.Length > MaxFileSizeBytes)
-            throw new InvalidOperationException($"ไฟล์ต้องมีขนาดไม่เกิน 10 MB (ได้รับ {stream.Length / 1024 / 1024} MB)");
+            throw new BadRequestException("UPLOAD_FILE_TOO_LARGE", $"The file must be 10 MB or smaller (received {stream.Length / 1024 / 1024} MB).");
 
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         if (!AllowedExtensions.Contains(ext))
-            throw new InvalidOperationException($"ไม่รองรับไฟล์ประเภท {ext} — รองรับเฉพาะ {string.Join(", ", AllowedExtensions)}");
+            throw new BadRequestException("UPLOAD_FILE_TYPE_NOT_ALLOWED", $"File type {ext} is not supported. Allowed: {string.Join(", ", AllowedExtensions)}.");
 
         var now  = DateTime.UtcNow.AddHours(7);
         var guid = Guid.NewGuid().ToString("N")[..12];
@@ -75,7 +76,7 @@ public class LocalFileStorageService(
         CancellationToken ct = default)
     {
         if (stream.Length > MaxFileSizeBytes)
-            throw new InvalidOperationException("ไฟล์ต้องมีขนาดไม่เกิน 10 MB");
+            throw new BadRequestException("UPLOAD_FILE_TOO_LARGE", "The file must be 10 MB or smaller.");
 
         var signature = new byte[Math.Min(12, (int)stream.Length)];
         stream.Position = 0;
@@ -83,10 +84,10 @@ public class LocalFileStorageService(
         stream.Position = 0;
 
         var detected = DetectTicketFile(signature)
-            ?? throw new InvalidOperationException("ชนิดไฟล์ไม่ตรงกับเนื้อหา หรือไม่รองรับ");
+            ?? throw new BadRequestException("UPLOAD_CONTENT_TYPE_MISMATCH", "The file content does not match a supported file type.");
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
         if (!detected.Extensions.Contains(extension))
-            throw new InvalidOperationException("นามสกุลไฟล์ไม่ตรงกับเนื้อหาไฟล์");
+            throw new BadRequestException("UPLOAD_EXTENSION_MISMATCH", "The file extension does not match the file content.");
 
         var now = DateTime.UtcNow.AddHours(7);
         var key = $"{now:yyyy}/{now:MM}/{Guid.NewGuid():N}{detected.Extension}";
@@ -116,7 +117,7 @@ public class LocalFileStorageService(
             return Task.FromResult<Stream>(new FileStream(
                 legacyPath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true));
 
-        throw new FileNotFoundException("ไม่พบไฟล์");
+        throw new NotFoundException("File", key, "FILE_NOT_FOUND");
     }
 
     public Task DeleteTicketAsync(string key, CancellationToken ct = default)
@@ -134,11 +135,11 @@ public class LocalFileStorageService(
     private static string SafePath(string root, string key)
     {
         if (string.IsNullOrWhiteSpace(key) || Path.IsPathRooted(key) || key.Contains(".."))
-            throw new InvalidOperationException("Storage key ไม่ถูกต้อง");
+            throw new BadRequestException("UPLOAD_STORAGE_KEY_INVALID", "The storage key is not valid.");
         var normalizedRoot = Path.GetFullPath(root) + Path.DirectorySeparatorChar;
         var fullPath = Path.GetFullPath(Path.Combine(root, key.Replace('/', Path.DirectorySeparatorChar)));
         if (!fullPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Storage key ไม่ถูกต้อง");
+            throw new BadRequestException("UPLOAD_STORAGE_KEY_INVALID", "The storage key is not valid.");
         return fullPath;
     }
 

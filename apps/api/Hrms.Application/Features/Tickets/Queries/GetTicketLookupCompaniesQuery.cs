@@ -22,7 +22,7 @@ public class GetTicketLookupCompaniesHandler(IApplicationDbContext db, ICurrentU
         return await db.Companies
             .Where(c => c.IsActive)
             .OrderBy(c => c.Name)
-            .Select(c => new TicketLookupCompanyDto(c.Id, c.Name))
+            .Select(c => new TicketLookupCompanyDto(c.Id, c.Name, c.NameEn, c.NameId))
             .ToListAsync(ct);
     }
 }

@@ -1,3 +1,8 @@
 packages:
   - "apps/*"
   - "packages/*"
+# pnpm 11: build script ต้องอนุญาตชัด ๆ ไม่งั้น deps-check ก่อน `pnpm run` ทุกครั้งจะล้ม (ERR_PNPM_IGNORED_BUILDS)
+# สองตัวนี้เป็น dependency ของ Next เอง — pnpm เติมบล็อกนี้ให้อัตโนมัติ แต่ค่าต้องเคาะเป็น true เอง
+allowBuilds:
+  '@parcel/watcher': true
+  '@swc/core': true

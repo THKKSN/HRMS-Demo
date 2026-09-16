@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using MediatR;
@@ -19,7 +20,7 @@ public class RemoveEmployeeShiftOverrideHandler(
         var entry = await db.EmployeeShiftOverrides
             .Include(o => o.Employee)
             .FirstOrDefaultAsync(o => o.Id == request.OverrideId && o.IsActive, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูล override ที่ระบุ");
+            ?? throw new NotFoundException("EmployeeShiftOverride", request.OverrideId, "SHIFT_OVERRIDE_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(entry.Employee.CompanyId, ct);
 

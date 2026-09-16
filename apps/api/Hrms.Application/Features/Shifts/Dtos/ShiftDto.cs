@@ -8,4 +8,6 @@ public record ShiftDto(
     TimeOnly StartTime,
     TimeOnly EndTime,
     int GracePeriodMinutes,
-    bool IsActive);
+    bool IsActive,
+    string? NameEn = null,
+    string? NameId = null);

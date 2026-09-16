@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Permissions.Dtos;
 using MediatR;
@@ -26,6 +27,6 @@ public class GetRolePermissionsHandler(IApplicationDbContext db)
                     .OrderBy(code => code)
                     .ToList()))
             .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูล role");
+            ?? throw new NotFoundException("SystemRole", request.RoleId, "ROLE_NOT_FOUND");
     }
 }

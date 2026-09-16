@@ -2,11 +2,13 @@ using FluentValidation;
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Common.Options;
 using Hrms.Application.Features.Tickets.Dtos;
 using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Hrms.Application.Features.Tickets.Commands;
 
@@ -23,7 +25,8 @@ public class AddTicketCommentHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
     IPermissionService permissions,
-    IAuditLogService auditLog)
+    IAuditLogService auditLog,
+    IOptions<TicketOptions> ticketOptions)
     : IRequestHandler<AddTicketCommentCommand, TicketCommentDto>
 {
     public async Task<TicketCommentDto> Handle(AddTicketCommentCommand request, CancellationToken ct)
@@ -34,10 +37,10 @@ public class AddTicketCommentHandler(
             .Include(t => t.ExternalReporter)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary)).ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketAccess.EnsureCanViewAsync(db, currentUser, permissions, ticket, ct);
         if (ticket.Status is TicketStatus.Closed or TicketStatus.Rejected or TicketStatus.Cancelled)
-            throw new ConflictException("INVALID_TICKET_STATUS", "Ticket นี้ไม่รับความคิดเห็นเพิ่มเติมแล้ว");
+            throw new ConflictException("TICKET_COMMENT_CLOSED", "This ticket no longer accepts comments.");
 
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
         var isManager = await TicketAccess.IsDepartmentManagerAsync(db, currentUser, ticket, ct);
@@ -45,10 +48,10 @@ public class AddTicketCommentHandler(
         {
             await currentUser.ThrowIfNoPermissionAsync(permissions, "ticket:add-internal-note", ct);
             if (!isManager || actorId == ticket.RequesterEmployeeId)
-                throw new AppForbiddenException("เฉพาะ Supervisor หรือ Admin ฝั่งผู้รับที่เพิ่มบันทึกภายในได้");
+                throw new AppForbiddenException("TICKET_INTERNAL_COMMENT_FORBIDDEN", "Only a supervisor or admin on the receiving side can add internal notes.");
         }
         if (!request.IsInternal && request.CommentType == TicketCommentType.RequestInfo)
-            throw new FluentValidation.ValidationException("กรุณาใช้คำสั่งขอข้อมูลเพิ่ม");
+            throw new BadRequestException("TICKET_USE_INFO_REQUEST_ACTION", "Use the request-more-information action instead.");
         var actor = await db.Employees.FirstAsync(e => e.Id == actorId, ct);
         var type = actorId == ticket.RequesterEmployeeId ? TicketCommentType.Response : request.CommentType;
         var comment = new TicketComment
@@ -65,19 +68,20 @@ public class AddTicketCommentHandler(
         var actorName = TicketCommandSupport.FullName(actor);
         if (!comment.IsInternal)
         {
-            var message = $"มีข้อความใหม่ใน {ticket.TicketNo}\nจาก: {actorName}\n{comment.Message}";
+            var templateParams = new { ticketNo = ticket.TicketNo, actor = actorName, comment = comment.Message };
             if (actorId == ticket.RequesterEmployeeId)
             {
-                var target = ticket.Assignments.FirstOrDefault()?.AssignedToEmployee;
-                TicketCommandSupport.QueueNotification(
-                    db, "TicketCommented", comment.Id, target?.Id, target?.LineUserId,
-                    message, ticket);
+                // default ส่งเฉพาะผู้รับผิดชอบหลัก — เพิ่ม "TicketCommented" ใน Ticket:TeamNotificationEvents
+                // ถ้าต้องการให้ผู้ร่วมงานได้รับทุกข้อความด้วย
+                await TicketCommandSupport.QueueForTeamAsync(
+                    db, ticketOptions.Value, "TicketCommented", comment.Id, ticket,
+                    "ticket.commented.all", templateParams, ct);
             }
             else
             {
                 TicketCommandSupport.QueueNotification(
                     db, "TicketCommented", comment.Id, TicketCommandSupport.Requester(ticket),
-                    message, ticket);
+                    "ticket.commented.all", templateParams, ticket);
             }
         }
         await db.SaveChangesAsync(ct);
@@ -110,10 +114,10 @@ public class RequestTicketInfoHandler(
         var ticket = await db.Tickets.Include(t => t.RequesterEmployee)
             .Include(t => t.ExternalReporter)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketAccess.EnsureWorkerOrManagerAsync(db, currentUser, permissions, "ticket:update-status", ticket, ct);
         if (ticket.Status != TicketStatus.InProgress)
-            throw new ConflictException("INVALID_TICKET_STATUS", "ขอข้อมูลเพิ่มได้เฉพาะงานที่กำลังดำเนินการ");
+            throw new ConflictException("TICKET_INFO_REQUEST_NOT_ALLOWED", "More information can be requested only while the ticket is in progress.");
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
 
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
@@ -149,7 +153,8 @@ public class RequestTicketInfoHandler(
         db.TicketComments.Add(comment);
         TicketCommandSupport.QueueNotification(
             db, "TicketWaitingInfo", comment.Id, TicketCommandSupport.Requester(ticket),
-            $"ทีมขอข้อมูลเพิ่มสำหรับ {ticket.TicketNo}\n{request.Message.Trim()}", ticket);
+            "ticket.waitingInfo.toRequester",
+            new { ticketNo = ticket.TicketNo, question = request.Message.Trim() }, ticket);
         await db.SaveChangesAsync(ct);
 
         var actorName = TicketCommandSupport.FullName(actor);
@@ -174,12 +179,12 @@ public class ResumeTicketWorkHandler(
         var ticket = await db.Tickets.Include(t => t.RequesterEmployee)
             .Include(t => t.ExternalReporter)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
-        await TicketAccess.EnsureActiveAssigneeAsync(db, currentUser, permissions, "ticket:update-status", ticket, ct);
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
+        await TicketTeam.EnsureCanWorkAsync(db, currentUser, permissions, "ticket:update-status", ticket.Id, ct);
         if (ticket.Status == TicketStatus.InProgress)
             return new TicketActionResultDto(ticket.Id, ticket.Status, ticket.UpdatedAt);
         if (ticket.Status != TicketStatus.WaitingInfo)
-            throw new ConflictException("INVALID_TICKET_STATUS", "ดำเนินการต่อได้เฉพาะ Ticket ที่รอข้อมูล");
+            throw new ConflictException("TICKET_NOT_WAITING_INFO", "Work can resume only on tickets that are waiting for information.");
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
 
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
@@ -200,7 +205,7 @@ public class ResumeTicketWorkHandler(
             db, ticket, TicketStatus.WaitingInfo, TicketStatus.InProgress, actorId, now, "WorkResumed");
         TicketCommandSupport.QueueNotification(
             db, "TicketStarted", Guid.NewGuid(), TicketCommandSupport.Requester(ticket),
-            $"ทีมกลับมาดำเนินการ {ticket.TicketNo} แล้ว", ticket);
+            "ticket.resumed.toRequester", new { ticketNo = ticket.TicketNo }, ticket);
         await db.SaveChangesAsync(ct);
         var actorName = TicketCommandSupport.FullName(actor);
         await auditLog.LogAsync("ticket", "Ticket", ticket.Id.ToString(), "resume-work",

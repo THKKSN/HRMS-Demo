@@ -1,0 +1,31 @@
+{
+  "group": {
+    "overview": "Overview",
+    "personal": "Personal",
+    "tickets": "Requests",
+    "hr": "HR management",
+    "organization": "Organisation",
+    "system": "System settings"
+  },
+  "item": {
+    "dashboard": "Dashboard",
+    "profile": "Profile",
+    "ticket": "Tickets",
+    "memo": "Memos",
+    "employees": "Employees",
+    "attendance": "Attendance records",
+    "leaveHistory": "Leave history",
+    "leaveTypes": "Leave types",
+    "leaveBalances": "Leave entitlements",
+    "companies": "Companies",
+    "locations": "Locations",
+    "roleLabels": "Positions",
+    "settings": "System settings"
+  },
+  "action": {
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "expandMenu": "Expand menu",
+    "collapseMenu": "Collapse menu"
+  }
+}

@@ -6,9 +6,10 @@ import { ChevronLeft, CheckCircle2, XCircle, Clock, AlertCircle, FileText, Exter
 import Link from 'next/link'
 import { LeaveStatusBadge } from '@/components/shared/leave-status-badge'
 import { useApproveLeave, useCancelLeave, useLeaveById, useRejectLeave, useRequestCancelLeave } from '@/hooks/use-leaves'
-import { isHrOrAdmin, isSupervisorOrAbove } from '@/lib/auth-utils'
+import { usePermissionGate } from '@/hooks/use-permission-gate'
 import { useAuthStore } from '@/stores/auth.store'
 import type { LeaveStatus } from '@hrms/shared-types'
+import * as fmt from '@hrms/i18n/format'
 
 const TIMELINE_STEPS: { status: LeaveStatus; label: string; sublabel: string }[] = [
   { status: 'PendingSupervisor', label: 'ยื่นคำขอ',       sublabel: 'รอหัวหน้าอนุมัติ' },
@@ -28,7 +29,7 @@ const HALF_DAY_LABEL: Record<string, string> = {
 const CAN_CANCEL: LeaveStatus[] = ['PendingSupervisor', 'PendingHr']
 
 function formatDateTH(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('th-TH', {
+  return fmt.formatDate(new Date(dateStr), {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok',
   })
 }
@@ -47,6 +48,7 @@ export default function LeaveDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router  = useRouter()
   const employee = useAuthStore((s) => s.employee)
+  const { has } = usePermissionGate()
 
   const { data: leave, isLoading } = useLeaveById(id)
   const { mutateAsync: cancelLeave,        isPending: isCancelling  } = useCancelLeave()
@@ -60,8 +62,6 @@ export default function LeaveDetailPage() {
   const [cancelReason,      setCancelReason]      = useState('')
   const [comment,           setComment]           = useState('')
   const [error,             setError]             = useState<string | null>(null)
-
-  const roles = employee?.roles ?? []
 
   async function handleCancel() {
     try { await cancelLeave(id); router.push('/my/leaves') }
@@ -128,8 +128,8 @@ export default function LeaveDetailPage() {
   const canCancel         = isOwner && CAN_CANCEL.includes(leave.status)
   const canRequestCancel  = isOwner && leave.status === 'Approved'
   const canApprove =
-    (leave.status === 'PendingSupervisor' && isSupervisorOrAbove(roles)) ||
-    (leave.status === 'PendingHr'         && isHrOrAdmin(roles))
+    (leave.status === 'PendingSupervisor' && has('leave:approve-supervisor', ['Supervisor', 'Hr', 'Admin'])) ||
+    (leave.status === 'PendingHr'         && has('leave:approve-hr', ['Hr', 'Admin']))
 
   return (
     <div className="min-h-full bg-whited/40 p-4 lg:p-6">

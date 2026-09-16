@@ -1,41 +1,38 @@
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
-using Hrms.Application.Common.Extensions;
+using Hrms.Application.Common.Notifications;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Memos.Dtos;
+using Hrms.Application.Features.Memos.Services;
 using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
 
 namespace Hrms.Application.Features.Memos.Commands;
 
-public record RejectMemoCommand(Guid Id, string Reason) : IRequest<MemoDto>;
+// Reason เป็น optional — ผู้บริหารไม่ต้องกรอกก็ปฏิเสธได้ (นโยบายเดียวกับ comment ตอนอนุมัติ)
+public record RejectMemoCommand(Guid Id, string? Reason) : IRequest<MemoDto>;
 
 public class RejectMemoValidator : AbstractValidator<RejectMemoCommand>
 {
     public RejectMemoValidator()
     {
-        RuleFor(x => x.Reason).NotEmpty().MaximumLength(1000);
+        RuleFor(x => x.Reason).MaximumLength(1000);
     }
 }
 
 public class RejectMemoHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
-    IPermissionService permService,
+    IMemoStepAuthorizer stepAuthorizer,
     IAuditLogService auditLog)
     : IRequestHandler<RejectMemoCommand, MemoDto>
 {
     public async Task<MemoDto> Handle(RejectMemoCommand request, CancellationToken ct)
     {
         if (currentUser.EmployeeId is not { } approverId)
-            throw new AppUnauthorizedException("ไม่พบตัวตนผู้อนุมัติ");
-
-        // ผู้อนุมัติคือใครก็ได้ที่มี permission memo:approve (default: Executive, Admin) แบบ pool
-        // ทั้งระบบ ไม่ scope ตาม company/department — permission เป็น source of truth เดียว
-        await currentUser.ThrowIfNoPermissionAsync(permService, "memo:approve", ct);
+            throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND", "Approver has no employee record.");
 
         var memo = await db.Memos
             .Include(x => x.MemoType)
@@ -43,14 +40,21 @@ public class RejectMemoHandler(
             .Include(x => x.Company)
             .Include(x => x.Department)
             .FirstOrDefaultAsync(x => x.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบเรื่อง");
+            ?? throw new NotFoundException("Memo", request.Id, "MEMO_NOT_FOUND");
 
         if (memo.Status != MemoStatus.Pending)
-            throw new ConflictException("MEMO_NOT_PENDING", "เรื่องนี้ไม่ได้อยู่ในสถานะรออนุมัติ");
+            throw new ConflictException("MEMO_NOT_PENDING", "This memo is not awaiting approval.");
+
+        // สิทธิ์เดียวกับการอนุมัติ — ตาม snapshot ผู้อนุมัติด่านแรกของเรื่อง (Admin ทำแทนได้เสมอ)
+        var canReject = await stepAuthorizer.CanActAsync(
+            approverId, memo.FirstApproverRoleCodeSnapshot, memo.FirstApproverEmployeeIdSnapshot,
+            memo.MemoType.CompanyId, memo.MemoType.DepartmentId, MemoApproverScope.SystemPool, ct);
+        if (!canReject)
+            throw new AppForbiddenException("MEMO_REJECT_FORBIDDEN", "You are not the approver assigned to this memo.");
 
         memo.Status = MemoStatus.Rejected;
         memo.RejectedAt = DateTime.UtcNow.AddHours(7);
-        memo.RejectReason = request.Reason.Trim();
+        memo.RejectReason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim();
 
         if (!string.IsNullOrWhiteSpace(memo.Requester.LineUserId))
         {
@@ -62,8 +66,14 @@ public class RejectMemoHandler(
                 EventType = "MemoRejected",
                 EntityType = "Memo",
                 EntityId = memo.Id,
-                PayloadJson = JsonSerializer.Serialize(new MemoNotificationPayload(
-                    $"เรื่อง '{memo.MemoType.Name} - {memo.MemoCategoryNameSnapshot} - {memo.MemoSubCategoryNameSnapshot}' ไม่ได้รับการอนุมัติ: {memo.RejectReason}")),
+                // บรรทัดแรก = title การ์ด, เหตุผลแยกเป็นแถวรายละเอียดด้านล่าง (หายไปเองถ้าไม่มีเหตุผล)
+                PayloadJson = NotificationPayload.FromTemplate(
+                    "memo.rejected.toRequester",
+                    new
+                    {
+                        memoTitle = $"{memo.MemoType.Name} - {memo.MemoCategoryNameSnapshot} - {memo.MemoSubCategoryNameSnapshot}",
+                        reason = memo.RejectReason,
+                    }).ToJson(),
                 DeduplicationKey = $"MemoRejected:{memo.Id:N}",
                 Status = NotificationDeliveryStatus.Pending,
             });
@@ -87,11 +97,9 @@ public class RejectMemoHandler(
             memo.MemoSubCategoryId, memo.MemoSubCategoryNameSnapshot,
             memo.Detail, memo.RequesterId, FullName(memo.Requester),
             memo.CompanyId, memo.Company.Name, memo.DepartmentId, memo.Department.Name, memo.Status,
-            null, null, memo.RejectedAt, memo.RejectReason, null, null, null, null, null, null, memo.CreatedAt);
+            null, null, null, memo.RejectedAt, memo.RejectReason, null, null, null, null, null, null, memo.CreatedAt);
     }
 
     private static string FullName(Employee employee)
         => $"{employee.FirstName} {employee.LastName}".Trim();
-
-    private sealed record MemoNotificationPayload(string Message);
 }

@@ -39,6 +39,8 @@ public class GetMyCompanyLocationsHandler(IApplicationDbContext db, ICurrentUser
             l.District?.DistrictName,
             l.SubDistrictId,
             l.SubDistrict?.SubDistrictName,
-            l.IsActive)).ToList();
+            l.IsActive,
+            NameEn: l.NameEn,
+            NameId: l.NameId)).ToList();
     }
 }

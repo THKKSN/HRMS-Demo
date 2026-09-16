@@ -226,9 +226,20 @@ public class GetTicketCategoryReportHandler(
         var filtered = TicketReportAccess.ApplyFilters(scoped, request.Filter);
         var tickets = await filtered.Select(t => new
         {
-            t.Id, t.CategoryId, CategoryName = t.Category != null ? t.Category.Name : null,
-            t.TopicId, TopicName = t.Topic != null ? t.Topic.Name : null,
-            t.SubjectId, SubjectName = t.Subject != null ? t.Subject.Name : null, t.Status
+            t.Id,
+            t.CategoryId,
+            CategoryName = t.Category != null ? t.Category.Name : null,
+            CategoryNameEn = t.Category != null ? t.Category.NameEn : null,
+            CategoryNameId = t.Category != null ? t.Category.NameId : null,
+            t.TopicId,
+            TopicName = t.Topic != null ? t.Topic.Name : null,
+            TopicNameEn = t.Topic != null ? t.Topic.NameEn : null,
+            TopicNameId = t.Topic != null ? t.Topic.NameId : null,
+            t.SubjectId,
+            SubjectName = t.Subject != null ? t.Subject.Name : null,
+            SubjectNameEn = t.Subject != null ? t.Subject.NameEn : null,
+            SubjectNameId = t.Subject != null ? t.Subject.NameId : null,
+            t.Status
         }).ToListAsync(ct);
         var returnedByTicket = await db.TicketReviews.AsNoTracking()
             .Where(r => r.Decision == TicketReviewDecision.Returned && filtered.Any(t => t.Id == r.TicketId))
@@ -236,14 +247,18 @@ public class GetTicketCategoryReportHandler(
             .Select(g => new { TicketId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.TicketId, x => x.Count, ct);
 
+        // จัดกลุ่มด้วย Id ของ master data (ไม่ใช่ชื่อ) ชื่อ 3 ภาษาหยิบจากแถวแรกของกลุ่ม — ทุกแถวในกลุ่มเป็นรายการเดียวกันอยู่แล้ว
         return tickets
-            .GroupBy(t => new { t.CategoryId, t.CategoryName, t.TopicId, t.TopicName, t.SubjectId, t.SubjectName })
+            .GroupBy(t => new { t.CategoryId, t.TopicId, t.SubjectId })
             .Select(g => new TicketCategoryReportItemDto(
-                g.Key.CategoryId, g.Key.CategoryName, g.Key.TopicId, g.Key.TopicName,
-                g.Key.SubjectId, g.Key.SubjectName,
+                g.Key.CategoryId, g.First().CategoryName, g.Key.TopicId, g.First().TopicName,
+                g.Key.SubjectId, g.First().SubjectName,
                 g.Count(), g.Count(t => t.Status == TicketStatus.Closed),
                 g.Count(t => t.Status is not (TicketStatus.Closed or TicketStatus.Rejected or TicketStatus.Cancelled)),
-                Math.Round(g.Sum(t => returnedByTicket.GetValueOrDefault(t.Id)) * 100.0 / g.Count(), 2)))
+                Math.Round(g.Sum(t => returnedByTicket.GetValueOrDefault(t.Id)) * 100.0 / g.Count(), 2),
+                g.First().CategoryNameEn, g.First().CategoryNameId,
+                g.First().TopicNameEn, g.First().TopicNameId,
+                g.First().SubjectNameEn, g.First().SubjectNameId))
             .OrderByDescending(x => x.TotalCount)
             .ToList();
     }
@@ -259,8 +274,10 @@ public class GetTicketWorkloadReportHandler(
     {
         var scoped = await TicketReportAccess.ApplyScopeAsync(db.Tickets.AsNoTracking(), currentUser, permissions, ct);
         var query = TicketReportAccess.ApplyFilters(scoped, request.Filter);
+        // นับเฉพาะผู้รับผิดชอบหลัก (IsPrimary) — ถ้านับผู้ร่วมงานในทีมด้วย lead-time/จำนวนงานปิด
+        // จะถูกนับซ้ำทุกคนในทีม ทำให้ยอดรวมของรายงานสูงกว่าจำนวนใบจริง
         var assignments = await db.TicketAssignments.AsNoTracking()
-            .Where(a => query.Any(t => t.Id == a.TicketId))
+            .Where(a => a.IsPrimary && query.Any(t => t.Id == a.TicketId))
             .Select(a => new
             {
                 a.AssignedToEmployeeId,

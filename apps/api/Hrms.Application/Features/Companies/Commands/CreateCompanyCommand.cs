@@ -14,7 +14,8 @@ public record CreateCompanyCommand(
     string? NameEn,
     OrgType OrgType,
     Guid? ParentId,
-    bool IsHeadquarters = false) : IRequest<CompanyDto>;
+    bool IsHeadquarters = false,
+    string? NameId = null) : IRequest<CompanyDto>;
 
 public class CreateCompanyValidator : AbstractValidator<CreateCompanyCommand>
 {
@@ -22,6 +23,7 @@ public class CreateCompanyValidator : AbstractValidator<CreateCompanyCommand>
     {
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.NameEn).MaximumLength(200).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(200).When(x => x.NameId is not null);
     }
 }
 
@@ -34,16 +36,17 @@ public class CreateCompanyHandler(IApplicationDbContext db, IAuditLogService aud
         if (request.ParentId.HasValue)
         {
             parent = await db.Companies.FirstOrDefaultAsync(c => c.Id == request.ParentId.Value, ct)
-                ?? throw new KeyNotFoundException("ไม่พบข้อมูลบริษัทแม่");
+                ?? throw new NotFoundException("Company", request.ParentId.Value, "PARENT_COMPANY_NOT_FOUND");
 
             if (!parent.IsActive)
-                throw new ConflictException("PARENT_INACTIVE", "บริษัทแม่ถูกปิดใช้งานแล้ว");
+                throw new ConflictException("PARENT_INACTIVE", "The parent company is inactive.");
         }
 
         var company = new Company
         {
             Name           = request.Name,
             NameEn         = request.NameEn,
+            NameId         = Common.Helpers.NameText.Normalize(request.NameId),
             OrgType        = request.OrgType,
             ParentId       = request.ParentId,
             IsHeadquarters = request.IsHeadquarters,
@@ -73,6 +76,7 @@ public class CreateCompanyHandler(IApplicationDbContext db, IAuditLogService aud
             company.ParentId,
             parent?.Name,
             company.IsActive,
-            company.IsHeadquarters);
+            company.IsHeadquarters,
+            NameId: company.NameId);
     }
 }

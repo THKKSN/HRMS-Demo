@@ -35,17 +35,17 @@ public class RejectTicketHandler(
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary))
                 .ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketSupervisorAccess.EnsureTicketAsync(
             db, currentUser, permissionService, "ticket:update-status", ticket, ct);
         if (ticket.Status is not (TicketStatus.Open or TicketStatus.Assigned))
-            throw new ConflictException("INVALID_TICKET_STATUS", "ปฏิเสธได้เฉพาะใบแจ้งเรื่องที่ยังไม่เริ่มดำเนินการ");
+            throw new ConflictException("TICKET_REJECT_NOT_ALLOWED", "Only tickets that have not started can be rejected.");
         if (await db.TicketCancellationRequests.AnyAsync(cancellation =>
             cancellation.TicketId == ticket.Id &&
             cancellation.Status == TicketCancellationStatus.Pending, ct))
             throw new ConflictException(
                 "CANCELLATION_PENDING",
-                "กรุณาพิจารณาคำขอยกเลิกก่อนปฏิเสธ Ticket");
+                "Review the cancellation request before rejecting this ticket.");
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
 
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
@@ -74,14 +74,16 @@ public class RejectTicketHandler(
         var occurrenceId = Guid.NewGuid();
         TicketCommandSupport.QueueNotification(
             db, "TicketRejected", occurrenceId, TicketCommandSupport.Requester(ticket),
-            $"ใบแจ้งเรื่อง {ticket.TicketNo} ถูกปฏิเสธ\nเหตุผล: {ticket.RejectionReason}",
+            "ticket.rejected.toRequester",
+            new { ticketNo = ticket.TicketNo, reason = ticket.RejectionReason },
             ticket);
         if (currentAssignment is not null)
         {
             TicketCommandSupport.QueueNotification(
                 db, "TicketRejected", occurrenceId, currentAssignment.AssignedToEmployeeId,
                 currentAssignment.AssignedToEmployee.LineUserId,
-                $"งาน {ticket.TicketNo} ถูกยุติ\nเหตุผล: {ticket.RejectionReason}",
+                "ticket.rejected.toAssignee",
+                new { ticketNo = ticket.TicketNo, reason = ticket.RejectionReason },
                 ticket);
         }
         await db.SaveChangesAsync(ct);

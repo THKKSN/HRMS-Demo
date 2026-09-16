@@ -1,0 +1,29 @@
+{
+  "title": "Profile",
+  "company": "Company",
+  "department": "Department",
+  "roleLabel": "Position",
+  "employeeCode": "Employee ID",
+  "phone": "Phone",
+  "email": "Email",
+  "hireDate": "Start date",
+  "fontSize": {
+    "label": "Text size",
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large"
+  },
+  "theme": {
+    "label": "Appearance",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "settings": {
+    "title": "Settings",
+    "display": "Display"
+  },
+  "logout": "Log out",
+  "loggingOut": "Logging out...",
+  "version": "Version {version}"
+}

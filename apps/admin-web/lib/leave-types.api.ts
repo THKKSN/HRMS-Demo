@@ -9,6 +9,7 @@ export const leaveTypesApi = {
     code: string
     nameTh: string
     nameEn?: string
+    nameId?: string
     defaultDaysPerYear: number
     requiresAttachment: boolean
   }) => api.post<LeaveTypeAdminDto>('/leave-types', body).then((r) => r.data),
@@ -18,6 +19,7 @@ export const leaveTypesApi = {
     body: {
       nameTh: string
       nameEn?: string
+      nameId?: string
       defaultDaysPerYear: number
       requiresAttachment: boolean
     },

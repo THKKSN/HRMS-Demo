@@ -18,6 +18,11 @@ public class Employee : BaseEntity
     public string? PasswordHash { get; set; }
     public string? AvatarUrl { get; set; }
     public DateOnly? HireDate { get; set; }
+    /// <summary>
+    /// ภาษาล่าสุดที่ผู้ใช้ใช้งานหน้าจอ (header <c>X-Locale</c>) — มีไว้ให้ job ที่ทำงานนอก request
+    /// รู้ว่าจะส่ง notification เป็นภาษาอะไร ดู docs/notification-i18n-plan.md ข้อ D9
+    /// </summary>
+    public string PreferredLanguage { get; set; } = "th";
     public bool IsActive { get; set; } = true;
 
     public Company Company { get; set; } = null!;

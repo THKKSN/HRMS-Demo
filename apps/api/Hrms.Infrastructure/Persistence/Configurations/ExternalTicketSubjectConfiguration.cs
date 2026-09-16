@@ -13,6 +13,8 @@ public class ExternalTicketSubjectConfiguration : IEntityTypeConfiguration<Exter
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.ExternalTicketTopicId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.NameEn).HasMaxLength(200);
+        builder.Property(x => x.NameId).HasMaxLength(200);
         builder.Property(x => x.Description).HasMaxLength(500);
         builder.Property(x => x.Template).HasMaxLength(2000);
         builder.Property(x => x.SuggestionsJson).HasMaxLength(2000).HasDefaultValue("[]");

@@ -19,6 +19,6 @@ public class SetPasswordCommandValidator : AbstractValidator<SetPasswordCommand>
             .NotEmpty()
             .MinimumLength(8)
             .Matches(ComplexityPattern)
-            .WithMessage("รหัสผ่านต้องมีอย่างน้อย 8 ตัว ประกอบด้วยตัวพิมพ์ใหญ่ ตัวพิมพ์เล็ก ตัวเลข และอักขระพิเศษ");
+            .WithErrorCode("PASSWORD_COMPLEXITY").WithMessage("The password must be at least 8 characters and include an uppercase letter, a lowercase letter, a digit and a special character.");
     }
 }

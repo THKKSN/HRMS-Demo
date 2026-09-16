@@ -9,13 +9,25 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.Tickets.Queries;
 
+/// <summary>ขอบเขตงานของหน้า Assigned — แยกตามสถานะของแถวมอบหมาย ไม่ใช่สถานะใบแจ้งเรื่อง</summary>
+public enum AssignedTicketScope
+{
+    /// <summary>งานที่ยังถืออยู่ (assignment ยัง active)</summary>
+    Current,
+    /// <summary>ประวัติงาน — เคยถือแต่ถูกเปลี่ยนตัว/ถอนออกจากทีมแล้ว</summary>
+    History,
+    /// <summary>ทั้งหมด — รวมทั้งที่ยังถืออยู่และที่ผ่านมาแล้ว</summary>
+    All
+}
+
 public record GetAssignedTicketsQuery(
     TicketStatus? Status,
     string? Search,
     bool History = false,
     TicketRequestType? RequestType = null,
     int Page = 1,
-    int PageSize = 20) : IRequest<PagedResult<AssignedTicketItemDto>>;
+    int PageSize = 20,
+    AssignedTicketScope? Scope = null) : IRequest<PagedResult<AssignedTicketItemDto>>;
 
 public class GetAssignedTicketsHandler(
     IApplicationDbContext db,
@@ -29,8 +41,24 @@ public class GetAssignedTicketsHandler(
         var employeeId = currentUser.EmployeeId
             ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
 
-        var assignments = db.TicketAssignments.AsNoTracking()
-            .Where(a => a.AssignedToEmployeeId == employeeId && (request.History ? !a.IsActive : a.IsActive && a.IsPrimary));
+        // client เก่ายังส่ง history=true/false มา — ใช้เป็น fallback เมื่อไม่ได้ระบุ scope
+        var scope = request.Scope ??
+            (request.History ? AssignedTicketScope.History : AssignedTicketScope.Current);
+
+        // รวมงานที่เป็นผู้รับผิดชอบหลักและงานที่ถูกดึงเข้าร่วมทีม — UI แยกด้วย MemberRole
+        var mine = db.TicketAssignments.AsNoTracking()
+            .Where(a => a.AssignedToEmployeeId == employeeId);
+        var assignments = scope switch
+        {
+            AssignedTicketScope.Current => mine.Where(a => a.IsActive),
+            AssignedTicketScope.History => mine.Where(a => !a.IsActive),
+            // "ทั้งหมด" รวมสองฝั่งเข้าด้วยกัน ใบเดียวอาจมีหลายแถว (ถูกเปลี่ยนตัวออกแล้วได้กลับมา)
+            // เอาเฉพาะแถวล่าสุดของแต่ละใบ ไม่งั้นรายการจะซ้ำ
+            _ => mine.Where(a => !mine.Any(other =>
+                other.TicketId == a.TicketId &&
+                (other.AssignedAt > a.AssignedAt ||
+                    (other.AssignedAt == a.AssignedAt && other.Id > a.Id))))
+        };
         if (request.Status.HasValue)
             assignments = assignments.Where(a => a.Ticket.Status == request.Status.Value);
         if (request.RequestType.HasValue)
@@ -94,7 +122,8 @@ public class GetAssignedTicketsHandler(
                 a.Ticket.CurrentWorkState,
                 a.Ticket.CurrentBlockerReason,
                 a.Ticket.CurrentNextAction,
-                a.Ticket.UpdatedAt
+                a.Ticket.UpdatedAt,
+                a.MemberRole
             })
             .ToListAsync(ct);
 
@@ -132,7 +161,8 @@ public class GetAssignedTicketsHandler(
                     a.CurrentWorkState,
                     a.CurrentBlockerReason,
                     a.CurrentNextAction,
-                    a.UpdatedAt);
+                    a.UpdatedAt,
+                    a.MemberRole);
             })
             .ToList();
 

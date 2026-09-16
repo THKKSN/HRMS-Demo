@@ -22,4 +22,6 @@ public record AssignedTicketItemDto(
     string? CurrentWorkState,
     string? CurrentBlockerReason,
     string? CurrentNextAction,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    /// <summary>บทบาทของผู้ใช้ในใบนี้ — Owner = ผู้รับผิดชอบหลัก, Member = ถูกดึงเข้าร่วมทีม</summary>
+    TicketAssignmentRole MemberRole);

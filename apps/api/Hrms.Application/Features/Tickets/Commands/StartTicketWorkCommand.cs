@@ -1,9 +1,11 @@
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Common.Options;
 using Hrms.Application.Features.Tickets.Dtos;
 using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Hrms.Application.Features.Tickets.Commands;
 
@@ -13,7 +15,8 @@ public class StartTicketWorkHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
     IPermissionService permissions,
-    IAuditLogService auditLog)
+    IAuditLogService auditLog,
+    IOptions<TicketOptions> ticketOptions)
     : IRequestHandler<StartTicketWorkCommand, TicketActionResultDto>
 {
     public async Task<TicketActionResultDto> Handle(StartTicketWorkCommand request, CancellationToken ct)
@@ -22,12 +25,12 @@ public class StartTicketWorkHandler(
             .Include(t => t.RequesterEmployee)
             .Include(t => t.ExternalReporter)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
-        await TicketAccess.EnsureActiveAssigneeAsync(db, currentUser, permissions, "ticket:update-status", ticket, ct);
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
+        await TicketTeam.EnsureCanWorkAsync(db, currentUser, permissions, "ticket:update-status", ticket.Id, ct);
         if (ticket.Status == TicketStatus.InProgress)
             return new TicketActionResultDto(ticket.Id, ticket.Status, ticket.UpdatedAt);
         if (ticket.Status != TicketStatus.Assigned)
-            throw new ConflictException("INVALID_TICKET_STATUS", "เริ่มงานได้เฉพาะ Ticket ที่มอบหมายแล้ว");
+            throw new ConflictException("TICKET_NOT_ASSIGNED", "Work can start only on tickets that have been assigned.");
 
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
@@ -50,9 +53,17 @@ public class StartTicketWorkHandler(
         ticket.UpdatedBy = actorId;
         TicketStatusTransition.Record(
             db, ticket, TicketStatus.Assigned, TicketStatus.InProgress, actorId, now, "WorkStarted");
+        var startOccurrenceId = Guid.NewGuid();
         TicketCommandSupport.QueueNotification(
-            db, "TicketStarted", Guid.NewGuid(), TicketCommandSupport.Requester(ticket),
-            $"ทีมเริ่มดำเนินการ {ticket.TicketNo} แล้ว\nเรื่อง: {ticket.Title}", ticket);
+            db, "TicketStarted", startOccurrenceId, TicketCommandSupport.Requester(ticket),
+            "ticket.started.toRequester",
+            new { ticketNo = ticket.TicketNo, title = ticket.Title }, ticket);
+        // คนอื่นในทีมต้องรู้ว่างานเริ่มแล้ว ยกเว้นคนที่กดเอง
+        await TicketCommandSupport.QueueForTeamAsync(
+            db, ticketOptions.Value, "TicketStarted", startOccurrenceId, ticket,
+            "ticket.started.toTeam",
+            new { ticketNo = ticket.TicketNo, title = ticket.Title }, ct,
+            excludeEmployeeId: actorId);
         await db.SaveChangesAsync(ct);
 
         var actorName = TicketCommandSupport.FullName(actor);

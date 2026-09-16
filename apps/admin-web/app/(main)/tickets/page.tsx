@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight, EyeIcon, Search } from "lucide-react";
 import type { TicketPriority, TicketStatus } from "@hrms/shared-types";
 import { Badge } from "@/components/ui/badge";
@@ -10,15 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useMyTickets } from "@/hooks/use-tickets";
 import { TICKET_STATUS_LABEL } from "@/lib/ticket-status";
+import * as fmt from "@hrms/i18n/format";
 
 const PAGE_SIZE = 10;
-
-const PRIORITY_LABEL: Record<TicketPriority, string> = {
-  Low: "ปกติ",
-  Medium: "กลาง",
-  High: "ด่วน",
-  Critical: "ด่วนมาก",
-};
 
 function statusVariant(
   status: TicketStatus,
@@ -37,14 +32,18 @@ function priorityClass(priority: TicketPriority) {
   return "text-muted-foreground bg-muted/50";
 }
 
-function thaiDateTime(value: string) {
-  return new Intl.DateTimeFormat("th-TH", {
+function shortDateTime(value: string) {
+  return fmt.formatDateTime(new Date(value), {
     dateStyle: "short",
     timeStyle: "short",
-  }).format(new Date(value));
+  });
 }
 
 export default function TicketsPage() {
+  const t = useTranslations("admin.ticket.list");
+  const tStatus = useTranslations("status.ticket");
+  const tPriority = useTranslations("status.ticketPriority");
+  const tCommon = useTranslations("common");
   const [status, setStatus] = useState<TicketStatus | undefined>();
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -78,7 +77,7 @@ export default function TicketsPage() {
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             className="pl-9"
-            placeholder="ค้นหาเลข Ticket หรือชื่อเรื่อง"
+            placeholder={t("searchPlaceholder")}
           />
         </form>
         <Select
@@ -90,10 +89,10 @@ export default function TicketsPage() {
             setPage(1);
           }}
         >
-          <option value="">ทุกสถานะ</option>
+          <option value="">{t("allStatuses")}</option>
           {(Object.keys(TICKET_STATUS_LABEL) as TicketStatus[]).map((item) => (
             <option key={item} value={item}>
-              {TICKET_STATUS_LABEL[item]}
+              {tStatus(item)}
             </option>
           ))}
         </Select>
@@ -103,14 +102,14 @@ export default function TicketsPage() {
         <table className="w-full min-w-[1080px] text-sm">
           <thead className="border-b border-border bg-muted/30 text-left text-muted-foreground">
             <tr>
-              <th className="px-4 py-3 font-medium">Ticket</th>
-              <th className="px-4 py-3 font-medium">ผู้แจ้ง</th>
-              <th className="px-4 py-3 font-medium">ปลายทาง</th>
-              <th className="px-4 py-3 font-medium">หมวด / หัวข้อ</th>
-              <th className="px-4 py-3 font-medium">ผู้รับผิดชอบ</th>
-              <th className="px-4 py-3 font-medium">สถานะ</th>
-              <th className="px-4 py-3 font-medium">เปิดเรื่องเมื่อ</th>
-              <th className="w-32 px-4 py-3 font-medium">จัดการ</th>
+              <th className="px-4 py-3 font-medium">{t("colTicket")}</th>
+              <th className="px-4 py-3 font-medium">{t("colRequester")}</th>
+              <th className="px-4 py-3 font-medium">{t("colTarget")}</th>
+              <th className="px-4 py-3 font-medium">{t("colTaxonomy")}</th>
+              <th className="px-4 py-3 font-medium">{t("colAssignee")}</th>
+              <th className="px-4 py-3 font-medium">{t("colStatus")}</th>
+              <th className="px-4 py-3 font-medium">{t("colOpenedAt")}</th>
+              <th className="w-32 px-4 py-3 font-medium">{t("colManage")}</th>
             </tr>
           </thead>
           <tbody>
@@ -130,7 +129,7 @@ export default function TicketsPage() {
                     colSpan={8}
                     className="px-4 py-16 text-center text-muted-foreground"
                   >
-                    ยังไม่มีรายการแจ้งเรื่อง
+                    {t("empty")}
                   </td>
                 </tr>
               )}
@@ -140,7 +139,7 @@ export default function TicketsPage() {
                   colSpan={7}
                   className="px-4 py-16 text-center text-destructive"
                 >
-                  โหลดรายการไม่สำเร็จ
+                  {t("loadFailed")}
                 </td>
               </tr>
             )}
@@ -156,14 +155,14 @@ export default function TicketsPage() {
                   <span
                     className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-xs ${priorityClass(ticket.priority)}`}
                   >
-                    {PRIORITY_LABEL[ticket.priority]}
+                    {tPriority(ticket.priority)}
                   </span>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <span>{ticket.requester.nickname ? `${ticket.requester.name} (${ticket.requester.nickname})` : ticket.requester.name}</span>
                     <Badge variant={ticket.requester.type === "External" ? "destructive" : "secondary"}>
-                      {ticket.requester.type === "External" ? "ภายนอก" : "ภายใน"}
+                      {ticket.requester.type === "External" ? t("external") : t("internal")}
                     </Badge>
                   </div>
                 </td>
@@ -181,18 +180,18 @@ export default function TicketsPage() {
                   </p>
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">
-                  {ticket.currentAssigneeName ?? "รอผู้รับผิดชอบ"}
+                  {ticket.currentAssigneeName ?? t("awaitingAssignee")}
                 </td>
                 <td className="px-4 py-3">
                   <Badge variant={statusVariant(ticket.status)}>
-                    {TICKET_STATUS_LABEL[ticket.status]}
+                    {tStatus(ticket.status)}
                   </Badge>
                   {ticket.hasPendingCancellation && (
-                    <p className="mt-1 text-xs text-amber-700">รอยกเลิก</p>
+                    <p className="mt-1 text-xs text-amber-700">{t("pendingCancellation")}</p>
                   )}
                 </td>
                 <td className="px-4 py-3 text-muted-foreground">
-                  {thaiDateTime(ticket.createdAt)}
+                  {shortDateTime(ticket.createdAt)}
                 </td>
                 <td className="px-4 py-3">
                   <Link
@@ -211,26 +210,22 @@ export default function TicketsPage() {
 
       {totalCount > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-          <p>
-            แสดง {firstItem}-{lastItem} จาก {totalCount} รายการ
-          </p>
+          <p>{t("range", { from: firstItem, to: lastItem, total: totalCount })}</p>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               disabled={page <= 1}
               onClick={() => setPage((value) => value - 1)}
             >
-              <ChevronLeft className="h-4 w-4" /> ก่อนหน้า
+              <ChevronLeft className="h-4 w-4" /> {t("prev")}
             </Button>
-            <span>
-              หน้า {page} / {totalPages}
-            </span>
+            <span>{t("pageOf", { page, total: totalPages })}</span>
             <Button
               variant="outline"
               disabled={page >= totalPages}
               onClick={() => setPage((value) => value + 1)}
             >
-              ถัดไป <ChevronRight className="h-4 w-4" />
+              {t("next")} <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         </div>

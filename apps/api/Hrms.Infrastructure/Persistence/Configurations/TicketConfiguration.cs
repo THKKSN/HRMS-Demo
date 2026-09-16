@@ -86,6 +86,12 @@ public class TicketConfiguration : IEntityTypeConfiguration<Ticket>
         builder.Property(x => x.WorkStartedByEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.WaitingInfoByEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.ProblemType).HasConversion<string>().HasMaxLength(30);
+        builder.Property(x => x.CloseoutReasonId).HasColumnType("char(36)");
+        builder.Property(x => x.CloseoutReasonNameSnapshot).HasMaxLength(100);
+        builder.HasOne(x => x.CloseoutReason)
+            .WithMany()
+            .HasForeignKey(x => x.CloseoutReasonId)
+            .OnDelete(DeleteBehavior.SetNull);
         builder.Property(x => x.InitialInspectionNote).HasMaxLength(2000);
         builder.Property(x => x.ResolutionNote).HasMaxLength(2000);
         builder.Property(x => x.ResolvedByEmployeeId).HasColumnType("char(36)");

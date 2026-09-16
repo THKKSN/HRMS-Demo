@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useLocale, useTranslations } from 'next-intl'
 import { AlertCircle, AlertTriangle, ChevronLeft, FileText, ImagePlus, Loader2, MapPin, Paperclip, Send, X } from 'lucide-react'
 import {
   applyTicketGuidanceSuggestion,
@@ -10,6 +11,7 @@ import {
   type ResolvedTicketSubjectGuidance,
   type TicketPriority,
 } from '@hrms/shared-types'
+import { localizedName } from '@hrms/i18n'
 import {
   useCreateTicket,
   useTicketCategories,
@@ -19,6 +21,7 @@ import {
   useTicketSubjects,
   useTicketTopics,
 } from '@/hooks/use-tickets'
+import { useApiError } from '@/hooks/use-api-error'
 import { uploadTicketAttachment } from '@/lib/upload.api'
 import { useProfile } from '@/hooks/use-profile'
 
@@ -29,11 +32,12 @@ const MAX_SIZE = 10 * 1024 * 1024
 // ถ้าไม่ตั้ง env จะ fallback เป็นบริษัทของผู้แจ้งเอง (ใช้ตอน dev / e2e)
 const FIXED_TICKET_COMPANY_ID = process.env.NEXT_PUBLIC_TICKET_COMPANY_ID ?? ''
 
-const PRIORITIES: { value: TicketPriority; label: string; tone: string }[] = [
-  { value: 'Low', label: 'ปกติ', tone: 'border-slate-200 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200' },
-  { value: 'Medium', label: 'กลาง', tone: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/40 dark:bg-sky-950/60 dark:text-sky-200' },
-  { value: 'High', label: 'ด่วน', tone: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-950/60 dark:text-amber-200' },
-  { value: 'Critical', label: 'ด่วนมาก', tone: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-950/60 dark:text-red-200' },
+// ป้ายความเร่งด่วนอยู่ที่ status.ticketPriority (เดิมหน้านี้ใช้ "ปกติ·กลาง·ด่วน·ด่วนมาก" ตรงกันอยู่แล้ว)
+const PRIORITIES: { value: TicketPriority; tone: string }[] = [
+  { value: 'Low', tone: 'border-slate-200 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200' },
+  { value: 'Medium', tone: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/40 dark:bg-sky-950/60 dark:text-sky-200' },
+  { value: 'High', tone: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/40 dark:bg-amber-950/60 dark:text-amber-200' },
+  { value: 'Critical', tone: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/40 dark:bg-red-950/60 dark:text-red-200' },
 ]
 
 function PendingTicketFileItem({
@@ -73,6 +77,11 @@ function PendingTicketFileItem({
 }
 
 export default function NewTicketPage() {
+  const t = useTranslations('liff.ticket.new')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const tPriority = useTranslations('status.ticketPriority')
+  const locale = useLocale()
   const { data: profile } = useProfile()
   const { data: companies, isLoading: companiesLoading } = useTicketCompanies()
   const { mutateAsync: createTicket } = useCreateTicket()
@@ -107,9 +116,11 @@ export default function NewTicketPage() {
   const selectedCompany = companies?.find(c => c.id === companyId)
   const selectedDepartment = departments?.find(d => d.id === departmentId)
   const selectedCategory = categories?.find(c => c.id === categoryId)
-  const selectedTopic = topics?.find(t => t.id === topicId)
+  const selectedTopic = topics?.find(item => item.id === topicId)
   const selectedSubject = subjects?.find(s => s.id === subjectId)
+  // "อื่น ๆ" เป็นชื่อไทยที่ HR ตั้งไว้ใน master data (กติกาเดิม) — เทียบกับ name ไทยเสมอไม่ว่าจอจะเป็นภาษาอะไร
   const requiresOtherTopic = selectedSubject?.name.trim() === 'อื่น ๆ'
+  // guidance fallback ฝั่ง client จับคู่จากชื่อไทยใน shared-types — ส่ง name ไทยเสมอ
   const subjectGuidance = useMemo<ResolvedTicketSubjectGuidance | null>(() => {
     if (resolvedSubjectGuidance && (resolvedSubjectGuidance.template || resolvedSubjectGuidance.suggestions.length > 0)) {
       return {
@@ -194,7 +205,7 @@ export default function NewTicketPage() {
 
     const tooBig = incoming.filter(f => f.size > MAX_SIZE)
     if (tooBig.length) {
-      setError(`ไฟล์ใหญ่เกิน 10 MB: ${tooBig.map(f => f.name).join(', ')}`)
+      setError(t('fileTooBig', { names: tooBig.map(f => f.name).join(', ') }))
       return
     }
 
@@ -202,7 +213,7 @@ export default function NewTicketPage() {
       const existing = new Set(prev.map(f => `${f.name}:${f.size}`))
       const next = [...prev, ...incoming.filter(f => !existing.has(`${f.name}:${f.size}`))]
       if (next.length > MAX_FILES) {
-        setError(`แนบไฟล์ได้สูงสุด ${MAX_FILES} ไฟล์`)
+        setError(t('tooManyFiles', { max: MAX_FILES }))
         return next.slice(0, MAX_FILES)
       }
       setError(null)
@@ -249,14 +260,15 @@ export default function NewTicketPage() {
         assigneeName: result.routingResult.assigneeName,
       })
     } catch (err: unknown) {
-      const data = (err as { response?: { data?: { message?: string; errors?: string[]; error?: string } } })?.response?.data
-      setError(data?.message ?? data?.errors?.[0] ?? data?.error ?? 'ไม่สามารถส่งใบแจ้งเรื่องได้ กรุณาลองใหม่')
+      setError(apiError(err, t('submitFailed')))
     } finally {
       setSubmitting(false)
     }
   }
 
   if (created) {
+    // ชื่อบริษัท/แผนก/หมวด/หัวข้อจากตัวเลือกที่เลือกไว้ (มี nameEn/nameId จาก Phase M)
+    const departmentLabel = selectedDepartment ? localizedName(selectedDepartment, locale) : ''
     return (
       <div className="min-h-screen bg-[#eef7f3] dark:bg-slate-950">
         <div className="bg-[#0f8f72] px-4 pb-6 pt-4 text-white">
@@ -265,47 +277,50 @@ export default function NewTicketPage() {
               <ChevronLeft className="h-5 w-5" />
             </Link>
             <div>
-              <h1 className="text-lg font-bold">ส่งใบแจ้งเรื่องแล้ว</h1>
-              <p className="text-xs text-white/75">ระบบรับเรื่องเรียบร้อย</p>
+              <h1 className="text-lg font-bold">{t('success.title')}</h1>
+              <p className="text-xs text-white/75">{t('success.subtitle')}</p>
             </div>
           </div>
         </div>
 
         <div className="px-4 pt-4">
           <div className="rounded-2xl bg-white p-5 shadow-sm dark:bg-slate-900">
-            <p className="text-sm text-muted-foreground">เลขที่ใบแจ้ง</p>
+            <p className="text-sm text-muted-foreground">{t('success.ticketNo')}</p>
             <p className="mt-1 text-2xl font-bold text-[#0f8f72] dark:text-emerald-400">{created.ticketNo}</p>
             <div className="mt-4 space-y-2 text-sm">
-              <p><span className="text-muted-foreground">บริษัทผู้รับ:</span> {selectedCompany?.name}</p>
-              <p><span className="text-muted-foreground">แผนกผู้รับ:</span> {selectedDepartment?.name}</p>
-              <p><span className="text-muted-foreground">หมวด:</span> {selectedCategory?.name} / {selectedTopic?.name}</p>
+              <p><span className="text-muted-foreground">{t('success.company')}:</span> {selectedCompany ? localizedName(selectedCompany, locale) : ''}</p>
+              <p><span className="text-muted-foreground">{t('success.department')}:</span> {departmentLabel}</p>
               <p>
-                <span className="text-muted-foreground">หัวข้อ:</span> {selectedSubject?.name}
+                <span className="text-muted-foreground">{t('success.category')}:</span>{' '}
+                {selectedCategory ? localizedName(selectedCategory, locale) : ''} / {selectedTopic ? localizedName(selectedTopic, locale) : ''}
+              </p>
+              <p>
+                <span className="text-muted-foreground">{t('success.subject')}:</span> {selectedSubject ? localizedName(selectedSubject, locale) : ''}
                 {requiresOtherTopic && `: ${otherTopicText}`}
               </p>
-              <p><span className="text-muted-foreground">สถานะ:</span> {created.status === 'Assigned' ? 'มอบหมายแล้ว' : 'รอ Supervisor รับเรื่อง'}</p>
+              <p><span className="text-muted-foreground">{t('success.status')}:</span> {created.status === 'Assigned' ? t('success.assigned') : t('success.awaitingSupervisor')}</p>
               {created.routingOutcome === 'AutoAssigned' && (
-                <p><span className="text-muted-foreground">ผู้รับผิดชอบ:</span> {created.assigneeName} (มอบหมายอัตโนมัติ)</p>
+                <p><span className="text-muted-foreground">{t('success.assignee')}:</span> {created.assigneeName} {t('success.autoAssigned')}</p>
               )}
               {created.routingOutcome === 'SupervisorQueue' && (
-                <p className="text-amber-700 dark:text-amber-300">พบผู้รับผิดชอบหลายคน กำลังรอ Supervisor มอบหมาย</p>
+                <p className="text-amber-700 dark:text-amber-300">{t('success.supervisorQueue')}</p>
               )}
             </div>
             <div className="mt-5 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/60 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
               <div>
-                <p className="text-sm font-semibold">ส่งเรื่องแล้ว การยกเลิกต้องได้รับอนุมัติ</p>
+                <p className="text-sm font-semibold">{t('success.cancelNoticeTitle')}</p>
                 <p className="mt-1 text-xs leading-5">
-                  คุณสามารถส่งคำขอยกเลิกจากหน้ารายละเอียด ระบบจะส่งให้แผนก {selectedDepartment?.name} พิจารณา
+                  {t('success.cancelNoticeBody', { department: departmentLabel })}
                 </p>
               </div>
             </div>
             <div className="mt-5 grid grid-cols-2 gap-2">
               <Link href={`/tickets/${created.id}`} className="flex h-11 items-center justify-center rounded-xl bg-[#0f8f72] text-sm font-semibold text-white">
-                ดูรายละเอียด
+                {tCommon('action.viewDetail')}
               </Link>
               <Link href="/tickets/my" className="flex h-11 items-center justify-center rounded-xl border border-slate-200 text-sm font-semibold dark:border-slate-600 dark:text-slate-100">
-                ดูเรื่องทั้งหมด
+                {t('success.viewAll')}
               </Link>
             </div>
           </div>
@@ -322,8 +337,8 @@ export default function NewTicketPage() {
             <ChevronLeft className="h-5 w-5" />
           </Link>
           <div>
-            <h1 className="text-lg font-bold">แจ้งเรื่อง</h1>
-            <p className="text-xs text-white/75">เลือกปลายทางและรายละเอียดปัญหา</p>
+            <h1 className="text-lg font-bold">{t('title')}</h1>
+            <p className="text-xs text-white/75">{t('subtitle')}</p>
           </div>
         </div>
       </div>
@@ -339,68 +354,69 @@ export default function NewTicketPage() {
         <section className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
           <div className="mb-3 flex items-center gap-2">
             <FileText className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">ปลายทาง</span>
+            <span className="text-sm font-semibold">{t('destination')}</span>
           </div>
 
           <div className="space-y-3">
             <ReadOnlyField
-              label="บริษัท"
+              label={t('company')}
               value={
                 companiesLoading || !profile
-                  ? 'กำลังโหลดบริษัท...'
-                  : selectedCompany?.name ?? 'ไม่พบบริษัทปลายทางในระบบแจ้งเรื่อง'
+                  ? t('loadingCompany')
+                  : selectedCompany ? localizedName(selectedCompany, locale) : t('companyNotFound')
               }
             />
 
             <SelectField
-              label="แผนก"
+              label={t('department')}
               value={departmentId}
               onChange={resetAfterDepartmentChange}
               disabled={!companyId || departmentsLoading}
-              placeholder={!companyId ? 'กำลังเตรียมข้อมูลบริษัท...' : departmentsLoading ? 'กำลังโหลดแผนก...' : 'เลือกแผนก'}
-              options={(departments ?? []).map(d => ({ value: d.id, label: d.name }))}
+              placeholder={!companyId ? t('preparingCompany') : departmentsLoading ? t('loadingDepartments') : t('selectDepartment')}
+              options={(departments ?? []).map(d => ({ value: d.id, label: localizedName(d, locale) }))}
             />
 
             <SelectField
-              label="หมวด"
+              label={t('category')}
               value={categoryId}
               onChange={resetAfterCategoryChange}
               disabled={!departmentId || categoriesLoading}
-              placeholder={!departmentId ? 'เลือกแผนกก่อน' : categoriesLoading ? 'กำลังโหลดหมวด...' : 'เลือกหมวด'}
-              options={(categories ?? []).map(c => ({ value: c.id, label: c.name }))}
+              placeholder={!departmentId ? t('selectDepartmentFirst') : categoriesLoading ? t('loadingCategories') : t('selectCategory')}
+              options={(categories ?? []).map(c => ({ value: c.id, label: localizedName(c, locale) }))}
             />
 
             <SelectField
-              label="หมวดย่อย"
+              label={t('topic')}
               value={topicId}
               onChange={handleTopicChange}
               disabled={!categoryId || topicsLoading}
-              placeholder={!categoryId ? 'เลือกหมวดก่อน' : topicsLoading ? 'กำลังโหลดหมวดย่อย...' : 'เลือกหมวดย่อย'}
-              options={(topics ?? []).map(t => ({ value: t.id, label: t.name }))}
+              placeholder={!categoryId ? t('selectCategoryFirst') : topicsLoading ? t('loadingTopics') : t('selectTopic')}
+              options={(topics ?? []).map(item => ({ value: item.id, label: localizedName(item, locale) }))}
             />
 
             <SelectField
-              label="หัวข้อ"
+              label={t('subject')}
               value={subjectId}
               onChange={handleSubjectChange}
               disabled={!topicId || subjectsLoading}
-              placeholder={!topicId ? 'เลือกหมวดย่อยก่อน' : subjectsLoading ? 'กำลังโหลดหัวข้อ...' : 'เลือกหัวข้อ'}
-              options={(subjects ?? []).map(s => ({ value: s.id, label: s.name }))}
+              placeholder={!topicId ? t('selectTopicFirst') : subjectsLoading ? t('loadingSubjects') : t('selectSubject')}
+              options={(subjects ?? []).map(s => ({ value: s.id, label: localizedName(s, locale) }))}
             />
 
             {requiresOtherTopic && (
               <TextInput
-                label="ระบุหัวข้ออื่น ๆ"
+                label={t('otherTopic')}
                 value={otherTopicText}
                 onChange={setOtherTopicText}
-                placeholder="ระบุเรื่องหรืออุปกรณ์ที่ต้องการแจ้ง"
+                placeholder={t('otherTopicPlaceholder')}
                 maxLength={200}
               />
             )}
 
             {subjectGuidance && (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-500/40 dark:bg-emerald-950/60">
-                <span className="mb-2 block text-xs font-medium text-emerald-800 dark:text-emerald-200">รายการแนะนำ</span>
+                {/* suggestion.label เป็นข้อความที่ HR ตั้งค่า (หรือค่าตั้งต้นไทยใน shared-types) — ไม่แปล */}
+                <span className="mb-2 block text-xs font-medium text-emerald-800 dark:text-emerald-200">{t('suggestions')}</span>
                 <div className="flex flex-wrap gap-2">
                   {subjectGuidance.suggestions.map(suggestion => (
                     <button
@@ -421,16 +437,16 @@ export default function NewTicketPage() {
         <section className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
           <div className="mb-3 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">รายละเอียดปัญหา</span>
+            <span className="text-sm font-semibold">{t('detailSection')}</span>
           </div>
 
           <div className="space-y-3">
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">รายละเอียด</span>
+              <span className="mb-1 block text-xs font-medium text-muted-foreground">{t('detail')}</span>
               <textarea
                 value={detail}
                 onChange={e => setDetail(e.target.value)}
-                placeholder={subjectGuidance ? subjectGuidance.template : 'อธิบายปัญหา สาเหตุเบื้องต้น หรือสิ่งที่ต้องการให้ตรวจสอบ'}
+                placeholder={subjectGuidance ? subjectGuidance.template : t('detailPlaceholder')}
                 maxLength={2000}
                 rows={5}
                 className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0f8f72] dark:border-slate-600 dark:bg-slate-800"
@@ -438,13 +454,11 @@ export default function NewTicketPage() {
             </label>
 
             {subjectGuidance && (
-              <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                ระบบจะเติม template ตามหัวข้อที่ตั้งค่าไว้ และคุณยังแก้ข้อความเพิ่มเติมได้ตามปกติ
-              </p>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">{t('templateHint')}</p>
             )}
 
             <div>
-              <span className="mb-2 block text-xs font-medium text-muted-foreground">ความเร่งด่วน</span>
+              <span className="mb-2 block text-xs font-medium text-muted-foreground">{t('priority')}</span>
               <div className="grid grid-cols-4 gap-2">
                 {PRIORITIES.map(item => {
                   const active = priority === item.value
@@ -455,7 +469,7 @@ export default function NewTicketPage() {
                       onClick={() => setPriority(item.value)}
                       className={`h-10 rounded-xl border text-xs font-semibold ${active ? item.tone : 'border-slate-200 bg-white text-slate-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}
                     >
-                      {item.label}
+                      {tPriority(item.value)}
                     </button>
                   )
                 })}
@@ -467,25 +481,25 @@ export default function NewTicketPage() {
         <section className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
           <div className="mb-3 flex items-center gap-2">
             <MapPin className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">ข้อมูลเพิ่มเติม</span>
+            <span className="text-sm font-semibold">{t('extraSection')}</span>
           </div>
 
           <div className="space-y-3">
-            <TextInput label="เบอร์ติดต่อ" value={displayPhone} onChange={setContactPhone} placeholder="เบอร์ติดต่อกลับ" maxLength={30} />
-            <TextInput label="หมายเหตุการติดต่อ" value={contactNote} onChange={setContactNote} placeholder="เช่น สะดวกช่วงเช้า รถอยู่ที่อู่" maxLength={500} />
+            <TextInput label={t('contactPhone')} value={displayPhone} onChange={setContactPhone} placeholder={t('contactPhonePlaceholder')} maxLength={30} />
+            <TextInput label={t('contactNote')} value={contactNote} onChange={setContactNote} placeholder={t('contactNotePlaceholder')} maxLength={500} />
           </div>
         </section>
 
         <section className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
           <div className="mb-3 flex items-center gap-2">
             <Paperclip className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">หลักฐาน</span>
+            <span className="text-sm font-semibold">{t('evidence')}</span>
             <span className="ml-auto text-xs text-muted-foreground">{files.length}/{MAX_FILES}</span>
           </div>
 
           <label className="flex h-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
             <ImagePlus className="mb-1 h-5 w-5" />
-            แนบรูป / PDF
+            {t('attachImageOrPdf')}
             <input type="file" multiple className="hidden" accept="image/*,.pdf" onChange={handleFileChange} />
           </label>
 
@@ -508,7 +522,7 @@ export default function NewTicketPage() {
           className="fixed bottom-20 left-1/2 flex h-12 w-[calc(100%-2rem)] max-w-[380px] -translate-x-1/2 items-center justify-center gap-2 rounded-2xl bg-[#0f8f72] text-sm font-bold text-white shadow-lg disabled:bg-slate-300"
         >
           {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          ส่งใบแจ้งเรื่อง
+          {t('submit')}
         </button>
       </form>
     </div>

@@ -7,10 +7,10 @@ export const roleLabelsApi = {
       .get<RoleLabelDto[]>('/role-labels', { params: { companyId, includeInactive } })
       .then((r) => r.data),
 
-  create: (body: { companyId: string; name: string }) =>
+  create: (body: { companyId: string; name: string; nameEn?: string; nameId?: string }) =>
     api.post<RoleLabelDto>('/role-labels', body).then((r) => r.data),
 
-  update: (id: string, body: { name: string; isActive: boolean }) =>
+  update: (id: string, body: { name: string; isActive: boolean; nameEn?: string; nameId?: string }) =>
     api.put<RoleLabelDto>(`/role-labels/${id}`, body).then((r) => r.data),
 
   delete: (id: string) =>

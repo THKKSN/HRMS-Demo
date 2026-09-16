@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Domain.Entities;
@@ -19,16 +20,16 @@ public class SetEmployeeShiftOverrideHandler(
 
         var employee = await db.Employees
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId && e.IsActive, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลพนักงาน");
+            ?? throw new NotFoundException("Employee", request.EmployeeId, "EMPLOYEE_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(employee.CompanyId, ct);
 
         var shift = await db.Shifts
             .FirstOrDefaultAsync(s => s.Id == request.ShiftId && s.IsActive, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลกะการทำงาน");
+            ?? throw new NotFoundException("Shift", request.ShiftId, "SHIFT_NOT_FOUND");
 
         if (request.EffectiveTo.HasValue && request.EffectiveTo < request.EffectiveFrom)
-            throw new ArgumentException("วันที่สิ้นสุดต้องไม่น้อยกว่าวันที่เริ่มต้น");
+            throw new BadRequestException("DATE_RANGE_INVALID", "The end date must not be earlier than the start date.");
 
         // deactivate overlapping overrides for the same employee
         var overlapping = await db.EmployeeShiftOverrides

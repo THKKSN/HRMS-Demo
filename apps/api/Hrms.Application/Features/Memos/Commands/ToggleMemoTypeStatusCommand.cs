@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,7 @@ public class ToggleMemoTypeStatusHandler(IApplicationDbContext db, IAuditLogServ
     public async Task Handle(ToggleMemoTypeStatusCommand request, CancellationToken ct)
     {
         var memoType = await db.MemoTypes.FirstOrDefaultAsync(x => x.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบประเภทเรื่อง");
+            ?? throw new NotFoundException("MemoType", request.Id, "MEMO_TYPE_NOT_FOUND");
 
         // ปิด MemoType ได้แม้มี Category/SubCategory ลูก active อยู่ — cascade dropdown query จะ filter
         // IsActive ของทุกชั้นอยู่แล้ว จึงไม่ต้องบล็อกตรงนี้ (พฤติกรรมตั้งใจ ตามแผน Phase 2 ข้อ 2.3)

@@ -21,12 +21,12 @@ public class GetMemoInboxHandler(IApplicationDbContext db, ICurrentUser currentU
         await currentUser.ThrowIfNoPermissionAsync(permService, "memo:view-inbox", ct);
 
         if (currentUser.EmployeeId is not { } employeeId)
-            throw new AppUnauthorizedException("ไม่พบตัวตนผู้ใช้");
+            throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND", "Current user has no employee record.");
 
         var isSupervisor = await db.EmployeeRoles.AsNoTracking()
             .AnyAsync(er => er.EmployeeId == employeeId && er.IsActive && er.Role.Code == RoleType.Supervisor, ct);
         if (!isSupervisor)
-            throw new AppForbiddenException("เฉพาะหัวหน้าแผนก (Supervisor) เท่านั้นที่เข้าถึงหน้านี้ได้");
+            throw new AppForbiddenException("MEMO_INBOX_SUPERVISOR_ONLY", "Only a department supervisor can open this page.");
 
         // Supervisor เห็นเรื่องของแผนกปลายทาง (MemoType.CompanyId/DepartmentId) เมื่อ:
         // - role Supervisor ถูก scope ตรงกับปลายทาง หรือ

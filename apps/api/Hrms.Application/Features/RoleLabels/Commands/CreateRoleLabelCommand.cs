@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Application.Features.RoleLabels.Commands;
 
-public record CreateRoleLabelCommand(Guid CompanyId, string Name) : IRequest<RoleLabelDto>;
+public record CreateRoleLabelCommand(Guid CompanyId, string Name, string? NameEn = null, string? NameId = null) : IRequest<RoleLabelDto>;
 
 public class CreateRoleLabelValidator : AbstractValidator<CreateRoleLabelCommand>
 {
@@ -17,6 +17,8 @@ public class CreateRoleLabelValidator : AbstractValidator<CreateRoleLabelCommand
     {
         RuleFor(x => x.CompanyId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.NameEn).MaximumLength(100).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(100).When(x => x.NameId is not null);
     }
 }
 
@@ -28,15 +30,17 @@ public class CreateRoleLabelHandler(IApplicationDbContext db, ICurrentUser curre
         await currentUser.ThrowIfNoPermissionAsync(permService, "company:manage-departments", ct);
 
         if (!currentUser.CanManageCompany(request.CompanyId))
-            throw new AppForbiddenException("ไม่มีสิทธิ์จัดการ company นี้");
+            throw new AppForbiddenException("COMPANY_MANAGE_FORBIDDEN", "You are not allowed to manage this company.");
 
         if (await db.RoleLabels.AnyAsync(r => r.CompanyId == request.CompanyId && r.Name == request.Name, ct))
-            throw new ConflictException("DUPLICATE_ROLE_LABEL", $"ชื่อ '{request.Name}' มีอยู่แล้วในบริษัทนี้");
+            throw new ConflictException("DUPLICATE_ROLE_LABEL", $"Job title '{request.Name}' already exists in this company.");
 
         var entity = new RoleLabel
         {
             CompanyId = request.CompanyId,
             Name      = request.Name,
+            NameEn    = Common.Helpers.NameText.Normalize(request.NameEn),
+            NameId    = Common.Helpers.NameText.Normalize(request.NameId),
             IsActive  = true,
             CreatedAt = DateTime.UtcNow.AddHours(7),
             UpdatedAt = DateTime.UtcNow.AddHours(7),
@@ -54,6 +58,6 @@ public class CreateRoleLabelHandler(IApplicationDbContext db, ICurrentUser curre
             newValues:   new { entity.Name, entity.CompanyId },
             ct:          ct);
 
-        return new RoleLabelDto(entity.Id, entity.CompanyId, entity.Name, entity.IsActive);
+        return new RoleLabelDto(entity.Id, entity.CompanyId, entity.Name, entity.IsActive, entity.NameEn, entity.NameId);
     }
 }

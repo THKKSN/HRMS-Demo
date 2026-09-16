@@ -1,24 +1,16 @@
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Common.Localization;
 using Hrms.Domain.Constants;
 using Hrms.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Hrms.Infrastructure.Jobs;
 
-public class DailyAttendanceReportJob(IApplicationDbContext db, ILineMessagingService line)
+public class DailyAttendanceReportJob(
+    IApplicationDbContext db,
+    ILineMessagingService line,
+    ILineMessageTextFactory messageText)
 {
-    private static readonly string[] ThaiMonths =
-    [
-        "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
-        "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
-    ];
-
-    private static readonly string[] ThaiDaysOfWeek =
-    [
-        "วันอาทิตย์", "วันจันทร์", "วันอังคาร", "วันพุธ",
-        "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์"
-    ];
-
     public async Task SendDailyReportAsync(CancellationToken ct = default)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
@@ -34,7 +26,8 @@ public class DailyAttendanceReportJob(IApplicationDbContext db, ILineMessagingSe
 
     private async Task ProcessCompanyAsync(Guid companyId, string companyName, DateOnly today, CancellationToken ct)
     {
-        var executiveLineIds = await db.EmployeeRoles
+        // ดึงภาษาของผู้รับมาด้วย — การ์ดต้องประกอบใหม่ต่อคน (แผน notification-i18n งาน N3.1)
+        var executives = await db.EmployeeRoles
             .Include(r => r.Employee)
             .Where(r =>
                 r.RoleId == SystemRoleIds.Executive &&
@@ -42,11 +35,11 @@ public class DailyAttendanceReportJob(IApplicationDbContext db, ILineMessagingSe
                 r.Employee.IsActive &&
                 r.Employee.CompanyId == companyId &&
                 r.Employee.LineUserId != null)
-            .Select(r => r.Employee.LineUserId!)
+            .Select(r => new { LineUserId = r.Employee.LineUserId!, r.Employee.PreferredLanguage })
             .Distinct()
             .ToListAsync(ct);
 
-        if (executiveLineIds.Count == 0) return;
+        if (executives.Count == 0) return;
 
         var totalEmployees = await db.Employees
             .CountAsync(e => e.CompanyId == companyId && e.IsActive, ct);
@@ -87,30 +80,37 @@ public class DailyAttendanceReportJob(IApplicationDbContext db, ILineMessagingSe
             .Select(e => new { e.FirstName, e.LastName })
             .ToListAsync(ct);
 
-        var thaiDate  = FormatThaiDate(today);
-        var altText   = $"สรุปการเข้างาน {companyName} {thaiDate}";
-        var card = BuildReportCard(
-            companyName, thaiDate, totalEmployees,
-            checkInCount, lateCount, leaveOnlyCount, notRecordedCount,
-            absentList.Select(e => $"{e.FirstName} {e.LastName}".Trim()).ToList());
+        var absentNames = absentList.Select(e => $"{e.FirstName} {e.LastName}".Trim()).ToList();
 
-        foreach (var lineUserId in executiveLineIds)
+        // ประกอบการ์ดใหม่ต่อผู้รับหนึ่งคน — เดิมประกอบใบเดียวนอกลูปแล้วส่งให้ทุกคน
+        // ซึ่งทำให้ส่งคนละภาษาตามผู้รับไม่ได้เลย (แผน notification-i18n งาน N2)
+        foreach (var executive in executives)
         {
-            try { await line.PushFlexMessageAsync(lineUserId, altText, card, ct); }
+            var text = messageText.For(executive.PreferredLanguage);
+            var reportDate = FormatReportDate(today, text);
+            var altText = text.Of("attendance.report.altText", new { company = companyName, date = reportDate });
+            var card = BuildReportCard(
+                text, companyName, reportDate, totalEmployees,
+                checkInCount, lateCount, leaveOnlyCount, notRecordedCount, absentNames);
+            try { await line.PushFlexMessageAsync(executive.LineUserId, altText, card, ct); }
             catch { /* ไม่ให้ job ล้มเหลวถ้า push คนใดคนหนึ่งไม่ได้ */ }
         }
     }
 
-    private static string FormatThaiDate(DateOnly date)
-    {
-        var dow          = ThaiDaysOfWeek[(int)date.DayOfWeek];
-        var month        = ThaiMonths[date.Month - 1];
-        var buddhistYear = date.Year + 543;
-        return $"{dow}ที่ {date.Day} {month} {buddhistYear}";
-    }
+    /// <summary>
+    /// เดิมประกอบเองด้วย array ชื่อเดือน/ชื่อวันภาษาไทย — ตอนนี้ชื่อมาจาก <see cref="AppDateFormat"/>
+    /// ส่วนรูปประโยค ("วันอังคาร<b>ที่</b> …") อยู่ในไฟล์คำแปล เพราะแต่ละภาษาเรียงไม่เหมือนกัน
+    /// </summary>
+    private static string FormatReportDate(DateOnly date, MessageText text)
+        => text.Of("attendance.report.date", new
+        {
+            dayOfWeek = AppDateFormat.DayOfWeek(date, text.Locale),
+            date = AppDateFormat.LongDate(date, text.Locale),
+        });
 
     private static object BuildReportCard(
-        string companyName, string thaiDate,
+        MessageText text,
+        string companyName, string reportDate,
         int total, int checkIn, int late, int onLeave, int notRecorded,
         List<string> absentNames)
     {
@@ -121,8 +121,8 @@ public class DailyAttendanceReportJob(IApplicationDbContext db, ILineMessagingSe
                 type = "box", layout = "horizontal", spacing = "none",
                 contents = new object[]
                 {
-                    new { type = "text", text = "เข้างาน", size = "sm", color = "#1DB446", flex = 5 },
-                    new { type = "text", text = $"{checkIn}/{total} คน", size = "sm", color = "#111111", flex = 3, align = "end", weight = "bold" }
+                    new { type = "text", text = text.Of("attendance.report.checkedIn"), size = "sm", color = "#1DB446", flex = 5 },
+                    new { type = "text", text = text.Of("attendance.report.ofTotalPeople", new { count = checkIn, total }), size = "sm", color = "#111111", flex = 3, align = "end", weight = "bold" }
                 }
             },
             new { type = "separator", margin = "sm" },
@@ -131,8 +131,8 @@ public class DailyAttendanceReportJob(IApplicationDbContext db, ILineMessagingSe
                 type = "box", layout = "horizontal", spacing = "none", margin = "sm",
                 contents = new object[]
                 {
-                    new { type = "text", text = "มาสาย", size = "sm", color = "#888888", flex = 5 },
-                    new { type = "text", text = $"{late} คน", size = "sm", color = late > 0 ? "#E8A219" : "#888888", flex = 3, align = "end" }
+                    new { type = "text", text = text.Of("attendance.report.late"), size = "sm", color = "#888888", flex = 5 },
+                    new { type = "text", text = text.Of("attendance.report.people", new { count = late }), size = "sm", color = late > 0 ? "#E8A219" : "#888888", flex = 3, align = "end" }
                 }
             },
             new
@@ -140,8 +140,8 @@ public class DailyAttendanceReportJob(IApplicationDbContext db, ILineMessagingSe
                 type = "box", layout = "horizontal", spacing = "none", margin = "sm",
                 contents = new object[]
                 {
-                    new { type = "text", text = "ลา", size = "sm", color = "#888888", flex = 5 },
-                    new { type = "text", text = $"{onLeave} คน", size = "sm", color = "#7B61FF", flex = 3, align = "end" }
+                    new { type = "text", text = text.Of("attendance.report.onLeave"), size = "sm", color = "#888888", flex = 5 },
+                    new { type = "text", text = text.Of("attendance.report.people", new { count = onLeave }), size = "sm", color = "#7B61FF", flex = 3, align = "end" }
                 }
             },
             new
@@ -149,11 +149,11 @@ public class DailyAttendanceReportJob(IApplicationDbContext db, ILineMessagingSe
                 type = "box", layout = "horizontal", spacing = "none", margin = "sm",
                 contents = new object[]
                 {
-                    new { type = "text", text = "ไม่ได้เช็คอิน", size = "sm", color = "#888888", flex = 5 },
+                    new { type = "text", text = text.Of("attendance.report.notCheckedIn"), size = "sm", color = "#888888", flex = 5 },
                     new
                     {
                         type = "text",
-                        text = $"{notRecorded} คน",
+                        text = text.Of("attendance.report.people", new { count = notRecorded }),
                         size = "sm",
                         color = notRecorded > 0 ? "#E74C3C" : "#888888",
                         flex = 3,
@@ -169,7 +169,7 @@ public class DailyAttendanceReportJob(IApplicationDbContext db, ILineMessagingSe
             bodyContents.Add(new { type = "separator", margin = "md" });
             bodyContents.Add(new
             {
-                type = "text", text = "รายชื่อที่ยังไม่ได้เช็คอิน",
+                type = "text", text = text.Of("attendance.report.notCheckedInNames"),
                 size = "xs", color = "#888888", margin = "md"
             });
             foreach (var name in absentNames)
@@ -185,7 +185,7 @@ public class DailyAttendanceReportJob(IApplicationDbContext db, ILineMessagingSe
                 bodyContents.Add(new
                 {
                     type = "text",
-                    text = $"และอีก {notRecorded - absentNames.Count} คน",
+                    text = text.Of("attendance.report.andMorePeople", new { count = notRecorded - absentNames.Count }),
                     size = "xs", color = "#aaaaaa", margin = "xs"
                 });
             }
@@ -201,9 +201,9 @@ public class DailyAttendanceReportJob(IApplicationDbContext db, ILineMessagingSe
                 backgroundColor = "#1A3A5C",
                 contents = new object[]
                 {
-                    new { type = "text", text = "สรุปการเข้างาน", color = "#ffffff", size = "md", weight = "bold" },
+                    new { type = "text", text = text.Of("attendance.report.title"), color = "#ffffff", size = "md", weight = "bold" },
                     new { type = "text", text = companyName, color = "#ffffffcc", size = "sm", margin = "xs" },
-                    new { type = "text", text = thaiDate, color = "#ffffff88", size = "xs", margin = "xs" }
+                    new { type = "text", text = reportDate, color = "#ffffff88", size = "xs", margin = "xs" }
                 }
             },
             body = new

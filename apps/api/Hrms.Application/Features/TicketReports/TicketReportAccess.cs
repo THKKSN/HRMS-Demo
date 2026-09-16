@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Domain.Constants;
@@ -56,12 +57,12 @@ public static class TicketReportAccess
         var dateFrom = filter.DateFrom ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7).AddDays(-30));
         var dateTo = filter.DateTo ?? DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
         if (dateTo < dateFrom)
-            throw new ValidationException("วันที่สิ้นสุดต้องไม่น้อยกว่าวันที่เริ่มต้น");
+            throw new BadRequestException("DATE_RANGE_INVALID", "The end date must not be earlier than the start date.");
         if (dateTo.DayNumber - dateFrom.DayNumber > 366)
-            throw new ValidationException("ช่วงวันที่ของรายงานต้องไม่เกิน 1 ปี");
+            throw new BadRequestException("REPORT_RANGE_TOO_LONG", "The report date range must not exceed one year.");
         if (!filter.DateBasis.Equals("CreatedAt", StringComparison.OrdinalIgnoreCase) &&
             !filter.DateBasis.Equals("ClosedAt", StringComparison.OrdinalIgnoreCase))
-            throw new ValidationException("DateBasis ต้องเป็น CreatedAt หรือ ClosedAt");
+            throw new BadRequestException("REPORT_DATE_BASIS_INVALID", "DateBasis must be CreatedAt or ClosedAt.");
         var from = dateFrom.ToDateTime(TimeOnly.MinValue);
         var toExclusive = dateTo.AddDays(1).ToDateTime(TimeOnly.MinValue);
         query = filter.DateBasis.Equals("ClosedAt", StringComparison.OrdinalIgnoreCase)
@@ -76,6 +77,7 @@ public static class TicketReportAccess
         if (filter.Status.HasValue) query = query.Where(t => t.Status == filter.Status.Value);
         if (filter.RequestType.HasValue) query = query.Where(t => t.RequestType == filter.RequestType.Value);
         if (filter.ProblemType.HasValue) query = query.Where(t => t.ProblemType == filter.ProblemType.Value);
+        if (filter.CloseoutReasonId.HasValue) query = query.Where(t => t.CloseoutReasonId == filter.CloseoutReasonId.Value);
         if (filter.ResponsibleEmployeeId.HasValue)
             query = query.Where(t => t.Assignments.Any(a => a.AssignedToEmployeeId == filter.ResponsibleEmployeeId.Value));
         return query;

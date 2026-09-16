@@ -22,7 +22,8 @@ public class GetLeaveTypesHandler(IApplicationDbContext db)
                 lt.NameEn,
                 lt.DefaultDaysPerYear,
                 lt.RequiresAttachment,
-                lt.IsActive))
+                lt.IsActive,
+                lt.NameId))
             .ToListAsync(ct);
     }
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   BarChart3,
   FolderTree,
@@ -29,6 +30,7 @@ type TicketNavigation = {
 };
 
 export function useTicketSections(): TicketNavigation {
+  const t = useTranslations("admin.ticket.nav");
   const employee = useAuthStore((state) => state.employee);
   const isAdmin =
     employee?.roles.some((role) => role.role === "Admin") ?? false;
@@ -41,20 +43,28 @@ export function useTicketSections(): TicketNavigation {
     employee?.roles.some((role) => role.role === "Employee") ?? false;
   const permissionCodes = new Set(employee?.permissionCodes ?? []);
   const hasPermissionPayload = Array.isArray(employee?.permissionCodes);
-  const canCreateTicket = isAdmin || isHr || isSupervisor || isEmployee;
+  // ผูกกับ permission ticket:create เป็นหลัก (grant ผ่านหน้า role management ได้ทุก role)
+  // fallback เป็น role เดิมเฉพาะตอน payload เก่าที่ยังไม่มี permissionCodes
+  const canCreateTicket =
+    hasAnyPermission(permissionCodes, ["ticket:create"]) ||
+    (!hasPermissionPayload && (isAdmin || isHr || isSupervisor || isEmployee));
   // กล่องงานใช้ endpoint ที่ backend คุมด้วย ticket:view-team — Employee ไม่มีสิทธิ์ ห้ามเห็น tab
   const canViewInbox =
     hasAnyPermission(permissionCodes, ["ticket:view-team"]) ||
     (!hasPermissionPayload && (isAdmin || isHr || isSupervisor));
-  const canManageTicketTaxonomy = isAdmin || isSupervisor;
-  const canViewTicketReports = isAdmin || isSupervisor || isExecutive;
+  const canManageTicketTaxonomy =
+    hasAnyPermission(permissionCodes, ["system:manage-ticket"]) ||
+    (!hasPermissionPayload && (isAdmin || isSupervisor));
+  const canViewTicketReports =
+    hasAnyPermission(permissionCodes, ["ticket:view-report"]) ||
+    (!hasPermissionPayload && (isAdmin || isSupervisor || isExecutive));
 
   const primary = [
     ...(canCreateTicket
       ? [
           {
-            label: "เรื่องที่แจ้ง",
-            description: "ติดตามเรื่องที่คุณเปิดไว้",
+            label: t("my"),
+            description: t("myDescription"),
             href: "/tickets",
             icon: MessageSquareWarning,
           },
@@ -63,18 +73,20 @@ export function useTicketSections(): TicketNavigation {
       ...(canViewInbox
       ? [
           {
-            label: "กล่องงาน",
-            description: "งานปัจจุบันและประวัติงาน",
+            label: t("inbox"),
+            description: t("inboxDescription"),
             href: "/tickets/inbox",
             icon: Wrench,
           },
         ]
       : []),
-    ...(canCreateTicket
+    // endpoint /tickets/assigned เช็ค ticket:view-assigned (Executive/Hr ไม่มีโดย default)
+    ...(hasAnyPermission(permissionCodes, ["ticket:view-assigned"]) ||
+    (!hasPermissionPayload && (isAdmin || isSupervisor || isEmployee))
       ? [
           {
-            label: "งานที่รับผิดชอบ",
-            description: "งานปัจจุบันและประวัติงาน",
+            label: t("assigned"),
+            description: t("assignedDescription"),
             href: "/tickets/assigned",
             icon: Wrench,
           },
@@ -86,8 +98,8 @@ export function useTicketSections(): TicketNavigation {
     ...(canViewTicketReports
       ? [
           {
-            label: "รายงาน",
-            description: "ปริมาณงาน ระยะเวลา และคุณภาพ",
+            label: t("reports"),
+            description: t("reportsDescription"),
             href: "/tickets/reports",
             icon: BarChart3,
           },
@@ -97,8 +109,8 @@ export function useTicketSections(): TicketNavigation {
 
   const createAction: TicketSection | undefined = canCreateTicket
     ? {
-        label: "แจ้งเรื่องใหม่",
-        description: "เปิด Ticket ภายใน",
+        label: t("new"),
+        description: t("newDescription"),
         href: "/tickets/new",
         icon: Plus,
       }
@@ -108,6 +120,7 @@ export function useTicketSections(): TicketNavigation {
 }
 
 export function TicketSectionNav() {
+  const t = useTranslations("admin.ticket.nav");
   const pathname = usePathname();
   const { primary, utilityActions, createAction } = useTicketSections();
   const detailMatch = pathname.match(/^\/tickets\/([^/]+)$/);
@@ -128,7 +141,7 @@ export function TicketSectionNav() {
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
         <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">Tickets</h2>
+          <h2 className="text-lg font-semibold">{t("heading")}</h2>
         </div>
         <div className="flex gap-2 overflow-x-auto">
           {utilityActions.map(({ label, href, icon: Icon }) => (

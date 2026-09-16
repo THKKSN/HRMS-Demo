@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Holidays.Dtos;
 using MediatR;
@@ -21,7 +22,7 @@ public class PreviewHolidaysFromScheduleHandler(IApplicationDbContext db, IScope
         var schedule = await db.WeeklyHolidaySchedules
             .AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == request.ScheduleId && s.IsActive, ct)
-            ?? throw new KeyNotFoundException($"ไม่พบ WeeklyHolidaySchedule Id '{request.ScheduleId}'");
+            ?? throw new NotFoundException("WeeklyHolidaySchedule", request.ScheduleId, "HOLIDAY_SCHEDULE_NOT_FOUND");
 
         if (schedule.CompanyId.HasValue)
             await scope.ThrowIfCannotAccessAsync(schedule.CompanyId.Value, ct);

@@ -12,8 +12,12 @@ public class MemoTypeConfiguration : IEntityTypeConfiguration<MemoType>
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
+        builder.Property(x => x.NameEn).HasMaxLength(200);
+        builder.Property(x => x.NameId).HasMaxLength(200);
         builder.Property(x => x.CompanyId).HasColumnType("char(36)").IsRequired();
         builder.Property(x => x.DepartmentId).HasColumnType("char(36)").IsRequired();
+        builder.Property(x => x.FirstApproverRoleCode).HasConversion<string>().HasMaxLength(20).IsRequired();
+        builder.Property(x => x.FirstApproverEmployeeId).HasColumnType("char(36)");
         builder.Property(x => x.IsActive).HasColumnType("tinyint(1)");
         builder.Property(x => x.CreatedAt).HasColumnType("datetime");
         builder.Property(x => x.UpdatedAt).HasColumnType("datetime");
@@ -32,5 +36,10 @@ public class MemoTypeConfiguration : IEntityTypeConfiguration<MemoType>
             .WithMany()
             .HasForeignKey(x => x.DepartmentId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.FirstApproverEmployee)
+            .WithMany()
+            .HasForeignKey(x => x.FirstApproverEmployeeId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

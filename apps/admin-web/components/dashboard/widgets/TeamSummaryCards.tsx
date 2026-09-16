@@ -1,14 +1,18 @@
+'use client'
+
+import { useTranslations } from 'next-intl'
 import { Users, ClipboardCheck, UserX, Clock } from 'lucide-react'
 import type { TeamDashboardDto } from '@hrms/shared-types'
 
 type Props = { data: TeamDashboardDto }
 
 export function TeamSummaryCards({ data }: Props) {
+  const t = useTranslations('admin.dashboard.team')
   const cards = [
-    { icon: Users,          label: 'สมาชิกทีม',    value: data.teamSize,             color: 'text-teal-600 dark:text-teal-400',   bg: 'bg-teal-50 dark:bg-teal-500/15' },
-    { icon: ClipboardCheck, label: 'รออนุมัติลา',  value: data.pendingApprovalCount, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-500/15' },
-    { icon: Clock,          label: 'มาสายวันนี้',  value: data.todayStats.late,      color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-500/15' },
-    { icon: UserX,          label: 'ขาด/ลาวันนี้', value: data.todayStats.absent + data.todayStats.onLeave, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-500/15' },
+    { icon: Users,          label: t('size'),         value: data.teamSize,             color: 'text-teal-600 dark:text-teal-400',   bg: 'bg-teal-50 dark:bg-teal-500/15' },
+    { icon: ClipboardCheck, label: t('pendingLeave'), value: data.pendingApprovalCount, color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-500/15' },
+    { icon: Clock,          label: t('lateToday'),    value: data.todayStats.late,      color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-500/15' },
+    { icon: UserX,          label: t('absentToday'),  value: data.todayStats.absent + data.todayStats.onLeave, color: 'text-rose-600 dark:text-rose-400', bg: 'bg-rose-50 dark:bg-rose-500/15' },
   ]
 
   return (

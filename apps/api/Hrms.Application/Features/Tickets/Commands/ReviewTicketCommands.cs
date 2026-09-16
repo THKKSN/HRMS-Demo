@@ -2,11 +2,13 @@ using System.Text.Json;
 using FluentValidation;
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Common.Options;
 using Hrms.Application.Features.Tickets.Dtos;
 using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Hrms.Application.Features.Tickets.Commands;
 
@@ -22,7 +24,8 @@ public class ReturnTicketForRevisionHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
     IPermissionService permissions,
-    IAuditLogService auditLog)
+    IAuditLogService auditLog,
+    IOptions<TicketOptions> ticketOptions)
     : IRequestHandler<ReturnTicketForRevisionCommand, TicketActionResultDto>
 {
     public async Task<TicketActionResultDto> Handle(ReturnTicketForRevisionCommand request, CancellationToken ct)
@@ -30,10 +33,10 @@ public class ReturnTicketForRevisionHandler(
         var ticket = await LoadTicket(request.TicketId, ct);
         await TicketSupervisorAccess.EnsureTicketAsync(db, currentUser, permissions, "ticket:return", ticket, ct);
         if (ticket.Status != TicketStatus.Resolved)
-            throw new ConflictException("INVALID_TICKET_STATUS", "ส่งกลับแก้ไขได้เฉพาะ Ticket ที่รอตรวจ");
+            throw new ConflictException("TICKET_NOT_PENDING_REVIEW", "Only tickets that are pending review can be processed here.");
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
         var assignment = ticket.Assignments.FirstOrDefault()
-            ?? throw new ConflictException("ASSIGNMENT_CHANGED", "ไม่พบผู้รับผิดชอบปัจจุบัน");
+            ?? throw new ConflictException("ASSIGNMENT_CHANGED", "No active primary assignee was found.");
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
         var actor = await db.Employees.FirstAsync(e => e.Id == actorId, ct);
         var now = DateTime.UtcNow.AddHours(7);
@@ -66,12 +69,14 @@ public class ReturnTicketForRevisionHandler(
             ticket.UpdatedBy = actorId;
             TicketStatusTransition.Record(db, ticket, TicketStatus.Resolved, TicketStatus.InProgress,
                 actorId, now, request.ReviewNote, assignment.Id);
-            var message = $"งาน {ticket.TicketNo} ถูกส่งกลับแก้ไข\nเหตุผล: {review.ReviewNote}";
+            var templateParams = new { ticketNo = ticket.TicketNo, reason = review.ReviewNote };
+            // แจ้งทั้งทีม (ผู้รับผิดชอบหลัก + ผู้ร่วมงาน) เพราะทุกคนต้องกลับมาแก้ตามผลตรวจ
+            await TicketCommandSupport.QueueForTeamAsync(
+                db, ticketOptions.Value, "TicketReturned", review.Id, ticket,
+                "ticket.returned.all", templateParams, transactionCt);
             TicketCommandSupport.QueueNotification(
-                db, "TicketReturned", review.Id, assignment.AssignedToEmployeeId,
-                assignment.AssignedToEmployee.LineUserId, message, ticket);
-            TicketCommandSupport.QueueNotification(
-                db, "TicketReturned", review.Id, TicketCommandSupport.Requester(ticket), message, ticket);
+                db, "TicketReturned", review.Id, TicketCommandSupport.Requester(ticket),
+                "ticket.returned.all", templateParams, ticket);
             await db.SaveChangesAsync(transactionCt);
             await auditLog.LogAsync("ticket", "Ticket", ticket.Id.ToString(), "return-for-revision",
                 $"{TicketCommandSupport.FullName(actor)} ส่ง {ticket.TicketNo} กลับแก้ไขรอบที่ {review.ReviewRound}",
@@ -89,7 +94,7 @@ public class ReturnTicketForRevisionHandler(
             .Include(t => t.Attachments)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary)).ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", id, "TICKET_NOT_FOUND");
 
     private async Task<TicketReview> CreateReview(
         Ticket ticket, TicketReviewDecision decision, string? note, Guid actorId, DateTime now, CancellationToken ct)
@@ -102,6 +107,7 @@ public class ReturnTicketForRevisionHandler(
             ReviewedByEmployeeId = actorId, ReviewedAt = now,
             ResolvedByEmployeeId = ticket.ResolvedByEmployeeId, ResolvedAt = ticket.ResolvedAt,
             ProblemTypeSnapshot = ticket.ProblemType,
+            CloseoutReasonSnapshot = ticket.CloseoutReasonNameSnapshot,
             InitialInspectionSnapshot = ticket.InitialInspectionNote,
             ResolutionSnapshot = ticket.ResolutionNote,
             ResolvedAttachmentIdsJson = JsonSerializer.Serialize(ticket.Attachments
@@ -123,7 +129,8 @@ public class CloseTicketHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
     IPermissionService permissions,
-    IAuditLogService auditLog)
+    IAuditLogService auditLog,
+    IOptions<TicketOptions> ticketOptions)
     : IRequestHandler<CloseTicketCommand, TicketActionResultDto>
 {
     public async Task<TicketActionResultDto> Handle(CloseTicketCommand request, CancellationToken ct)
@@ -134,25 +141,25 @@ public class CloseTicketHandler(
             .Include(t => t.Attachments)
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary)).ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketSupervisorAccess.EnsureTicketAsync(db, currentUser, permissions, "ticket:close", ticket, ct);
         if (ticket.Status is TicketStatus.AwaitingRequesterConfirmation or TicketStatus.Closed)
             return new TicketActionResultDto(ticket.Id, ticket.Status, ticket.UpdatedAt);
         if (ticket.Status != TicketStatus.Resolved)
-            throw new ConflictException("INVALID_TICKET_STATUS", "ปิดได้เฉพาะ Ticket ที่รอตรวจ");
+            throw new ConflictException("TICKET_NOT_PENDING_REVIEW", "Only tickets that are pending review can be processed here.");
         if (await db.TicketCancellationRequests.AnyAsync(cancellation =>
             cancellation.TicketId == ticket.Id &&
             cancellation.Status == TicketCancellationStatus.Pending, ct))
             throw new ConflictException(
                 "CANCELLATION_PENDING",
-                "กรุณาพิจารณาคำขอยกเลิกก่อนปิด Ticket");
+                "Review the cancellation request before closing this ticket.");
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
-        if (!ticket.ProblemType.HasValue || string.IsNullOrWhiteSpace(ticket.ResolutionNote) ||
-            !ticket.Attachments.Any(a => a.Stage == TicketAttachmentStage.Resolved))
-            throw new ValidationException("ข้อมูลผลการแก้ไขหรือหลักฐานจบงานไม่ครบ");
+        // ใช้กติกาเดียวกับตอนส่งงาน กันเคสข้อมูลถูกแก้/ลบหลังส่งตรวจแล้ว
+        await TicketCloseoutPolicy.EnsureReadyForReviewAsync(
+            db, ticket, ticket.Attachments.Any(a => a.Stage == TicketAttachmentStage.Resolved), ct);
 
         var assignment = ticket.Assignments.FirstOrDefault()
-            ?? throw new ConflictException("ASSIGNMENT_CHANGED", "ไม่พบผู้รับผิดชอบปัจจุบัน");
+            ?? throw new ConflictException("ASSIGNMENT_CHANGED", "No active primary assignee was found.");
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
         var actor = await db.Employees.FirstAsync(e => e.Id == actorId, ct);
         var now = DateTime.UtcNow.AddHours(7);
@@ -165,6 +172,7 @@ public class CloseTicketHandler(
             ReviewedByEmployeeId = actorId, ReviewedAt = now,
             ResolvedByEmployeeId = ticket.ResolvedByEmployeeId, ResolvedAt = ticket.ResolvedAt,
             ProblemTypeSnapshot = ticket.ProblemType,
+            CloseoutReasonSnapshot = ticket.CloseoutReasonNameSnapshot,
             InitialInspectionSnapshot = ticket.InitialInspectionNote,
             ResolutionSnapshot = ticket.ResolutionNote,
             ResolvedAttachmentIdsJson = JsonSerializer.Serialize(ticket.Attachments
@@ -172,12 +180,29 @@ public class CloseTicketHandler(
             CreatedBy = actorId, UpdatedBy = actorId
         };
 
+        // snapshot บนใบถ่ายมาตอน "สร้างใบ" แต่จุดนี้คือจุดที่นาฬิการอผู้แจ้งเริ่มเดินจริง
+        // จึงอ่านค่าจาก workflow ที่ตั้งไว้ ณ ตอนนี้มาทับ ใบที่ตอนแจ้งยังไม่มี workflow
+        // ผูกไว้จะได้ค่ามาใช้ ไม่ต้องรอ TicketAutoConfirmationJob ถอยไปใช้ค่า default
+        int? refreshedAutoAcknowledgeAfterDays = null;
+        if (ticket.TargetDepartmentId is { } departmentId
+            && ticket.CategoryId is { } categoryId
+            && ticket.TopicId is { } topicId
+            && ticket.SubjectId is { } subjectId)
+        {
+            var guidance = await TicketWorkflowRuntime.ResolveGuidanceAsync(
+                db, ticket.TargetCompanyId, departmentId, categoryId, topicId, subjectId, ct);
+            if (guidance?.Workflow?.AutoAcknowledgeAfterDays is > 0 and int resolvedDays)
+                refreshedAutoAcknowledgeAfterDays = resolvedDays;
+        }
+
         await db.ExecuteInTransactionAsync(async transactionCt =>
         {
             db.TicketReviews.Add(review);
             ticket.Status = TicketStatus.AwaitingRequesterConfirmation;
             ticket.VerifiedByEmployeeId = actorId;
             ticket.VerifiedAt = now;
+            if (refreshedAutoAcknowledgeAfterDays.HasValue)
+                ticket.WorkflowAutoAcknowledgeAfterDays = refreshedAutoAcknowledgeAfterDays;
             TicketCommandSupport.SetWorkflowBoardState(ticket, "accepted", workState: "ปิดงานเรียบร้อย");
             // owner = ผู้ทำงาน (assignee) ให้สอดคล้องกับ entry อื่นในฟีด — ไม่ใช่ผู้แจ้ง
             TicketCommandSupport.AddProgressEntry(
@@ -191,12 +216,13 @@ public class CloseTicketHandler(
             ticket.UpdatedBy = actorId;
             TicketStatusTransition.Record(db, ticket, TicketStatus.Resolved, TicketStatus.AwaitingRequesterConfirmation,
                 actorId, now, review.ReviewNote ?? "Approved", assignment.Id);
-            var message = $"งาน {ticket.TicketNo} ผ่านการตรวจและปิดแล้ว";
+            var templateParams = new { ticketNo = ticket.TicketNo };
+            await TicketCommandSupport.QueueForTeamAsync(
+                db, ticketOptions.Value, "TicketClosed", review.Id, ticket,
+                "ticket.closed.all", templateParams, transactionCt);
             TicketCommandSupport.QueueNotification(
-                db, "TicketClosed", review.Id, assignment.AssignedToEmployeeId,
-                assignment.AssignedToEmployee.LineUserId, message, ticket);
-            TicketCommandSupport.QueueNotification(
-                db, "TicketClosed", review.Id, TicketCommandSupport.Requester(ticket), message, ticket);
+                db, "TicketClosed", review.Id, TicketCommandSupport.Requester(ticket),
+                "ticket.closed.all", templateParams, ticket);
             await db.SaveChangesAsync(transactionCt);
             await auditLog.LogAsync("ticket", "Ticket", ticket.Id.ToString(), "close",
                 $"{TicketCommandSupport.FullName(actor)} ตรวจผ่านและปิด {ticket.TicketNo}",

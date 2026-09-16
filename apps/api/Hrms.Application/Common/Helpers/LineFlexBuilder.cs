@@ -1,14 +1,27 @@
+using Hrms.Application.Common.Localization;
+
 namespace Hrms.Application.Common.Helpers;
 
 public static class LineFlexBuilder
 {
+    /// <param name="eventType">
+    /// <see cref="Hrms.Domain.Entities.NotificationOutbox.EventType"/> ของแถวที่กำลังส่ง — ใช้เลือกสี/ป้ายหัวการ์ด
+    /// </param>
+    /// <param name="text">
+    /// ตัวแปลที่ผูกภาษาผู้รับไว้แล้ว · ตัวเนื้อความแปลมาจาก payload ตั้งแต่ก่อนเข้ามา
+    /// ส่วนคำบนกรอบการ์ด (ป้ายสถานะ, ปุ่ม, บรรทัดเวลา) เป็นของ builder เอง จึงต้องแปลตรงนี้
+    /// </param>
     public static object BuildTicketNotificationCard(
-        string message, string ticketUrl)
+        string message,
+        string ticketUrl,
+        string eventType,
+        MessageText text,
+        string productLabel = "INTERNAL TICKET")
     {
         var lines = message
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        var title = lines.FirstOrDefault() ?? "อัปเดตใบแจ้งเรื่อง";
-        var style = ResolveTicketStyle(message);
+        var title = lines.FirstOrDefault() ?? text.Of("card.fallbackTitle");
+        var style = ResolveTicketStyle(eventType);
         var detailContents = new List<object>();
 
         foreach (var line in lines.Skip(1))
@@ -63,7 +76,7 @@ public static class LineFlexBuilder
             detailContents.Add(new
             {
                 type = "text",
-                text = "แตะปุ่มด้านล่างเพื่อตรวจสอบรายละเอียด",
+                text = text.Of("card.noDetailHint"),
                 size = "sm",
                 color = "#7A7F87",
                 wrap = true
@@ -109,7 +122,7 @@ public static class LineFlexBuilder
                             new
                             {
                                 type = "text",
-                                text = "TBG Assistant  ·  INTERNAL TICKET",
+                                text = $"TBG Assistant  ·  {productLabel}",
                                 size = "xs",
                                 color = "#71767E",
                                 weight = "bold",
@@ -131,7 +144,7 @@ public static class LineFlexBuilder
                                     new
                                     {
                                         type = "text",
-                                        text = style.Label,
+                                        text = text.Of(style.LabelKey),
                                         size = "xs",
                                         color = style.AccentColor,
                                         weight = "bold",
@@ -183,7 +196,12 @@ public static class LineFlexBuilder
                             new
                             {
                                 type = "text",
-                                text = $"อัปเดตเมื่อ {DateTime.UtcNow.AddHours(7):dd/MM/yyyy HH:mm} น.",
+                                // เวลาเป็นเวลาไทยทุกภาษา (ตรึง Asia/Bangkok) — คำว่า "น." ท้ายเวลา
+                                // อยู่ในคำแปลของแต่ละภาษา ไม่ใช่ในโค้ด ตามกติกาใน GLOSSARY
+                                text = text.Of("card.updatedAt", new
+                                {
+                                    time = $"{DateTime.UtcNow.AddHours(7):dd/MM/yyyy HH:mm}"
+                                }),
                                 margin = "sm",
                                 size = "xs",
                                 color = "#8A8F98"
@@ -216,7 +234,7 @@ public static class LineFlexBuilder
                         action = new
                         {
                             type = "uri",
-                            label = "เปิดดูรายละเอียด",
+                            label = text.Of("card.openButton"),
                             uri = ticketUrl
                         }
                     }
@@ -225,123 +243,57 @@ public static class LineFlexBuilder
         };
     }
 
-    private static TicketCardStyle ResolveTicketStyle(string message)
+    /// <summary>
+    /// สี/ป้ายหัวการ์ดตาม <b>เหตุการณ์</b> ที่เกิด ไม่ใช่ตามเนื้อข้อความ
+    ///
+    /// <para>
+    /// ของเดิมเดาจากคำในข้อความ (<c>message.Contains("ปฏิเสธ")</c> 15 เงื่อนไข) ซึ่งมี 2 ปัญหา:
+    /// (1) ใช้ได้ภาษาเดียว — ข้อความไม่ใช่ไทยเมื่อไหร่ ทุกใบตกเป็น "งานใหม่"
+    /// (2) เนื้อข้อความมีข้อความที่ผู้ใช้พิมพ์เองปนอยู่ (คอมเมนต์ เหตุผล ชื่อขั้นตอน)
+    /// — ผู้ใช้พิมพ์คำว่า "ปฏิเสธ" ในคอมเมนต์แล้วการ์ดเปลี่ยนเป็นสีแดงได้
+    /// </para>
+    /// <para>
+    /// <b>เพิ่ม event ใหม่ต้องมาเพิ่มที่นี่ด้วย</b> ไม่งั้นได้สไตล์ default — มี test คุมอยู่ที่
+    /// <c>LineFlexBuilderStyleTests</c>
+    /// </para>
+    /// </summary>
+    public static TicketCardStyle ResolveTicketStyle(string? eventType) => eventType switch
     {
-        if (message.Contains("ปฏิเสธ") || message.Contains("ถูกยุติ"))
-            return new("#C63C3C", "#FCEBEC", "ยุติรายการ");
-        if (message.Contains("คำขอยกเลิก") && message.Contains("ไม่ได้รับอนุมัติ"))
-            return new("#C63C3C", "#FCEBEC", "ไม่อนุมัติ");
-        if (message.Contains("คำขอยกเลิก") && message.Contains("อนุมัติ"))
-            return new("#5B6472", "#EEF0F3", "ยกเลิกแล้ว");
-        if (message.Contains("คำขอยกเลิก") || message.Contains("ขอยกเลิก"))
-            return new("#B7791F", "#FFF6DE", "รอพิจารณา");
-        if (message.Contains("ส่งกลับ") || message.Contains("ขอข้อมูล"))
-            return new("#B7791F", "#FFF6DE", "ต้องดำเนินการ");
-        if (message.Contains("ผ่านการตรวจ") || message.Contains("ปิดแล้ว"))
-            return new("#17855B", "#E7F7F0", "ปิดงานแล้ว");
-        if (message.Contains("รอตรวจ"))
-            return new("#087EA4", "#E5F6FB", "รอตรวจรับ");
-        if (message.Contains("เริ่มดำเนินการ") || message.Contains("กลับมาดำเนินการ"))
-            return new("#1267A5", "#E8F2FA", "กำลังดำเนินการ");
-        if (message.Contains("มอบหมาย") || message.Contains("ผู้รับผิดชอบ") || message.Contains("รับเรื่อง"))
-            return new("#3563C9", "#EBF0FC", "มอบหมายแล้ว");
-        if (message.Contains("ข้อความใหม่"))
-            return new("#5B6472", "#EEF0F3", "ข้อความใหม่");
+        "TicketRejected" => new("#C63C3C", "#FCEBEC", "card.badge.stopped"),
+        "TicketCancellationRejected" or "MemoRejected" or "MemoStepRejected"
+            => new("#C63C3C", "#FCEBEC", "card.badge.notApproved"),
+        "TicketCancelled" => new("#5B6472", "#EEF0F3", "card.badge.cancelled"),
+        "TicketCancellationRequested" => new("#B7791F", "#FFF6DE", "card.badge.pendingReview"),
+        "MemoApproved" or "MemoDelivered" => new("#17855B", "#E7F7F0", "card.badge.approved"),
+        "MemoSubmitted" => new("#B7791F", "#FFF6DE", "card.badge.pendingApproval"),
+        "TicketResolved" or "MemoDeliveredToRequester" => new("#087EA4", "#E5F6FB", "card.badge.awaitingAcceptance"),
+        "TicketReturned" or "TicketWaitingInfo" => new("#B7791F", "#FFF6DE", "card.badge.actionRequired"),
+        // TicketRequesterConfirmed เดิมตกเป็นป้าย "งานใหม่" เพราะข้อความว่า "ยืนยันปิดงาน" ไม่ตรงกับคำใดเลย
+        "TicketClosed" or "TicketRequesterConfirmed" => new("#17855B", "#E7F7F0", "card.badge.closed"),
+        "TicketStarted" => new("#1267A5", "#E8F2FA", "card.badge.inProgress"),
+        // TicketTeamMemberAdded เดิมได้ 2 สีในเหตุการณ์เดียวกัน — คนที่ถูกดึงเข้าได้สีนี้ (ข้อความมีคำว่า
+        // "ผู้รับผิดชอบหลัก:") ส่วนทีมเดิมตกเป็นป้าย "งานใหม่" · รวมเป็นสีเดียวเพราะเป็นเหตุการณ์เดียวกัน
+        "TicketAccepted" or "TicketAssigned" or "TicketReassigned" or "TicketClaimed"
+            or "TicketTeamMemberAdded" => new("#3563C9", "#EBF0FC", "card.badge.assigned"),
+        "TicketCommented" => new("#5B6472", "#EEF0F3", "card.badge.newMessage"),
+        _ => new("#0F8F72", "#E5F6F1", "card.badge.newTicket"),
+    };
 
-        return new("#0F8F72", "#E5F6F1", "งานใหม่");
-    }
-
-    private sealed record TicketCardStyle(
+    public sealed record TicketCardStyle(
         string AccentColor,
         string BadgeColor,
-        string Label);
-
-    public static object BuildOtpCard(string otpCode, string otpUrl)
-    {
-        return new
-        {
-            type = "bubble",
-            size = "kompact",
-            styles = new
-            {
-                header = new { backgroundColor = "#0F8F72" },
-                footer = new { backgroundColor = "#F7F8FA", separator = true }
-            },
-            header = new
-            {
-                type = "box",
-                layout = "vertical",
-                paddingAll = "16px",
-                contents = new object[]
-                {
-                    new { type = "text", text = "รหัส OTP เชื่อมบัญชี", color = "#ffffff", size = "md", weight = "bold" }
-                }
-            },
-            body = new
-            {
-                type = "box",
-                layout = "vertical",
-                spacing = "sm",
-                paddingAll = "20px",
-                contents = new object[]
-                {
-                    new
-                    {
-                        type = "text",
-                        text = otpCode,
-                        size = "3xl",
-                        weight = "bold",
-                        align = "center",
-                        color = "#17191C",
-                        margin = "sm"
-                    },
-                    new
-                    {
-                        type = "text",
-                        text = "ใช้ได้ภายใน 5 นาที ห้ามแชร์รหัสนี้กับผู้อื่น",
-                        size = "xs",
-                        color = "#7A7F87",
-                        align = "center",
-                        wrap = true,
-                        margin = "md"
-                    }
-                }
-            },
-            footer = new
-            {
-                type = "box",
-                layout = "vertical",
-                paddingAll = "12px",
-                contents = new object[]
-                {
-                    new
-                    {
-                        type = "button",
-                        height = "sm",
-                        style = "primary",
-                        color = "#0F8F72",
-                        action = new
-                        {
-                            type = "uri",
-                            label = "กลับไปกรอกรหัส",
-                            uri = otpUrl
-                        }
-                    }
-                }
-            }
-        };
-    }
+        string LabelKey);
 
     public static object BuildAttendancePromptCard(
-        string name, bool isCheckIn, string? checkInTime = null)
+        MessageText text, string name, bool isCheckIn, string? checkInTime = null)
     {
         var headerColor  = isCheckIn ? "#1DB446" : "#0C7BB3";
-        var headerTitle  = isCheckIn ? "เช็คอินเริ่มงาน" : "เช็คเอาต์ออกงาน";
+        var headerTitle  = text.Of(isCheckIn ? "attendance.checkIn.title" : "attendance.checkOut.title");
         var headerIcon   = isCheckIn ? "🟢" : "🔵";
         var bodyText     = isCheckIn
-            ? "ยังไม่ได้เช็คอินวันนี้"
-            : $"เช็คอินแล้ว {checkInTime} น.";
-        var buttonLabel  = isCheckIn ? "📍 แชร์ตำแหน่งเพื่อเช็คอิน" : "📍 แชร์ตำแหน่งเพื่อเช็คเอาต์";
+            ? text.Of("attendance.prompt.notCheckedInYet")
+            : text.Of("attendance.prompt.checkedInAt", new { time = checkInTime });
+        var buttonLabel  = text.Of(isCheckIn ? "attendance.prompt.shareForCheckIn" : "attendance.prompt.shareForCheckOut");
 
         return new
         {
@@ -378,10 +330,13 @@ public static class LineFlexBuilder
 
 
     public static object BuildCheckInResultCard(
-        string name, DateTime time, string locationName, bool isLate, int lateMinutes)
+        MessageText text, string name, DateTime time, string locationName, bool isLate, int lateMinutes)
     {
         var headerColor = isLate ? "#FF8C00" : "#1DB446";
-        var statusText  = isLate ? $"มาสาย {lateMinutes} นาที" : "มาทำงานตรงเวลา ✅";
+        var statusText  = isLate
+            ? text.Of("attendance.checkIn.lateBy", new { minutes = lateMinutes })
+            : text.Of("attendance.checkIn.onTime");
+        var timeText    = text.Of("attendance.value.time", new { time = time.ToString("HH:mm") });
 
         return new
         {
@@ -392,8 +347,8 @@ public static class LineFlexBuilder
                 paddingAll = "16px",
                 contents = new object[]
                 {
-                    new { type = "text", text = "เช็คอินสำเร็จ", color = "#ffffff", size = "md", weight = "bold" },
-                    new { type = "text", text = time.ToString("HH:mm") + " น.", color = "#ffffffcc", size = "sm" }
+                    new { type = "text", text = text.Of("attendance.checkIn.done"), color = "#ffffff", size = "md", weight = "bold" },
+                    new { type = "text", text = timeText, color = "#ffffffcc", size = "sm" }
                 }
             },
             body = new
@@ -409,7 +364,7 @@ public static class LineFlexBuilder
                         type = "box", layout = "horizontal", margin = "md",
                         contents = new object[]
                         {
-                            new { type = "text", text = "สถานที่", size = "sm", color = "#555555", flex = 2 },
+                            new { type = "text", text = text.Of("attendance.field.location"), size = "sm", color = "#555555", flex = 2 },
                             new { type = "text", text = locationName, size = "sm", flex = 3, align = "end", wrap = true }
                         }
                     },
@@ -418,8 +373,8 @@ public static class LineFlexBuilder
                         type = "box", layout = "horizontal",
                         contents = new object[]
                         {
-                            new { type = "text", text = "เวลาเข้า", size = "sm", color = "#555555", flex = 2 },
-                            new { type = "text", text = time.ToString("HH:mm") + " น.", size = "sm", flex = 3, align = "end" }
+                            new { type = "text", text = text.Of("attendance.field.checkInTime"), size = "sm", color = "#555555", flex = 2 },
+                            new { type = "text", text = timeText, size = "sm", flex = 3, align = "end" }
                         }
                     }
                 }
@@ -428,10 +383,13 @@ public static class LineFlexBuilder
     }
 
     public static object BuildCheckOutResultCard(
-        string name, DateTime checkInTime, DateTime checkOutTime, string locationName)
+        MessageText text, string name, DateTime checkInTime, DateTime checkOutTime, string locationName)
     {
         var worked = checkOutTime - checkInTime;
-        var workedText = $"{(int)worked.TotalHours} ชม. {worked.Minutes} นาที";
+        var workedText   = text.Of("attendance.checkOut.worked",
+            new { hours = (int)worked.TotalHours, minutes = worked.Minutes });
+        var checkInText  = text.Of("attendance.value.time", new { time = checkInTime.ToString("HH:mm") });
+        var checkOutText = text.Of("attendance.value.time", new { time = checkOutTime.ToString("HH:mm") });
 
         return new
         {
@@ -442,8 +400,8 @@ public static class LineFlexBuilder
                 paddingAll = "16px",
                 contents = new object[]
                 {
-                    new { type = "text", text = "เช็คเอาต์สำเร็จ", color = "#ffffff", size = "md", weight = "bold" },
-                    new { type = "text", text = checkOutTime.ToString("HH:mm") + " น.", color = "#ffffffcc", size = "sm" }
+                    new { type = "text", text = text.Of("attendance.checkOut.done"), color = "#ffffff", size = "md", weight = "bold" },
+                    new { type = "text", text = checkOutText, color = "#ffffffcc", size = "sm" }
                 }
             },
             body = new
@@ -452,14 +410,14 @@ public static class LineFlexBuilder
                 contents = new object[]
                 {
                     new { type = "text", text = name, weight = "bold", size = "lg" },
-                    new { type = "text", text = $"ทำงาน {workedText}", color = "#0C7BB3", size = "sm" },
+                    new { type = "text", text = workedText, color = "#0C7BB3", size = "sm" },
                     new { type = "separator", margin = "md" },
                     new
                     {
                         type = "box", layout = "horizontal", margin = "md",
                         contents = new object[]
                         {
-                            new { type = "text", text = "สถานที่", size = "sm", color = "#555555", flex = 2 },
+                            new { type = "text", text = text.Of("attendance.field.location"), size = "sm", color = "#555555", flex = 2 },
                             new { type = "text", text = locationName, size = "sm", flex = 3, align = "end", wrap = true }
                         }
                     },
@@ -468,8 +426,8 @@ public static class LineFlexBuilder
                         type = "box", layout = "horizontal",
                         contents = new object[]
                         {
-                            new { type = "text", text = "เข้างาน", size = "sm", color = "#555555", flex = 2 },
-                            new { type = "text", text = checkInTime.ToString("HH:mm") + " น.", size = "sm", flex = 3, align = "end" }
+                            new { type = "text", text = text.Of("attendance.field.checkIn"), size = "sm", color = "#555555", flex = 2 },
+                            new { type = "text", text = checkInText, size = "sm", flex = 3, align = "end" }
                         }
                     },
                     new
@@ -477,8 +435,8 @@ public static class LineFlexBuilder
                         type = "box", layout = "horizontal",
                         contents = new object[]
                         {
-                            new { type = "text", text = "ออกงาน", size = "sm", color = "#555555", flex = 2 },
-                            new { type = "text", text = checkOutTime.ToString("HH:mm") + " น.", size = "sm", flex = 3, align = "end" }
+                            new { type = "text", text = text.Of("attendance.field.checkOut"), size = "sm", color = "#555555", flex = 2 },
+                            new { type = "text", text = checkOutText, size = "sm", flex = 3, align = "end" }
                         }
                     }
                 }
@@ -487,7 +445,7 @@ public static class LineFlexBuilder
     }
 
     public static object BuildAttendanceTodayCard(
-        string name, string date, string? checkIn, string? checkOut, string status)
+        MessageText text, string name, string date, string? checkIn, string? checkOut, string status)
     {
         var statusColor = status switch
         {
@@ -496,13 +454,16 @@ public static class LineFlexBuilder
             "Absent"  => "#E74C3C",
             _         => "#AAAAAA"
         };
-        var statusLabel = status switch
+        // ป้ายสถานะเป็นคีย์ตามชื่อค่า enum — ค่าใหม่ที่ยังไม่มีคำแปลจะโผล่ชื่อคีย์ให้เห็นแทนที่จะเงียบ
+        var statusLabel = text.Of(status switch
         {
-            "Present" => "✅ มาทำงาน",
-            "Late"    => "⚠️ มาสาย",
-            "Absent"  => "❌ ขาดงาน",
-            _         => "— ยังไม่ลงเวลา"
-        };
+            "Present" => "attendance.status.present",
+            "Late"    => "attendance.status.late",
+            "Absent"  => "attendance.status.absent",
+            _         => "attendance.status.notRecorded"
+        });
+        var checkInText  = checkIn is not null ? text.Of("attendance.value.time", new { time = checkIn }) : "—";
+        var checkOutText = checkOut is not null ? text.Of("attendance.value.time", new { time = checkOut }) : "—";
 
         return new
         {
@@ -513,7 +474,7 @@ public static class LineFlexBuilder
                 paddingAll = "16px",
                 contents = new object[]
                 {
-                    new { type = "text", text = "สถานะการเข้างานวันนี้", color = "#ffffff", size = "md", weight = "bold" },
+                    new { type = "text", text = text.Of("attendance.today.title"), color = "#ffffff", size = "md", weight = "bold" },
                     new { type = "text", text = date, color = "#ffffffcc", size = "sm" }
                 }
             },
@@ -530,8 +491,8 @@ public static class LineFlexBuilder
                         type = "box", layout = "horizontal", margin = "md",
                         contents = new object[]
                         {
-                            new { type = "text", text = "เข้างาน", size = "sm", color = "#555555", flex = 2 },
-                            new { type = "text", text = checkIn is not null ? checkIn + " น." : "—", size = "sm", flex = 3, align = "end" }
+                            new { type = "text", text = text.Of("attendance.field.checkIn"), size = "sm", color = "#555555", flex = 2 },
+                            new { type = "text", text = checkInText, size = "sm", flex = 3, align = "end" }
                         }
                     },
                     new
@@ -539,8 +500,8 @@ public static class LineFlexBuilder
                         type = "box", layout = "horizontal",
                         contents = new object[]
                         {
-                            new { type = "text", text = "ออกงาน", size = "sm", color = "#555555", flex = 2 },
-                            new { type = "text", text = checkOut is not null ? checkOut + " น." : "—", size = "sm", flex = 3, align = "end" }
+                            new { type = "text", text = text.Of("attendance.field.checkOut"), size = "sm", color = "#555555", flex = 2 },
+                            new { type = "text", text = checkOutText, size = "sm", flex = 3, align = "end" }
                         }
                     }
                 }

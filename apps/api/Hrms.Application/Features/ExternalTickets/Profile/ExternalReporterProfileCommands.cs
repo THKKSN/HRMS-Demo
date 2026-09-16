@@ -14,7 +14,8 @@ public sealed record ExternalReporterProfileDto(
     string? FullName,
     string? Phone,
     string? Email,
-    string? Organization)
+    string? Organization,
+    string? PhoneCountry = null)
 {
     public static ExternalReporterProfileDto From(ExternalReporter reporter) => new(
         reporter.Id,
@@ -23,7 +24,8 @@ public sealed record ExternalReporterProfileDto(
         reporter.FullName,
         reporter.Phone,
         reporter.Email,
-        reporter.Organization);
+        reporter.Organization,
+        reporter.PhoneCountry);
 }
 
 public sealed record GetExternalReporterProfileQuery : IRequest<ExternalReporterProfileDto>;
@@ -50,25 +52,48 @@ public sealed record UpdateExternalReporterProfileCommand(
     string FullName,
     string Phone,
     string Email,
-    string Organization) : IRequest<ExternalReporterProfileDto>;
+    string Organization,
+    string PhoneCountry) : IRequest<ExternalReporterProfileDto>;
 
 public sealed class UpdateExternalReporterProfileCommandValidator
     : AbstractValidator<UpdateExternalReporterProfileCommand>
 {
+    // E.164: + ตามด้วยรหัสประเทศที่ไม่ขึ้นต้นด้วย 0 รวม 7-15 หลัก (ฝั่ง client ประกอบให้แล้วด้วย toE164)
     public UpdateExternalReporterProfileCommandValidator()
     {
         RuleFor(x => x.FullName).NotEmpty().MaximumLength(200);
         RuleFor(x => x.Phone)
             .NotEmpty()
-            .Must(phone =>
-            {
-                var value = phone.Trim();
-                return value.Length is >= 8 and <= 20 &&
-                    value.All(ch => char.IsDigit(ch) || ch is '+' or '-' or '(' or ')' or ' ');
-            })
-            .WithMessage("Phone must contain 8-20 valid characters.");
+            .Must(phone => IsE164(NormalizePhone(phone)))
+            .WithMessage("Phone must be in E.164 format (e.g. +66812345678).");
+        RuleFor(x => x.PhoneCountry)
+            .NotEmpty()
+            .Must(IsIsoCountry)
+            .WithMessage("PhoneCountry must be an ISO 3166-1 alpha-2 code (e.g. TH).");
         RuleFor(x => x.Email).NotEmpty().MaximumLength(320).EmailAddress();
         RuleFor(x => x.Organization).NotEmpty().MaximumLength(200);
+    }
+
+    /// <summary>ลบเว้นวรรค/ขีด/วงเล็บที่อาจพิมพ์ติดมา เหลือเฉพาะ + นำหน้ากับตัวเลข</summary>
+    internal static string NormalizePhone(string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(phone)) return string.Empty;
+        var trimmed = phone.Trim();
+        var digits = new string(trimmed.Where(char.IsDigit).ToArray());
+        return trimmed.StartsWith('+') ? $"+{digits}" : digits;
+    }
+
+    /// <summary>E.164: '+' ตามด้วยรหัสประเทศที่ไม่ขึ้นต้นด้วย 0 รวมตัวเลข 7-15 หลัก</summary>
+    internal static bool IsE164(string value)
+        => value.Length is >= 8 and <= 16
+            && value[0] == '+'
+            && value[1] is >= '1' and <= '9'
+            && value.Skip(1).All(char.IsDigit);
+
+    internal static bool IsIsoCountry(string? country)
+    {
+        var value = country?.Trim();
+        return value?.Length == 2 && value.All(char.IsAsciiLetter);
     }
 }
 
@@ -88,7 +113,9 @@ public sealed class UpdateExternalReporterProfileHandler(
             ?? throw new AppUnauthorizedException("EXTERNAL_REPORTER_INACTIVE");
 
         reporter.FullName = request.FullName.Trim();
-        reporter.Phone = request.Phone.Trim();
+        // เก็บเบอร์เป็น E.164 ล้วนเสมอ (ไม่มีเว้นวรรค/ขีด) เพื่อให้ค้นหา โทรกลับ และเทียบซ้ำได้ตรงกันทุกประเทศ
+        reporter.Phone = UpdateExternalReporterProfileCommandValidator.NormalizePhone(request.Phone);
+        reporter.PhoneCountry = request.PhoneCountry.Trim().ToUpperInvariant();
         reporter.Email = request.Email.Trim().ToLowerInvariant();
         reporter.Organization = request.Organization.Trim();
 

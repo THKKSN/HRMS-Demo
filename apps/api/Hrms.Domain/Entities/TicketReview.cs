@@ -14,6 +14,7 @@ public class TicketReview : BaseEntity
     public Guid? ResolvedByEmployeeId { get; set; }
     public DateTime? ResolvedAt { get; set; }
     public TicketProblemType? ProblemTypeSnapshot { get; set; }
+    public string? CloseoutReasonSnapshot { get; set; }
     public string? InitialInspectionSnapshot { get; set; }
     public string? ResolutionSnapshot { get; set; }
     public string ResolvedAttachmentIdsJson { get; set; } = "[]";

@@ -48,20 +48,20 @@ public class RequestTicketCancellationHandler(
                 .ThenInclude(a => a.AssignedToEmployee)
             .Include(t => t.CancellationRequests)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
 
         if (ticket.RequesterEmployeeId != employeeId)
-            throw new AppForbiddenException("ขอยกเลิกได้เฉพาะใบแจ้งเรื่องของตนเอง");
+            throw new AppForbiddenException("TICKET_CANCELLATION_OWNER_ONLY", "Only the requester can ask to cancel this ticket.");
         if (ticket.Status is not (TicketStatus.Open or TicketStatus.Assigned or
             TicketStatus.InProgress or TicketStatus.WaitingInfo))
             throw new ConflictException(
                 "CANNOT_REQUEST_CANCELLATION",
-                "สถานะปัจจุบันไม่สามารถส่งคำขอยกเลิกได้");
+                "The current status does not allow a cancellation request.");
         if (ticket.CancellationRequests.Any(c =>
             c.Status == TicketCancellationStatus.Pending))
             throw new ConflictException(
                 "CANCELLATION_ALREADY_PENDING",
-                "ใบแจ้งเรื่องนี้มีคำขอยกเลิกที่รอพิจารณาอยู่แล้ว");
+                "This ticket already has a cancellation request awaiting review.");
 
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
         var now = DateTime.UtcNow.AddHours(7);
@@ -80,19 +80,25 @@ public class RequestTicketCancellationHandler(
         db.TicketCancellationRequests.Add(cancellation);
         ticket.UpdatedBy = employeeId;
         var requester = TicketCommandSupport.Requester(ticket);
-        var message = $"มีคำขอยกเลิก {ticket.TicketNo}\nผู้แจ้ง: {requester.DisplayName}\nเหตุผล: {cancellation.Reason}";
+        const string templateKey = "ticket.cancellationRequested.toReviewers";
+        var templateParams = new
+        {
+            ticketNo = ticket.TicketNo,
+            requester = requester.DisplayName,
+            reason = cancellation.Reason,
+        };
         var recipients = new HashSet<string>(StringComparer.Ordinal);
         var manager = ticket.TargetDepartment?.ManagerEmployee;
         if (!string.IsNullOrWhiteSpace(manager?.LineUserId) && recipients.Add(manager.LineUserId))
             TicketCommandSupport.QueueNotification(
                 db, "TicketCancellationRequested", cancellation.Id, manager.Id,
-                manager.LineUserId, message, ticket);
+                manager.LineUserId, templateKey, templateParams, ticket);
 
         var assignee = ticket.Assignments.FirstOrDefault()?.AssignedToEmployee;
         if (!string.IsNullOrWhiteSpace(assignee?.LineUserId) && recipients.Add(assignee.LineUserId))
             TicketCommandSupport.QueueNotification(
                 db, "TicketCancellationRequested", cancellation.Id, assignee.Id,
-                assignee.LineUserId, message, ticket);
+                assignee.LineUserId, templateKey, templateParams, ticket);
 
         var supervisors = await db.EmployeeRoles.AsNoTracking()
             .Where(role =>
@@ -114,7 +120,7 @@ public class RequestTicketCancellationHandler(
             if (!recipients.Add(supervisor.LineUserId!)) continue;
             TicketCommandSupport.QueueNotification(
                 db, "TicketCancellationRequested", cancellation.Id, supervisor.EmployeeId,
-                supervisor.LineUserId, message, ticket);
+                supervisor.LineUserId, templateKey, templateParams, ticket);
         }
         try
         {
@@ -124,7 +130,7 @@ public class RequestTicketCancellationHandler(
         {
             throw new ConflictException(
                 "CANCELLATION_ALREADY_PENDING",
-                "ใบแจ้งเรื่องนี้มีคำขอยกเลิกที่รอพิจารณาอยู่แล้ว");
+                "This ticket already has a cancellation request awaiting review.");
         }
         await auditLog.LogAsync(
             "ticket",
@@ -214,9 +220,10 @@ public class ApproveTicketCancellationHandler(
             TicketStatusTransition.Record(
                 db, ticket, oldStatus, TicketStatus.Cancelled, actorId, now,
                 cancellation.Reason, ticket.Assignments.FirstOrDefault()?.Id);
-            var message = $"คำขอยกเลิก {ticket.TicketNo} ได้รับอนุมัติ\nเหตุผล: {cancellation.Reason}";
             TicketCancellationSupport.QueueRequesterAndAssignees(
-                db, ticket, "TicketCancelled", cancellation.Id, message);
+                db, ticket, "TicketCancelled", cancellation.Id,
+                "ticket.cancelled.all",
+                new { ticketNo = ticket.TicketNo, reason = cancellation.Reason });
             await db.SaveChangesAsync(transactionCt);
             await auditLog.LogAsync(
                 "ticket",
@@ -262,9 +269,10 @@ public class RejectTicketCancellationHandler(
         cancellation.ReviewNote = request.ReviewNote.Trim();
         cancellation.UpdatedBy = actorId;
         ticket.UpdatedBy = actorId;
-        var message = $"คำขอยกเลิก {ticket.TicketNo} ไม่ได้รับอนุมัติ\nเหตุผล: {cancellation.ReviewNote}";
         TicketCancellationSupport.QueueRequesterAndAssignees(
-            db, ticket, "TicketCancellationRejected", cancellation.Id, message);
+            db, ticket, "TicketCancellationRejected", cancellation.Id,
+            "ticket.cancellationRejected.all",
+            new { ticketNo = ticket.TicketNo, reason = cancellation.ReviewNote });
         await db.SaveChangesAsync(ct);
         await auditLog.LogAsync(
             "ticket",
@@ -294,19 +302,19 @@ internal static class TicketCancellationSupport
             .Include(t => t.CancellationRequests.Where(c =>
                 c.Status == TicketCancellationStatus.Pending))
             .FirstOrDefaultAsync(t => t.Id == ticketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", ticketId, "TICKET_NOT_FOUND");
 
     public static void EnsureReviewable(Ticket ticket)
     {
         if (ticket.CancellationRequests.Count != 1)
             throw new ConflictException(
                 "CANCELLATION_NOT_PENDING",
-                "ไม่พบคำขอยกเลิกที่รอพิจารณา");
+                "No cancellation request is awaiting review.");
         if (ticket.Status is not (TicketStatus.Open or TicketStatus.Assigned or
             TicketStatus.InProgress or TicketStatus.WaitingInfo or TicketStatus.Resolved))
             throw new ConflictException(
                 "CANNOT_REVIEW_CANCELLATION",
-                "Ticket เปลี่ยนสถานะแล้ว ไม่สามารถพิจารณาคำขอยกเลิกนี้ได้");
+                "The ticket status changed, so this cancellation request can no longer be reviewed.");
     }
 
     public static void QueueRequesterAndAssignees(
@@ -314,7 +322,8 @@ internal static class TicketCancellationSupport
         Ticket ticket,
         string eventType,
         Guid occurrenceId,
-        string message)
+        string templateKey,
+        object? parameters)
     {
         var recipients = new HashSet<string>(StringComparer.Ordinal);
         var requester = TicketCommandSupport.Requester(ticket);
@@ -322,7 +331,7 @@ internal static class TicketCancellationSupport
             recipients.Add(requester.LineUserId))
         {
             TicketCommandSupport.QueueNotification(
-                db, eventType, occurrenceId, requester, message, ticket);
+                db, eventType, occurrenceId, requester, templateKey, parameters, ticket);
         }
 
         foreach (var assignment in ticket.Assignments)
@@ -331,7 +340,7 @@ internal static class TicketCancellationSupport
             if (string.IsNullOrWhiteSpace(lineUserId) || !recipients.Add(lineUserId)) continue;
             TicketCommandSupport.QueueNotification(
                 db, eventType, occurrenceId, assignment.AssignedToEmployeeId,
-                lineUserId, message, ticket);
+                lineUserId, templateKey, parameters, ticket);
         }
     }
 }

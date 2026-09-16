@@ -9,7 +9,7 @@ export type UploadResult = {
   sizeBytes: number
 }
 
-export type UploadModule = 'leaves' | 'payslips' | 'tickets' | 'general'
+export type UploadModule = 'leaves' | 'payslips' | 'tickets' | 'general' | 'memos'
 
 export const uploadApi = {
   upload: async (file: File, module: UploadModule = 'general'): Promise<UploadResult> => {

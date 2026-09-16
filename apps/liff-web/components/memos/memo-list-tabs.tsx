@@ -2,33 +2,37 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { ClipboardCheck, FileText, Inbox } from 'lucide-react'
+import { hasPermission } from '@/lib/auth-utils'
 import { useAuthStore } from '@/stores/auth.store'
 
 // tab สลับมุมมอง memo — โครงเดียวกับ TicketListTabs
-// ของฉัน = ทุกคน · เข้าแผนก = Supervisor · รออนุมัติ = Executive/Admin
+// ของฉัน = ทุกคน · เข้าแผนก = memo:view-inbox · รออนุมัติ = memo:approve
 const tabs = [
-  { href: '/memos/my', label: 'My memo', icon: FileText, roles: null as string[] | null },
-  { href: '/memos/inbox', label: 'Inbox', icon: Inbox, roles: ['Supervisor'] },
-  { href: '/memos/approvals', label: 'Approvals', icon: ClipboardCheck, roles: ['Executive', 'Admin'] },
-]
+  { href: '/memos/my', key: 'my', icon: FileText, permission: null as string | null, fallbackRoles: [] as string[] },
+  { href: '/memos/inbox', key: 'inbox', icon: Inbox, permission: 'memo:view-inbox', fallbackRoles: ['Supervisor'] },
+  { href: '/memos/approvals', key: 'approvals', icon: ClipboardCheck, permission: 'memo:approve', fallbackRoles: ['Executive', 'Admin'] },
+] as const
 
 export function MemoListTabs() {
+  const t = useTranslations('liff.memo.list')
   const pathname = usePathname()
   const employee = useAuthStore(state => state.employee)
-  const myRoles = employee?.roles.map(role => role.role) ?? []
-  const visibleTabs = tabs.filter(tab => !tab.roles || tab.roles.some(role => myRoles.includes(role)))
+  const visibleTabs = tabs.filter(
+    tab => !tab.permission || hasPermission(employee, tab.permission, [...tab.fallbackRoles]),
+  )
 
   if (visibleTabs.length < 2) return null
 
   return (
-    <nav className="border-b border-border bg-background px-4 py-3" aria-label="รายการ Memo">
+    <nav className="border-b border-border bg-background px-4 py-3" aria-label={t('navLabel')}>
       <div
         className={`grid h-10 rounded-md bg-muted p-1 ${
           visibleTabs.length === 3 ? 'grid-cols-3' : 'grid-cols-2'
         }`}
       >
-        {visibleTabs.map(({ href, label, icon: Icon }) => {
+        {visibleTabs.map(({ href, key, icon: Icon }) => {
           const active = pathname.startsWith(href)
           return (
             <Link
@@ -42,7 +46,7 @@ export function MemoListTabs() {
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{label}</span>
+              <span className="truncate">{t(`tabs.${key}`)}</span>
             </Link>
           )
         })}

@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useLocale, useTranslations } from 'next-intl'
 import { Send } from 'lucide-react'
 import { toast } from 'sonner'
+import { localizedName, type Locale } from '@hrms/i18n'
 import {
   applyTicketGuidanceSuggestion,
   applyTicketGuidanceTemplate,
@@ -24,12 +26,17 @@ import { useAuthStore } from '@/stores/auth.store'
 // ถ้าไม่ตั้ง env จะ fallback เป็นบริษัทของผู้แจ้งเอง (ใช้ตอน dev / e2e)
 const FIXED_TICKET_COMPANY_ID = process.env.NEXT_PUBLIC_TICKET_COMPANY_ID ?? ''
 
-function message(error: unknown) {
+// ข้อความจาก API ยังเป็นไทย (รอ Phase 3) — fallback ส่งเข้ามาจากคำแปล
+function message(error: unknown, fallback: string) {
   const data = (error as { response?: { data?: { message?: string; error?: string; errors?: string[] } } }).response?.data
-  return data?.message ?? data?.errors?.[0] ?? data?.error ?? 'ไม่สามารถเปิดใบแจ้งเรื่องได้'
+  return data?.message ?? data?.errors?.[0] ?? data?.error ?? fallback
 }
 
 export default function NewTicketPage() {
+  const t = useTranslations('admin.ticket.new')
+  const tPriority = useTranslations('status.ticketPriority')
+  const tCommon = useTranslations('common')
+  const locale = useLocale() as Locale
   const router = useRouter()
   const create = useCreateTicket()
   const myCompanyId = useAuthStore(state => state.employee?.companyId)
@@ -54,6 +61,7 @@ export default function NewTicketPage() {
   const selectedCategory = categories.find(item => item.id === categoryId)
   const selectedTopic = topics.find(item => item.id === topicId)
   const selectedSubject = subjects.find(item => item.id === subjectId)
+  // "อื่น ๆ" เป็นชื่อไทยที่ HR ตั้งไว้ใน master data (กติกาเดิม) — เทียบกับ name ไทยเสมอไม่ว่าจอจะเป็นภาษาอะไร
   const requiresOther = selectedSubject?.name.trim() === 'อื่น ๆ'
   const subjectGuidance = useMemo<ResolvedTicketSubjectGuidance | null>(() => {
     if (resolvedSubjectGuidance && (resolvedSubjectGuidance.template || resolvedSubjectGuidance.suggestions.length > 0)) {
@@ -99,8 +107,8 @@ export default function NewTicketPage() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!companyId || !departmentId || !categoryId || !topicId || !subjectId || !detail.trim()) return toast.error('กรุณากรอกข้อมูลที่จำเป็นให้ครบ')
-    if (requiresOther && !otherTopicText.trim()) return toast.error('กรุณาระบุหัวข้ออื่น ๆ')
+    if (!companyId || !departmentId || !categoryId || !topicId || !subjectId || !detail.trim()) return toast.error(t('requiredFields'))
+    if (requiresOther && !otherTopicText.trim()) return toast.error(t('otherRequired'))
     try {
       const result = await create.mutateAsync({
         requestType: 'Internal',
@@ -116,61 +124,62 @@ export default function NewTicketPage() {
         contactNote: contactNote.trim() || undefined,
         attachmentUrls: attachment ? [attachment.url] : undefined,
       })
-      toast.success(`เปิดใบแจ้งเรื่อง ${result.ticketNo} แล้ว`)
+      toast.success(t('created', { ticketNo: result.ticketNo }))
       router.push(`/tickets/${result.id}`)
     } catch (error) {
-      toast.error(message(error))
+      toast.error(message(error, t('failed')))
     }
   }
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <div>
-        <h1 className="text-xl font-semibold">แจ้งเรื่องภายใน</h1>
-        <p className="mt-1 text-sm text-muted-foreground">ระบุหน่วยงานปลายทางและรายละเอียดที่ต้องการให้ตรวจสอบ</p>
+        <h1 className="text-xl font-semibold">{t('title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
       </div>
       <form onSubmit={submit} className="space-y-6">
         <section className="border-y border-border py-5">
-          <h2 className="mb-4 text-sm font-semibold">หน่วยงานและประเภทเรื่อง</h2>
+          <h2 className="mb-4 text-sm font-semibold">{t('orgSection')}</h2>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="บริษัท">
+            <Field label={t('company')}>
               <div className="flex h-10 w-full items-center rounded-md border border-border bg-muted px-3 text-sm text-muted-foreground">
                 {!companies.length
-                  ? 'กำลังโหลดบริษัท...'
-                  : selectedCompany?.name ?? 'ไม่พบบริษัทปลายทางในระบบแจ้งเรื่อง'}
+                  ? t('loadingCompany')
+                  : selectedCompany ? localizedName(selectedCompany, locale) : t('companyNotFound')}
               </div>
             </Field>
-            <Field label="แผนกปลายทาง *">
+            <Field label={t('department')}>
               <Select value={departmentId} disabled={!companyId} onChange={event => { setDepartmentId(event.target.value); setCategoryId(''); setTopicId(''); setSubjectId(''); setOtherTopicText('') }}>
-                <option value="">เลือกแผนก</option>
-                {departments.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                <option value="">{t('selectDepartment')}</option>
+                {departments.map(item => <option key={item.id} value={item.id}>{localizedName(item, locale)}</option>)}
               </Select>
             </Field>
-            <Field label="หมวด *">
+            <Field label={t('category')}>
               <Select value={categoryId} disabled={!departmentId} onChange={event => { setCategoryId(event.target.value); setTopicId(''); setSubjectId(''); setOtherTopicText('') }}>
-                <option value="">เลือกหมวด</option>
-                {categories.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                <option value="">{t('selectCategory')}</option>
+                {categories.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{localizedName(item, locale)}</option>)}
               </Select>
             </Field>
-            <Field label="หมวดย่อย *">
+            <Field label={t('topic')}>
               <Select value={topicId} disabled={!categoryId} onChange={event => { setTopicId(event.target.value); setSubjectId(''); setOtherTopicText('') }}>
-                <option value="">เลือกหมวดย่อย</option>
-                {topics.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                <option value="">{t('selectTopic')}</option>
+                {topics.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{localizedName(item, locale)}</option>)}
               </Select>
             </Field>
-            <Field label="หัวข้อ *">
+            <Field label={t('subject')}>
               <Select value={subjectId} disabled={!topicId} onChange={event => { setSubjectId(event.target.value); setOtherTopicText('') }}>
-                <option value="">เลือกหัวข้อ</option>
-                {subjects.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                <option value="">{t('selectSubject')}</option>
+                {subjects.filter(item => item.isActive).map(item => <option key={item.id} value={item.id}>{localizedName(item, locale)}</option>)}
               </Select>
             </Field>
             {requiresOther && (
-              <Field label="ระบุหัวข้ออื่น ๆ *" wide>
+              <Field label={t('otherTopic')} wide>
                 <Input value={otherTopicText} onChange={event => setOtherTopicText(event.target.value)} maxLength={200} />
               </Field>
             )}
             {subjectGuidance && (
-              <Field label="รายการแนะนำ" wide>
+              <Field label={t('suggestions')} wide>
+                {/* suggestion.label เป็นข้อความที่ HR ตั้งค่า — ไม่แปล */}
                 <div className="flex flex-wrap gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3">
                   {subjectGuidance.suggestions.map(suggestion => (
                     <button
@@ -188,9 +197,9 @@ export default function NewTicketPage() {
           </div>
         </section>
         <section className="space-y-4">
-          <h2 className="text-sm font-semibold">รายละเอียด</h2>
+          <h2 className="text-sm font-semibold">{t('detailSection')}</h2>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="รายละเอียดปัญหา *" wide>
+            <Field label={t('detail')} wide>
               <div className="space-y-2">
                 <textarea
                   rows={6}
@@ -200,25 +209,24 @@ export default function NewTicketPage() {
                   maxLength={2000}
                   className="w-full resize-y rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
                 />
-                {subjectGuidance && <p className="text-xs text-emerald-700">template และรายการแนะนำถูกตั้งค่าจาก rule กลาง เพิ่มหัวข้อใหม่ได้จากจุดเดียว</p>}
+                {subjectGuidance && <p className="text-xs text-emerald-700">{t('templateHint')}</p>}
               </div>
             </Field>
-            <Field label="ความเร่งด่วน">
+            <Field label={t('priority')}>
               <Select value={priority} onChange={event => setPriority(event.target.value as TicketPriority)}>
-                <option value="Low">ปกติ</option>
-                <option value="Medium">กลาง</option>
-                <option value="High">ด่วน</option>
-                <option value="Critical">ด่วนมาก</option>
+                {(['Low', 'Medium', 'High', 'Critical'] as TicketPriority[]).map(item => (
+                  <option key={item} value={item}>{tPriority(item)}</option>
+                ))}
               </Select>
             </Field>
-            <Field label="เบอร์โทรติดต่อ"><Input value={contactPhone} onChange={event => setContactPhone(event.target.value)} maxLength={30} /></Field>
-            <Field label="ข้อมูลติดต่อเพิ่มเติม" wide><Input value={contactNote} onChange={event => setContactNote(event.target.value)} maxLength={500} /></Field>
-            <Field label="หลักฐานประกอบ" wide><FileUploadInput module="tickets" value={attachment} onChange={setAttachment} accept="image/*,.pdf" label="แนบรูปหรือเอกสาร" /></Field>
+            <Field label={t('contactPhone')}><Input value={contactPhone} onChange={event => setContactPhone(event.target.value)} maxLength={30} /></Field>
+            <Field label={t('contactNote')} wide><Input value={contactNote} onChange={event => setContactNote(event.target.value)} maxLength={500} /></Field>
+            <Field label={t('attachment')} wide><FileUploadInput module="tickets" value={attachment} onChange={setAttachment} accept="image/*,.pdf" label={t('attachmentLabel')} /></Field>
           </div>
         </section>
         <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button type="button" variant="outline" onClick={() => router.back()}>ยกเลิก</Button>
-          <Button type="submit" loading={create.isPending}><Send className="h-4 w-4" /> ส่งใบแจ้งเรื่อง</Button>
+          <Button type="button" variant="outline" onClick={() => router.back()}>{tCommon('action.cancel')}</Button>
+          <Button type="submit" loading={create.isPending}><Send className="h-4 w-4" /> {t('submit')}</Button>
         </div>
       </form>
     </div>

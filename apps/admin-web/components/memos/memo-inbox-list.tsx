@@ -2,16 +2,19 @@
 
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { EyeIcon, FileText, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { MEMO_TABLE_PAGE_SIZE, TablePagination } from '@/components/memos/table-pagination'
 import { useMemoInbox } from '@/hooks/use-memo'
+import { useMe } from '@/hooks/use-me'
 import type { MemoInboxItemDto } from '@hrms/shared-types'
+import * as fmt from '@hrms/i18n/format'
 
-function thaiDateTime(value?: string) {
-  return value ? new Intl.DateTimeFormat('th-TH', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value)) : '—'
+function shortDateTime(value?: string) {
+  return value ? fmt.formatDateTime(new Date(value), { dateStyle: 'short', timeStyle: 'short' }) : '—'
 }
 
 // สถานะย่อยของเรื่องในมุมแผนกปลายทาง — คำนวณจาก status + timestamp ของแต่ละขั้น
@@ -25,28 +28,32 @@ export function inboxStatusKey(item: MemoInboxItemDto): InboxStatusKey {
   return 'awaiting-ack'
 }
 
-const INBOX_STATUS_OPTIONS: { value: InboxStatusKey; label: string }[] = [
-  { value: 'pending-approval', label: 'รอผู้บริหารอนุมัติ' },
-  { value: 'awaiting-ack', label: 'รอรับทราบ' },
-  { value: 'in-progress', label: 'กำลังดำเนินการ' },
-  { value: 'delivered', label: 'ส่งมอบแล้ว' },
-  { value: 'completed', label: 'เสร็จสิ้น' },
+const INBOX_STATUS_KEYS: InboxStatusKey[] = [
+  'pending-approval', 'awaiting-ack', 'in-progress', 'delivered', 'completed',
 ]
 
-export function inboxStatusBadge(item: MemoInboxItemDto) {
-  switch (inboxStatusKey(item)) {
-    case 'pending-approval': return <Badge variant="secondary">รอผู้บริหารอนุมัติ</Badge>
-    case 'completed': return <Badge variant="success">เสร็จสิ้น</Badge>
-    case 'delivered': return <Badge variant="success">ส่งมอบแล้ว</Badge>
-    case 'in-progress': return <Badge variant="warning">กำลังดำเนินการ</Badge>
-    default: return <Badge variant="warning">รอรับทราบ</Badge>
-  }
+const INBOX_STATUS_VARIANT: Record<InboxStatusKey, 'secondary' | 'success' | 'warning'> = {
+  'pending-approval': 'secondary',
+  'awaiting-ack': 'warning',
+  'in-progress': 'warning',
+  delivered: 'success',
+  completed: 'success',
+}
+
+/** ป้ายสถานะของกล่องเข้าแผนก — ใช้ในหน้าอื่นด้วย จึงเป็นคอมโพเนนต์เพื่อเรียก useTranslations ได้ */
+export function InboxStatusBadge({ item }: { item: MemoInboxItemDto }) {
+  const t = useTranslations('admin.memo.inbox.status')
+  const key = inboxStatusKey(item)
+  return <Badge variant={INBOX_STATUS_VARIANT[key]}>{t(key)}</Badge>
 }
 
 export function MemoInboxList() {
+  const t = useTranslations('admin.memo.inbox')
+  const tCommon = useTranslations('common')
   const [statusFilter, setStatusFilter] = useState<InboxStatusKey | ''>('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  const { data: me } = useMe()
   // ดึงทั้งหมด (รวมส่งมอบแล้ว) แล้วกรองตามสถานะฝั่ง client
   const { data: allItems = [], isLoading } = useMemoInbox(true)
 
@@ -69,14 +76,14 @@ export function MemoInboxList() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Memo</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            เรื่องที่ส่งเข้าแผนกของคุณ — เห็นตั้งแต่รอผู้บริหารอนุมัติเพื่อเตรียมงาน เมื่ออนุมัติแล้วจึงรับทราบ ดำเนินการ และส่งมอบ
-          </p>
+          <h2 className="text-lg font-semibold">
+            {me?.departmentName ? t('titleWithDepartment', { department: me.departmentName }) : t('title')}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <FileText className="h-4 w-4" />
-          {filtered.length} รายการ
+          {t('count', { count: filtered.length })}
         </div>
       </div>
 
@@ -86,7 +93,7 @@ export function MemoInboxList() {
           <Input
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-            placeholder="ค้นหา เลขที่ / เรื่อง / ผู้ขอ..."
+            placeholder={t('searchPlaceholder')}
             className="pl-9"
           />
         </div>
@@ -95,9 +102,9 @@ export function MemoInboxList() {
           onChange={(e) => { setStatusFilter(e.target.value as InboxStatusKey | ''); setPage(1) }}
           className="w-44"
         >
-          <option value="">ทุกสถานะ</option>
-          {INBOX_STATUS_OPTIONS.map(option => (
-            <option key={option.value} value={option.value}>{option.label}</option>
+          <option value="">{t('allStatuses')}</option>
+          {INBOX_STATUS_KEYS.map(key => (
+            <option key={key} value={key}>{t(`status.${key}`)}</option>
           ))}
         </Select>
       </div>
@@ -106,12 +113,12 @@ export function MemoInboxList() {
         <table className="w-full min-w-[900px] text-sm">
           <thead className="border-b border-border bg-muted/30 text-left text-muted-foreground">
             <tr>
-              <th className="px-4 py-3 font-medium">เลขที่</th>
-              <th className="px-4 py-3 font-medium">เรื่อง</th>
-              <th className="px-4 py-3 font-medium">ผู้ขอ</th>
-              <th className="px-4 py-3 font-medium">สถานะ</th>
-              <th className="px-4 py-3 font-medium">อนุมัติเมื่อ</th>
-              <th className="px-4 py-3 font-medium">จัดการ</th>
+              <th className="px-4 py-3 font-medium">{t('colNo')}</th>
+              <th className="px-4 py-3 font-medium">{t('colSubject')}</th>
+              <th className="px-4 py-3 font-medium">{t('colRequester')}</th>
+              <th className="px-4 py-3 font-medium">{t('colStatus')}</th>
+              <th className="px-4 py-3 font-medium">{t('colApprovedAt')}</th>
+              <th className="px-4 py-3 font-medium">{t('colManage')}</th>
             </tr>
           </thead>
           <tbody>
@@ -121,7 +128,23 @@ export function MemoInboxList() {
               </tr>
             ))}
             {!isLoading && items.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-16 text-center text-muted-foreground">ไม่มีเรื่องค้างดำเนินการ</td></tr>
+              <tr>
+                <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
+                  {search || statusFilter ? (
+                    t('emptyFiltered')
+                  ) : (
+                    <>
+                      <p>
+                        {me?.departmentName
+                          ? t('emptyDepartment', { department: me.departmentName })
+                          : t('emptyYourDepartment')}
+                      </p>
+                      {/* อธิบายว่าเป็นเรื่องปกติ ไม่ใช่ระบบเสีย — ปลายทางกำหนดที่ประเภทเรื่อง */}
+                      <p className="mt-1 text-xs">{t('emptyHint')}</p>
+                    </>
+                  )}
+                </td>
+              </tr>
             )}
             {items.map(item => (
               <tr key={item.id} className="border-b border-border last:border-0 hover:bg-muted/20">
@@ -138,14 +161,14 @@ export function MemoInboxList() {
                     {item.requesterCompanyName} / {item.requesterDepartmentName}
                   </p>
                 </td>
-                <td className="px-4 py-3">{inboxStatusBadge(item)}</td>
+                <td className="px-4 py-3"><InboxStatusBadge item={item} /></td>
                 <td className="px-4 py-3 text-muted-foreground">
-                  {item.status === 'Pending' ? '—' : thaiDateTime(item.approvedAt)}
+                  {item.status === 'Pending' ? '—' : shortDateTime(item.approvedAt)}
                 </td>
                 <td className="px-4 py-3">
                   <Link
                     href={`/memos/${item.id}`}
-                    title="ดูรายละเอียด"
+                    title={tCommon('action.viewDetail')}
                     className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 text-sm text-muted-foreground hover:bg-muted/80"
                   >
                     <EyeIcon className="h-4 w-4" />

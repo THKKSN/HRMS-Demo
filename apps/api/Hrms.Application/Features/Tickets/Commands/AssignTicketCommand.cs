@@ -2,11 +2,13 @@ using FluentValidation;
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Extensions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Common.Options;
 using Hrms.Application.Features.Tickets.Dtos;
 using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Hrms.Application.Features.Tickets.Commands;
 
@@ -30,7 +32,8 @@ public class AssignTicketHandler(
     IApplicationDbContext db,
     ICurrentUser currentUser,
     IPermissionService permissionService,
-    IAuditLogService auditLog)
+    IAuditLogService auditLog,
+    IOptions<TicketOptions> ticketOptions)
     : IRequestHandler<AssignTicketCommand, TicketActionResultDto>
 {
     public async Task<TicketActionResultDto> Handle(AssignTicketCommand request, CancellationToken ct)
@@ -38,16 +41,18 @@ public class AssignTicketHandler(
         var ticket = await db.Tickets
             .Include(t => t.RequesterEmployee)
             .Include(t => t.ExternalReporter)
+            // โหลดเฉพาะแถวผู้รับผิดชอบหลักที่ยัง active — แถวผู้ร่วมงานต้องไม่ถูกแตะตอนเปลี่ยนตัว
             .Include(t => t.Assignments.Where(a => a.IsActive && a.IsPrimary))
                 .ThenInclude(a => a.AssignedToEmployee)
             .FirstOrDefaultAsync(t => t.Id == request.TicketId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบใบแจ้งเรื่อง");
+            ?? throw new NotFoundException("Ticket", request.TicketId, "TICKET_NOT_FOUND");
         await TicketSupervisorAccess.EnsureTicketAsync(
             db, currentUser, permissionService, "ticket:assign", ticket, ct);
         if (ticket.Status is not (TicketStatus.Open or TicketStatus.Assigned or TicketStatus.InProgress or TicketStatus.WaitingInfo))
-            throw new ConflictException("INVALID_TICKET_STATUS", "สถานะปัจจุบันไม่อนุญาตให้มอบหมายงาน");
+            throw new ConflictException("TICKET_NOT_ASSIGNABLE", "The current ticket status does not allow assignment.");
 
         var currentAssignment = ticket.Assignments
+            .Where(a => a.IsActive && a.IsPrimary)
             .OrderByDescending(a => a.AssignedAt)
             .FirstOrDefault();
         if (currentAssignment?.AssignedToEmployeeId == request.AssignedToEmployeeId)
@@ -56,7 +61,7 @@ public class AssignTicketHandler(
         TicketCommandSupport.EnsureExpectedVersion(ticket, request.ExpectedUpdatedAt);
         var reassigningStartedWork = ticket.Status is TicketStatus.InProgress or TicketStatus.WaitingInfo;
         if (reassigningStartedWork && string.IsNullOrWhiteSpace(request.Note))
-            throw new FluentValidation.ValidationException("กรุณาระบุเหตุผลเมื่อเปลี่ยนผู้รับผิดชอบหลังเริ่มงาน");
+            throw new BadRequestException("TICKET_REASSIGN_REASON_REQUIRED", "A reason is required when changing the assignee after work has started.");
         var actorId = currentUser.EmployeeId ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
         var actor = await db.Employees.FirstOrDefaultAsync(e => e.Id == actorId && e.IsActive, ct)
             ?? throw new AppUnauthorizedException("EMPLOYEE_NOT_FOUND");
@@ -73,7 +78,7 @@ public class AssignTicketHandler(
             e.IsActive &&
             e.CompanyId == ticket.TargetCompanyId &&
             (allowAnyDepartment || e.DepartmentId == ticket.TargetDepartmentId), ct)
-            ?? throw new FluentValidation.ValidationException("ผู้รับผิดชอบต้องเป็นพนักงานที่ใช้งานอยู่ในบริษัทปลายทาง");
+            ?? throw new BadRequestException("TICKET_ASSIGNEE_INVALID", "The assignee must be an active employee of the target company.");
 
         var now = DateTime.UtcNow.AddHours(7);
         var action = currentAssignment is null ? "assign" : reassigningStartedWork ? "reassign-after-start" : "reassign";
@@ -106,6 +111,7 @@ public class AssignTicketHandler(
             AssignedToEmployeeId = assignee.Id,
             AssignedByEmployeeId = actorId,
             AssignedAt = now,
+            MemberRole = TicketAssignmentRole.Owner,
             IsPrimary = true,
             IsActive = true,
             ActiveSlot = "Primary",
@@ -145,23 +151,33 @@ public class AssignTicketHandler(
         var assigneeName = TicketCommandSupport.FullName(assignee);
         var eventType = currentAssignment is null ? "TicketAssigned" : "TicketReassigned";
         // งานภายในไม่ใช้สถานที่ — ใส่เฉพาะ ticket จาก external portal ที่มีข้อมูลสถานที่จริง
-        var locationLine = ticket.RequestType == TicketRequestType.External
-            ? $"\nสถานที่: {ticket.LocationText ?? "-"}"
+        // งานภายในไม่แสดงสถานที่ — ส่งค่าว่างแล้วบรรทัด "สถานที่:" ในเทมเพลตจะหายไปเอง
+        var location = ticket.RequestType == TicketRequestType.External
+            ? ticket.LocationText ?? "-"
             : string.Empty;
         TicketCommandSupport.QueueNotification(
             db, eventType, newAssignment.Id, assignee.Id, assignee.LineUserId,
-            $"คุณได้รับมอบหมายงาน {ticket.TicketNo}\nเรื่อง: {ticket.Title}{locationLine}\nผู้มอบหมาย: {actorName}",
+            "ticket.assigned.toAssignee",
+            new { ticketNo = ticket.TicketNo, title = ticket.Title, location, assignedBy = actorName },
             ticket);
         TicketCommandSupport.QueueNotification(
             db, eventType, newAssignment.Id, TicketCommandSupport.Requester(ticket),
-            $"ใบแจ้งเรื่อง {ticket.TicketNo} ได้รับการมอบหมายแล้ว\nผู้รับผิดชอบ: {assigneeName}",
+            "ticket.assigned.toRequester",
+            new { ticketNo = ticket.TicketNo, owner = assigneeName },
             ticket);
         if (currentAssignment is not null)
         {
             TicketCommandSupport.QueueNotification(
                 db, eventType, newAssignment.Id, oldAssigneeId, oldAssigneeLineUserId,
-                $"งาน {ticket.TicketNo} ถูกเปลี่ยนผู้รับผิดชอบแล้ว\nผู้รับผิดชอบใหม่: {assigneeName}",
+                "ticket.assigned.toPreviousAssignee",
+                new { ticketNo = ticket.TicketNo, owner = assigneeName },
                 ticket);
+            // ผู้ร่วมงานยังอยู่ในทีมต่อ ต้องรู้ว่าเจ้าภาพเปลี่ยน — คนที่แจ้งไปแล้วข้างบนถูก dedup key กันซ้ำอยู่
+            await TicketCommandSupport.QueueForTeamAsync(
+                db, ticketOptions.Value, eventType, newAssignment.Id, ticket,
+                "ticket.assigned.toTeam",
+                new { ticketNo = ticket.TicketNo, owner = assigneeName }, ct,
+                excludeEmployeeId: actorId);
         }
 
         try
@@ -170,7 +186,7 @@ public class AssignTicketHandler(
         }
         catch (DbUpdateException)
         {
-            throw new ConflictException("TICKET_CHANGED", "ใบแจ้งเรื่องถูกมอบหมายโดยผู้ใช้อื่น กรุณาโหลดข้อมูลใหม่");
+            throw new ConflictException("TICKET_CHANGED", "The ticket was assigned by another user. Reload and try again.");
         }
 
         await auditLog.LogAsync(

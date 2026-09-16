@@ -1,5 +1,6 @@
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Common.Localization;
 using Hrms.Application.Features.Tickets.Dtos;
 using Hrms.Domain.Entities;
 using Hrms.Domain.Enums;
@@ -24,14 +25,14 @@ public class CreateTicketHandler(
             ?? throw new AppUnauthorizedException("UNAUTHENTICATED");
 
         if (!await permService.HasPermissionAsync(currentUser, "ticket:create", ct))
-            throw new AppForbiddenException("ไม่มีสิทธิ์: ticket:create");
+            throw new AppForbiddenException("Missing permission: ticket:create");
 
         if (request.RequestType != TicketRequestType.Internal)
             throw new FluentValidation.ValidationException(
                 "Employee Ticket endpoint accepts Internal requests only");
 
         if (string.IsNullOrWhiteSpace(request.Detail))
-            throw new FluentValidation.ValidationException("กรุณาระบุรายละเอียดปัญหา");
+            throw new BadRequestException("TICKET_DETAIL_REQUIRED", "Ticket detail is required.");
 
         var employee = await db.Employees
             .Include(e => e.Company)
@@ -48,7 +49,7 @@ public class CreateTicketHandler(
                 d.CompanyId == request.TargetCompanyId &&
                 d.IsActive &&
                 d.Company.IsActive, ct)
-            ?? throw new FluentValidation.ValidationException("ไม่พบแผนกปลายทางที่ระบุ");
+            ?? throw new BadRequestException("TICKET_TARGET_DEPARTMENT_INVALID", "Target department not found or inactive.");
 
         var category = await db.TicketCategories
             .FirstOrDefaultAsync(c =>
@@ -56,7 +57,7 @@ public class CreateTicketHandler(
                 c.CompanyId == request.TargetCompanyId &&
                 c.DepartmentId == request.TargetDepartmentId &&
                 c.IsActive, ct)
-            ?? throw new FluentValidation.ValidationException("ไม่พบหมวดเรื่องที่ระบุ");
+            ?? throw new BadRequestException("TICKET_CATEGORY_INVALID", "Ticket category not found or inactive.");
 
         var topic = await db.TicketTopics
             .FirstOrDefaultAsync(t =>
@@ -65,7 +66,7 @@ public class CreateTicketHandler(
                 t.CompanyId == request.TargetCompanyId &&
                 t.DepartmentId == request.TargetDepartmentId &&
                 t.IsActive, ct)
-            ?? throw new FluentValidation.ValidationException("ไม่พบหัวข้อย่อยที่ระบุ");
+            ?? throw new BadRequestException("TICKET_TOPIC_INVALID", "Ticket topic not found or inactive.");
 
         var subject = await db.TicketSubjects
             .FirstOrDefaultAsync(s =>
@@ -75,11 +76,11 @@ public class CreateTicketHandler(
                 s.CompanyId == request.TargetCompanyId &&
                 s.DepartmentId == request.TargetDepartmentId &&
                 s.IsActive, ct)
-            ?? throw new FluentValidation.ValidationException("ไม่พบหัวข้อที่ระบุ");
+            ?? throw new BadRequestException("TICKET_SUBJECT_INVALID", "Ticket subject not found or inactive.");
 
         var otherTopicText = TrimOrNull(request.OtherTopicText);
         if (subject.Name.Trim().Equals("อื่น ๆ", StringComparison.OrdinalIgnoreCase) && otherTopicText is null)
-            throw new FluentValidation.ValidationException("กรุณาระบุหัวข้ออื่น ๆ");
+            throw new BadRequestException("TICKET_OTHER_TOPIC_REQUIRED", "Other topic text is required when \"Other\" is selected.");
 
         var now = DateTime.UtcNow.AddHours(7);
         var uploadTokens = (request.AttachmentUrls ?? [])
@@ -88,14 +89,14 @@ public class CreateTicketHandler(
             .Distinct()
             .ToList();
         if (uploadTokens.Count > 10)
-            throw new FluentValidation.ValidationException("แนบหลักฐานตอนเปิดเรื่องได้ไม่เกิน 10 ไฟล์");
+            throw new BadRequestException("TICKET_CREATE_ATTACHMENT_LIMIT", "Up to 10 attachments are allowed when opening a ticket.");
         var pendingUploads = await db.TicketPendingUploads
             .Where(upload => uploadTokens.Contains(upload.Id) &&
                 upload.UploadedByEmployeeId == employee.Id &&
                 upload.LinkedAt == null)
             .ToListAsync(ct);
         if (pendingUploads.Count != uploadTokens.Count)
-            throw new FluentValidation.ValidationException("ไฟล์อัปโหลดไม่ถูกต้อง ถูกใช้งานแล้ว หรือไม่ใช่ของผู้ใช้");
+            throw new BadRequestException("UPLOAD_TOKEN_INVALID", "The uploaded file is invalid, already used, or belongs to another user.");
 
         var routing = await routingService.ResolveAsync(
             request.TargetCompanyId, request.TargetDepartmentId, request.CategoryId, request.TopicId,
@@ -189,6 +190,7 @@ public class CreateTicketHandler(
                 AssignedAt = now,
                 IsPrimary = true,
                 IsActive = true,
+                MemberRole = TicketAssignmentRole.Owner,
                 ActiveSlot = "Primary",
                 Note = routing.Level == TicketRoutingLevel.Topic
                     ? "Auto assigned from topic responsibility"
@@ -286,7 +288,7 @@ public class CreateTicketHandler(
         var token = value.Trim();
         if (!token.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
             !Guid.TryParse(token[prefix.Length..], out var uploadId))
-            throw new FluentValidation.ValidationException("ไฟล์แนบต้องอัปโหลดผ่านระบบ Ticket");
+            throw new BadRequestException("TICKET_ATTACHMENT_SOURCE_INVALID", "Attachments must be uploaded through the ticket upload endpoint.");
         return uploadId;
     }
 
@@ -303,39 +305,55 @@ public class CreateTicketHandler(
     {
         var managerLineUserId = targetDepartment.ManagerEmployee?.LineUserId;
         var requesterName = $"{requester.FirstName} {requester.LastName}".Trim();
+        // ชื่อแผนก/หมวด/หัวข้อ HR กรอกไว้หลายภาษา — เก็บไปให้ครบ แล้วให้ job เลือกตามภาษาผู้รับ (งาน N2.4)
+        var localizedParams = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal)
+        {
+            ["department"] = LocalizedName.AllLocales(
+                targetDepartment.Name, targetDepartment.NameEn, targetDepartment.NameId),
+            ["taxonomy"] = Taxonomy(category, topic),
+        };
         // งานภายในไม่ใช้สถานที่ — ไม่ต้องใส่ในข้อความแจ้งเตือน (external มี flow แจ้งเตือนแยกของตัวเอง)
-        var message =
-            $"มีใบแจ้งเรื่องใหม่ {ticket.TicketNo}\n" +
-            $"หัวข้อ: {ticket.Title}\n" +
-            $"จาก: {requesterName}\n" +
-            $"ปลายทาง: {targetDepartment.Name}\n" +
-            $"หมวด: {category.Name} / {topic.Name}\n" +
-            $"ความเร่งด่วน: {PriorityLabel(ticket.Priority)}\n" +
-            $"การกระจายงาน: {RoutingOutcomeLabel(routing.Outcome)}";
+        var managerParams = new
+        {
+            ticketNo = ticket.TicketNo,
+            title = ticket.Title,
+            requester = requesterName,
+            // ป้าย enum เป็นคีย์ในแคตตาล็อก ไม่ใช่ข้อความไทย — job แปลตอนส่งตามภาษาผู้รับ
+            priority = $"#enum.priority.{ticket.Priority}",
+            routing = $"#enum.routing.{routing.Outcome}",
+        };
         var sent = new HashSet<string>(StringComparer.Ordinal);
         if (!string.IsNullOrWhiteSpace(managerLineUserId))
         {
             sent.Add(managerLineUserId);
             TicketCommandSupport.QueueNotification(
                 db, "TicketCreated", ticket.Id, targetDepartment.ManagerEmployeeId,
-                managerLineUserId, message, ticket);
+                managerLineUserId, "ticket.created.toManager", managerParams, ticket, localizedParams);
         }
+        var autoAssigned = routing.Outcome == TicketRoutingOutcome.AutoAssigned;
         foreach (var candidate in routing.Candidates)
         {
             if (string.IsNullOrWhiteSpace(candidate.LineUserId) || !sent.Add(candidate.LineUserId)) continue;
-            var candidateMessage = routing.Outcome == TicketRoutingOutcome.AutoAssigned
-                ? $"คุณได้รับมอบหมายงาน {ticket.TicketNo}\nเรื่อง: {ticket.Title}\nหัวข้อ: {category.Name} / {topic.Name}"
-                : $"มีงานใหม่ในขอบเขตที่คุณรับผิดชอบ {ticket.TicketNo}\nเรื่อง: {ticket.Title}\nคุณสามารถเปิด LIFF เพื่อรับงานนี้ได้";
             TicketCommandSupport.QueueNotification(
-                db, routing.Outcome == TicketRoutingOutcome.AutoAssigned
-                    ? "TicketAssigned"
-                    : "TicketCreated",
-                ticket.Id, candidate.EmployeeId, candidate.LineUserId, candidateMessage, ticket);
+                db, autoAssigned ? "TicketAssigned" : "TicketCreated",
+                ticket.Id, candidate.EmployeeId, candidate.LineUserId,
+                autoAssigned ? "ticket.created.toAutoAssignee" : "ticket.created.toCandidate",
+                new
+                {
+                    ticketNo = ticket.TicketNo,
+                    title = ticket.Title,
+                },
+                ticket,
+                new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal)
+                {
+                    ["taxonomy"] = Taxonomy(category, topic),
+                });
         }
-        if (routing.Outcome == TicketRoutingOutcome.AutoAssigned)
+        if (autoAssigned)
             TicketCommandSupport.QueueNotification(
                 db, "TicketAssigned", ticket.Id, requester.Id, requester.LineUserId,
-                $"ใบแจ้งเรื่อง {ticket.TicketNo} ได้รับการมอบหมายแล้ว\nผู้รับผิดชอบ: {routing.Candidates[0].EmployeeName}",
+                "ticket.assigned.toRequester",
+                new { ticketNo = ticket.TicketNo, owner = routing.Candidates[0].EmployeeName },
                 ticket);
     }
 
@@ -345,20 +363,17 @@ public class CreateTicketHandler(
     private static string Bound(string value, int maxLength)
         => value.Length <= maxLength ? value : value[..maxLength];
 
-    private static string PriorityLabel(TicketPriority priority) => priority switch
+    /// <summary>
+    /// "หมวด / หัวข้อ" ครบทุกภาษา — ตัวคั่น <c>/</c> ไม่ใช่คำ จึงต่อสตริงได้โดยไม่ผิดกติกา
+    /// ห้ามต่อ string ข้ามภาษาใน CLAUDE.md
+    /// </summary>
+    private static Dictionary<string, string> Taxonomy(TicketCategory category, TicketTopic topic)
     {
-        TicketPriority.Low => "ปกติ",
-        TicketPriority.Medium => "กลาง",
-        TicketPriority.High => "ด่วน",
-        TicketPriority.Critical => "ด่วนมาก",
-        _ => priority.ToString()
-    };
-
-    private static string RoutingOutcomeLabel(TicketRoutingOutcome outcome) => outcome switch
-    {
-        TicketRoutingOutcome.NoMatch => "ยังไม่พบผู้รับผิดชอบ",
-        TicketRoutingOutcome.SupervisorQueue => "ส่งเข้าคิวผู้รับผิดชอบ",
-        TicketRoutingOutcome.AutoAssigned => "มอบหมายอัตโนมัติ",
-        _ => "กำลังตรวจสอบ"
-    };
+        var categoryNames = LocalizedName.AllLocales(category.Name, category.NameEn, category.NameId);
+        var topicNames = LocalizedName.AllLocales(topic.Name, topic.NameEn, topic.NameId);
+        return categoryNames.ToDictionary(
+            entry => entry.Key,
+            entry => $"{entry.Value} / {topicNames[entry.Key]}",
+            StringComparer.Ordinal);
+    }
 }

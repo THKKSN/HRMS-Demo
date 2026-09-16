@@ -14,6 +14,7 @@ public class CompanyConfiguration : IEntityTypeConfiguration<Company>
         builder.Property(x => x.Id).HasColumnType("char(36)");
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
         builder.Property(x => x.NameEn).HasMaxLength(200);
+        builder.Property(x => x.NameId).HasMaxLength(200);
         builder.Property(x => x.TaxId).HasMaxLength(20);
         builder.Property(x => x.OrgType).HasConversion<string>().HasMaxLength(20);
         builder.Property(x => x.ParentId).HasColumnType("char(36)");

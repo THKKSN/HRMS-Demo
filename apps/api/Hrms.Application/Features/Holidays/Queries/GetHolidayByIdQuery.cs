@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Holidays.Commands;
 using Hrms.Application.Features.Holidays.Dtos;
@@ -16,7 +17,7 @@ public class GetHolidayByIdHandler(IApplicationDbContext db, IScopeGuard scope)
         var holiday = await db.Holidays
             .Include(h => h.Company)
             .FirstOrDefaultAsync(h => h.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException($"ไม่พบ Holiday Id '{request.Id}'");
+            ?? throw new NotFoundException("Holiday", request.Id, "HOLIDAY_NOT_FOUND");
 
         if (holiday.CompanyId.HasValue)
             await scope.ThrowIfCannotAccessAsync(holiday.CompanyId.Value, ct);

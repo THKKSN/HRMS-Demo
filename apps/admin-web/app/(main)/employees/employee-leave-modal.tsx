@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Check, Pencil, Plus, RefreshCw, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import { Modal } from '@/components/ui/modal'
 import { useLeaveTypes } from '@/hooks/use-leave-types'
 import { useLeaveBalances, useAdjustBalance, useCreateLeaveBalance, useSeedBalancesForEmployee } from '@/hooks/use-leave-balances'
 import type { LeaveBalanceAdminDto, EmployeeListItemDto } from '@/types/admin'
+import { useApiError } from '@/hooks/use-api-error'
 
 const CURRENT_YEAR = new Date().getFullYear()
 const YEARS = [CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1]
@@ -50,6 +52,8 @@ function InlineInput({
 type Props = { emp: EmployeeListItemDto | null; onClose: () => void }
 
 export function EmployeeLeaveModal({ emp, onClose }: Props) {
+  const t = useTranslations('admin.employees.leave')
+  const apiError = useApiError()
   const [year, setYear] = useState(CURRENT_YEAR)
   const [editId, setEditId]     = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
@@ -81,14 +85,13 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
   function cancelEdit() { setEditId(null); setEditValue(''); setEditError('') }
   async function confirmEdit(balanceId: string) {
     const val = parseFloat(editValue)
-    if (isNaN(val) || val < 0) { setEditError('กรุณากรอกตัวเลขที่ถูกต้อง (≥ 0)'); return }
+    if (isNaN(val) || val < 0) { setEditError(t('invalidNumber')); return }
     try {
       await adjustBalance.mutateAsync({ id: balanceId, totalDays: val })
-      toast.success('บันทึกสิทธิ์สำเร็จ')
+      toast.success(t('saveSuccess'))
       setEditId(null)
     } catch (err: unknown) {
-      const apiErr = (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
-      setEditError(apiErr?.error === 'QUOTA_BELOW_USED' ? (apiErr.message ?? 'สิทธิ์น้อยกว่าวันที่ใช้ไปแล้ว') : 'เกิดข้อผิดพลาด')
+      setEditError(apiError(err, t('error')))
     }
   }
 
@@ -98,14 +101,13 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
   async function confirmCreate(ltId: string) {
     if (!emp) return
     const val = parseFloat(createValue)
-    if (isNaN(val) || val < 0) { setCreateError('กรุณากรอกตัวเลขที่ถูกต้อง (≥ 0)'); return }
+    if (isNaN(val) || val < 0) { setCreateError(t('invalidNumber')); return }
     try {
       await createBalance.mutateAsync({ employeeId: emp.id, leaveTypeId: ltId, year, totalDays: val })
-      toast.success('เพิ่มสิทธิ์สำเร็จ')
+      toast.success(t('createSuccess'))
       setCreateLtId(null)
     } catch (err: unknown) {
-      const apiErr = (err as { response?: { data?: { error?: string } } })?.response?.data
-      setCreateError(apiErr?.error === 'BALANCE_ALREADY_EXISTS' ? 'มีสิทธิ์นี้อยู่แล้ว' : 'เกิดข้อผิดพลาด')
+      setCreateError(apiError(err, t('error')))
     }
   }
 
@@ -114,10 +116,10 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
     if (!emp) return
     try {
       const res = await seedForEmployee.mutateAsync({ employeeId: emp.id, year })
-      if (res.created === 0) toast.info('สิทธิ์ครบทุกประเภทการลาแล้ว')
-      else toast.success(`สร้างสิทธิ์วันลาแล้ว ${res.created} รายการ`)
+      if (res.created === 0) toast.info(t('seedNothing'))
+      else toast.success(t('seedDone', { count: res.created }))
     } catch {
-      toast.error('เกิดข้อผิดพลาด กรุณาลองใหม่')
+      toast.error(t('errorRetry'))
     }
   }
 
@@ -127,7 +129,7 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
     <Modal
       open={!!emp}
       onClose={onClose}
-      title={`สิทธิ์วันลา — ${emp?.fullName ?? ''}`}
+      title={t('title', { name: emp?.fullName ?? '' })}
       size="lg"
     >
       {/* header row */}
@@ -158,7 +160,7 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
             onClick={handleSeed}
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            Seed ที่ขาด ({missingCount})
+            {t('seedMissing', { count: missingCount })}
           </Button>
         )}
       </div>
@@ -168,12 +170,12 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-whited/50">
-              <th className="px-3 py-2 text-left font-medium text-muted-foreground">ประเภทการลา</th>
-              <th className="px-3 py-2 text-center font-medium text-muted-foreground w-20">ค่าเริ่มต้น</th>
-              <th className="px-3 py-2 text-center font-medium text-muted-foreground w-28">สิทธิ์</th>
-              <th className="px-3 py-2 text-center font-medium text-muted-foreground w-16">ใช้ไป</th>
-              <th className="px-3 py-2 text-center font-medium text-muted-foreground w-16">รอ</th>
-              <th className="px-3 py-2 text-center font-medium text-muted-foreground w-20">คงเหลือ</th>
+              <th className="px-3 py-2 text-left font-medium text-muted-foreground">{t('colType')}</th>
+              <th className="px-3 py-2 text-center font-medium text-muted-foreground w-20">{t('colDefault')}</th>
+              <th className="px-3 py-2 text-center font-medium text-muted-foreground w-28">{t('colQuota')}</th>
+              <th className="px-3 py-2 text-center font-medium text-muted-foreground w-16">{t('colUsed')}</th>
+              <th className="px-3 py-2 text-center font-medium text-muted-foreground w-16">{t('colPending')}</th>
+              <th className="px-3 py-2 text-center font-medium text-muted-foreground w-20">{t('colRemaining')}</th>
             </tr>
           </thead>
           <tbody>
@@ -191,7 +193,7 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
             {!isLoading && activeTypes.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground text-sm">
-                  ยังไม่มีประเภทการลาในบริษัทนี้
+                  {t('emptyTypes')}
                 </td>
               </tr>
             )}
@@ -223,7 +225,7 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
                           onClick={() => startCreate(lt.id)}
                         >
                           <Plus className="h-3 w-3" />
-                          เพิ่มสิทธิ์
+                          {t('addQuota')}
                         </button>
                       )}
                       {!balance && isCreating && (
@@ -276,7 +278,7 @@ export function EmployeeLeaveModal({ emp, onClose }: Props) {
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        {emp?.companyName} · ปี {year} · hover ที่สิทธิ์เพื่อแก้ไข
+        {t('footer', { company: emp?.companyName ?? '', year })}
       </p>
     </Modal>
   )

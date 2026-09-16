@@ -24,16 +24,16 @@ public class GetMemoPrintHandler(IApplicationDbContext db, IMemoPdfGenerator pdf
             .Include(x => x.ApprovedByEmployee)
             .AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบเรื่อง");
+            ?? throw new NotFoundException("Memo", request.Id, "MEMO_NOT_FOUND");
 
         if (memo.Status != MemoStatus.Approved)
-            throw new ConflictException("MEMO_NOT_APPROVED", "พิมพ์เอกสารได้เฉพาะเรื่องที่อนุมัติแล้วเท่านั้น");
+            throw new ConflictException("MEMO_PRINT_NOT_APPROVED", "Only approved memos can be printed.");
 
         // ApprovedAt/ApprovedByEmployee ต้องมีค่าเสมอเมื่อ Status=Approved (ApproveMemoCommand set คู่กันเสมอ)
         var data = new MemoPrintData(
             memo.Id,memo.MemoNo, memo.MemoType.Name, memo.MemoCategoryNameSnapshot, memo.MemoSubCategoryNameSnapshot,
             memo.Detail, FullName(memo.Requester), memo.Company.Name, memo.Department.Name,
-            memo.CreatedAt, memo.ApprovedAt!.Value, FullName(memo.ApprovedByEmployee!));
+            memo.CreatedAt, memo.ApprovedAt!.Value, FullName(memo.ApprovedByEmployee!), memo.ApproveComment);
 
         return new MemoPrintResult(pdfGenerator.Generate(data), memo.MemoNo);
     }

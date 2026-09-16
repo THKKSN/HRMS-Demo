@@ -24,8 +24,11 @@ import {
 import { useCompanies } from '@/hooks/use-companies'
 import { useEmployees } from '@/hooks/use-employees'
 import { useExportExcel } from '@/hooks/use-reports'
+import { usePermissionGate } from '@/hooks/use-permission-gate'
 import { useAuthStore } from '@/stores/auth.store'
 import type { AttendanceRecordHrDto, AttendanceStatus, CompanyTreeDto, EmployeeListItemDto } from '@hrms/shared-types'
+import { ATTENDANCE_STATUS_LABEL as STATUS_LABELS } from '@hrms/i18n/labels'
+import * as fmt from '@hrms/i18n/format'
 
 function flattenCompanies(nodes: CompanyTreeDto[]): { id: string; name: string; isHeadquarters: boolean }[] {
   return nodes.flatMap((n) => [
@@ -36,13 +39,6 @@ function flattenCompanies(nodes: CompanyTreeDto[]): { id: string; name: string; 
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-const STATUS_LABELS: Record<AttendanceStatus, string> = {
-  Present: 'มาทำงาน',
-  Late:    'มาสาย',
-  Absent:  'ขาดงาน',
-  HalfDay: 'ครึ่งวัน',
-}
-
 const STATUS_COLORS: Record<AttendanceStatus, string> = {
   Present: 'bg-emerald-100 text-emerald-700',
   Late:    'bg-amber-100 text-amber-700',
@@ -52,20 +48,20 @@ const STATUS_COLORS: Record<AttendanceStatus, string> = {
 
 function fmtTime(dt?: string) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleTimeString('th-TH', {
+  return fmt.formatTime(new Date(dt), {
     hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok',
   })
 }
 
 function fmtDate(d: string) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('th-TH', {
+  return fmt.formatDate(new Date(d + 'T00:00:00'), {
     day: 'numeric', month: 'short', year: '2-digit',
   })
 }
 
 function fmtDatetime(dt?: string) {
   if (!dt) return '—'
-  return new Date(dt).toLocaleString('th-TH', {
+  return fmt.formatDateTime(new Date(dt), {
     day: '2-digit', month: '2-digit', year: '2-digit',
     hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok',
   })
@@ -573,6 +569,12 @@ const DEFAULT_DATE_TO = new Date().toISOString().slice(0, 10)
 
 export default function AttendancePage() {
   const employee = useAuthStore((s) => s.employee)
+  const { hasAny } = usePermissionGate()
+  // guard หน้าอิง permission ของ endpoint (view-all/edit/report) — HQ scope ด้านล่างยังอิง role รอ Track C
+  const canAccessPage = hasAny(
+    ['attendance:view-all', 'attendance:edit', 'attendance:report'],
+    ['Admin', 'Hr'],
+  )
   const isAdmin  = employee?.roles.some((r) => r.role === 'Admin') ?? false
   const isHr     = employee?.roles.some((r) => r.role === 'Hr')    ?? false
 
@@ -618,7 +620,7 @@ export default function AttendancePage() {
     setPage(1)
   }
 
-  if (!isHr && !isAdmin) {
+  if (!canAccessPage) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
         คุณไม่มีสิทธิ์เข้าถึงหน้านี้

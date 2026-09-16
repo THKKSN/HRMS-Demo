@@ -1,3 +1,4 @@
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.ExternalTickets.Dtos;
 using MediatR;
@@ -17,7 +18,7 @@ public class GetExternalTicketCategoriesHandler(
 
         return await db.ExternalTicketCategories
             .OrderBy(c => c.SortOrder).ThenBy(c => c.Name)
-            .Select(c => new ExternalTicketCategoryDto(c.Id, c.Name, c.Description, c.SortOrder, c.IsActive))
+            .Select(c => new ExternalTicketCategoryDto(c.Id, c.Name, c.Description, c.SortOrder, c.IsActive, c.NameEn, c.NameId))
             .ToListAsync(ct);
     }
 }
@@ -33,12 +34,12 @@ public class GetExternalTicketTopicsHandler(
         await ExternalTicketConfigAccess.EnsureManagePermissionAsync(currentUser, permissionService, ct);
 
         var categoryExists = await db.ExternalTicketCategories.AnyAsync(c => c.Id == request.ExternalTicketCategoryId, ct);
-        if (!categoryExists) throw new KeyNotFoundException("ไม่พบหมวดที่ระบุ");
+        if (!categoryExists) throw new NotFoundException("ExternalTicketCategory", request.ExternalTicketCategoryId, "TICKET_CATEGORY_NOT_FOUND");
 
         return await db.ExternalTicketTopics
             .Where(t => t.ExternalTicketCategoryId == request.ExternalTicketCategoryId)
             .OrderBy(t => t.SortOrder).ThenBy(t => t.Name)
-            .Select(t => new ExternalTicketTopicDto(t.Id, t.ExternalTicketCategoryId, t.Name, t.Description, t.SortOrder, t.IsActive))
+            .Select(t => new ExternalTicketTopicDto(t.Id, t.ExternalTicketCategoryId, t.Name, t.Description, t.SortOrder, t.IsActive, t.NameEn, t.NameId))
             .ToListAsync(ct);
     }
 }
@@ -54,19 +55,19 @@ public class GetExternalTicketSubjectsHandler(
         await ExternalTicketConfigAccess.EnsureManagePermissionAsync(currentUser, permissionService, ct);
 
         var topicExists = await db.ExternalTicketTopics.AnyAsync(t => t.Id == request.ExternalTicketTopicId, ct);
-        if (!topicExists) throw new KeyNotFoundException("ไม่พบหัวข้อที่ระบุ");
+        if (!topicExists) throw new NotFoundException("ExternalTicketTopic", request.ExternalTicketTopicId, "TICKET_TOPIC_NOT_FOUND");
 
         var subjects = await db.ExternalTicketSubjects
             .Where(s => s.ExternalTicketTopicId == request.ExternalTicketTopicId)
             .OrderBy(s => s.SortOrder).ThenBy(s => s.Name)
-            .Select(s => new { s.Id, s.ExternalTicketTopicId, s.Name, s.Description, s.Template, s.SuggestionsJson, s.SortOrder, s.IsActive })
+            .Select(s => new { s.Id, s.ExternalTicketTopicId, s.Name, s.Description, s.Template, s.SuggestionsJson, s.SortOrder, s.IsActive, s.NameEn, s.NameId })
             .ToListAsync(ct);
 
         return subjects
             .Select(s => new ExternalTicketSubjectDto(
                 s.Id, s.ExternalTicketTopicId, s.Name, s.Description, s.Template,
                 Commands.ExternalSubjectGuidance.DeserializeSuggestions(s.SuggestionsJson),
-                s.SortOrder, s.IsActive))
+                s.SortOrder, s.IsActive, s.NameEn, s.NameId))
             .ToList();
     }
 }

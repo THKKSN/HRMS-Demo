@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   MapPin,
   History,
@@ -17,41 +18,25 @@ import {
   useCheckIn,
   useCheckOut,
 } from "@/hooks/use-attendance";
+import { useFmt } from "@/hooks/use-fmt";
 import { useMyCompanyLocations } from "@/hooks/use-locations";
-import { useGeolocation, gpsErrorMessage } from "@/hooks/use-geolocation";
+import { useGeolocation, gpsErrorKey, type GpsErrorKey } from "@/hooks/use-geolocation";
+import { apiErrorText } from "@/lib/api-message";
 import { findNearestLocation, findAbsoluteNearest } from "@/lib/geo";
 import type { LocationDto } from "@hrms/shared-types";
 
-const STATUS_LABEL: Record<string, string> = {
-  Present: "มาทำงาน",
-  Late: "มาสาย",
-  Absent: "ขาดงาน",
-  HalfDay: "ทำงานครึ่งวัน",
+const TIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Asia/Bangkok",
 };
-
-function formatTime(iso?: string) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleTimeString("th-TH", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Bangkok",
-  });
-}
-
-function formatLate(minutes: number): string {
-  if (minutes < 60) return `${minutes} นาที`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m > 0 ? `${h} ชั่วโมง ${m} นาที` : `${h} ชั่วโมง`;
-}
 
 // ── Check-in Modal ────────────────────────────────────────────────────────────
 
 type GpsState =
   | { phase: "idle" }
   | { phase: "gps" }
-  | { phase: "error"; message: string }
+  | { phase: "error"; errorKey: GpsErrorKey }
   | {
       phase: "ready";
       lat: number;
@@ -68,6 +53,10 @@ function CheckInModal({
   locations: LocationDto[];
   locationsLoading: boolean;
 }) {
+  const t = useTranslations("liff.attendance");
+  const tCommon = useTranslations("common");
+  const tErrors = useTranslations("errors");
+  const fmt = useFmt();
   const { getPosition } = useGeolocation();
   const checkIn = useCheckIn();
   const [gps, setGps] = useState<GpsState>({ phase: "idle" });
@@ -83,10 +72,7 @@ function CheckInModal({
       } | null;
       setGps({ phase: "ready", lat, lng, matched });
     } catch (err) {
-      setGps({
-        phase: "error",
-        message: gpsErrorMessage(err as GeolocationPositionError),
-      });
+      setGps({ phase: "error", errorKey: gpsErrorKey(err as GeolocationPositionError) });
     }
   }, [getPosition, locations]);
 
@@ -104,13 +90,10 @@ function CheckInModal({
         latitude: gps.lat,
         longitude: gps.lng,
       });
-      toast.success(`เช็คอินสำเร็จ เวลา ${formatTime(result.checkInTime)}`);
+      toast.success(t("checkInSuccess", { time: fmt.formatTime(new Date(result.checkInTime!), TIME_OPTIONS) }));
       onClose();
     } catch (err: unknown) {
-      const code = (err as { response?: { data?: { error?: string } } })
-        ?.response?.data?.error;
-      if (code === "ALREADY_CHECKED_IN") toast.error("เช็คอินแล้ว");
-      else toast.error("เกิดข้อผิดพลาด กรุณาลองใหม่");
+      toast.error(apiErrorText(err, tErrors, tCommon("state.error")));
       onClose();
     }
   }
@@ -137,7 +120,7 @@ function CheckInModal({
         className="w-full max-w-sm rounded-t-2xl bg-background p-5 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold text-center">ยืนยันเข้างาน</h2>
+        <h2 className="text-base font-semibold text-center">{t("confirmCheckIn")}</h2>
 
         {/* Map */}
         {(locationsLoading || gps.phase === "gps") && (
@@ -163,12 +146,12 @@ function CheckInModal({
         {gps.phase === "error" && (
           <div className="h-40 w-full rounded-xl bg-whited flex items-center justify-center">
             <p className="text-sm text-destructive text-center px-4">
-              {gps.message}
+              {t(`gps.${gps.errorKey}`)}
             </p>
           </div>
         )}
 
-        {/* Status */}
+        {/* Status — ชื่อสถานที่เป็นชื่อไทยจาก DB (Location มี nameEn/nameId แล้ว แต่ DTO นี้ยังส่ง name เดียว) */}
         {ready && (
           <div
             className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${inGeofence ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}
@@ -177,8 +160,7 @@ function CheckInModal({
               <>
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 <span>
-                  <MapPin/> {gps.matched!.location.name} (~
-                  {gps.matched!.distanceMeters} ม.)
+                  <MapPin/> {gps.matched!.location.name} ({t("distance", { meters: gps.matched!.distanceMeters })})
                 </span>
               </>
             ) : (
@@ -186,8 +168,10 @@ function CheckInModal({
                 <AlertCircle className="h-4 w-4 shrink-0" />
                 <span>
                   {locations.length === 0
-                    ? "ยังไม่มีสถานที่ทำงานในระบบ กรุณาติดต่อ HR"
-                    : `อยู่นอกพื้นที่ทำงาน${absoluteNearest ? ` (~${absoluteNearest.distanceMeters} ม. จาก ${absoluteNearest.location.name})` : ""}`}
+                    ? t("noLocations")
+                    : absoluteNearest
+                      ? t("outsideGeofenceNearest", { meters: absoluteNearest.distanceMeters, name: absoluteNearest.location.name })
+                      : t("outsideGeofence")}
                 </span>
               </>
             )}
@@ -200,14 +184,14 @@ function CheckInModal({
             onClick={onClose}
             className="flex-1 rounded-xl border border-border py-3 text-sm font-medium"
           >
-            ยกเลิก
+            {tCommon("action.cancel")}
           </button>
           {gps.phase === "error" ? (
             <button
               onClick={startGps}
               className="flex-1 rounded-xl bg-primary py-3 text-sm font-medium text-primary-foreground"
             >
-              ลองใหม่
+              {tCommon("action.retryShort")}
             </button>
           ) : (
             <button
@@ -218,7 +202,7 @@ function CheckInModal({
               {checkIn.isPending && (
                 <Loader2 className="h-4 w-4 animate-spin" />
               )}
-              ยืนยัน
+              {tCommon("action.confirm")}
             </button>
           )}
         </div>
@@ -230,6 +214,10 @@ function CheckInModal({
 // ── Check-out Modal ───────────────────────────────────────────────────────────
 
 function CheckOutModal({ onClose }: { onClose: () => void }) {
+  const t = useTranslations("liff.attendance");
+  const tCommon = useTranslations("common");
+  const tErrors = useTranslations("errors");
+  const fmt = useFmt();
   const { getPosition } = useGeolocation();
   const checkOut = useCheckOut();
   const [gps, setGps] = useState<GpsState>({ phase: "idle" });
@@ -241,10 +229,7 @@ function CheckOutModal({ onClose }: { onClose: () => void }) {
       const { latitude: lat, longitude: lng } = pos.coords;
       setGps({ phase: "ready", lat, lng, matched: null });
     } catch (err) {
-      setGps({
-        phase: "error",
-        message: gpsErrorMessage(err as GeolocationPositionError),
-      });
+      setGps({ phase: "error", errorKey: gpsErrorKey(err as GeolocationPositionError) });
     }
   }, [getPosition]);
 
@@ -260,13 +245,10 @@ function CheckOutModal({ onClose }: { onClose: () => void }) {
         latitude: gps.lat,
         longitude: gps.lng,
       });
-      toast.success(`เช็คเอาต์สำเร็จ เวลา ${formatTime(result.checkOutTime)}`);
+      toast.success(t("checkOutSuccess", { time: fmt.formatTime(new Date(result.checkOutTime!), TIME_OPTIONS) }));
       onClose();
     } catch (err: unknown) {
-      const code = (err as { response?: { data?: { error?: string } } })
-        ?.response?.data?.error;
-      if (code === "NOT_CHECKED_IN") toast.error("ยังไม่ได้เช็คอิน");
-      else toast.error("เกิดข้อผิดพลาด กรุณาลองใหม่");
+      toast.error(apiErrorText(err, tErrors, tCommon("state.error")));
       onClose();
     }
   }
@@ -282,7 +264,7 @@ function CheckOutModal({ onClose }: { onClose: () => void }) {
         className="w-full max-w-sm rounded-t-2xl bg-background p-5 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold text-center">ยืนยันออกงาน</h2>
+        <h2 className="text-base font-semibold text-center">{t("confirmCheckOut")}</h2>
 
         {(gps.phase === "idle" || gps.phase === "gps") && (
           <div className="h-40 w-full rounded-xl bg-whited animate-pulse flex items-center justify-center">
@@ -293,7 +275,7 @@ function CheckOutModal({ onClose }: { onClose: () => void }) {
         {gps.phase === "error" && (
           <div className="h-40 w-full rounded-xl bg-whited flex items-center justify-center">
             <p className="text-sm text-destructive text-center px-4">
-              {gps.message}
+              {t(`gps.${gps.errorKey}`)}
             </p>
           </div>
         )}
@@ -303,14 +285,14 @@ function CheckOutModal({ onClose }: { onClose: () => void }) {
             onClick={onClose}
             className="flex-1 rounded-xl border border-border py-3 text-sm font-medium"
           >
-            ยกเลิก
+            {tCommon("action.cancel")}
           </button>
           {gps.phase === "error" ? (
             <button
               onClick={startGps}
               className="flex-1 rounded-xl bg-primary py-3 text-sm font-medium text-primary-foreground"
             >
-              ลองใหม่
+              {tCommon("action.retryShort")}
             </button>
           ) : (
             <button
@@ -321,7 +303,7 @@ function CheckOutModal({ onClose }: { onClose: () => void }) {
               {checkOut.isPending && (
                 <Loader2 className="h-4 w-4 animate-spin" />
               )}
-              ยืนยัน
+              {tCommon("action.confirm")}
             </button>
           )}
         </div>
@@ -333,6 +315,10 @@ function CheckOutModal({ onClose }: { onClose: () => void }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function AttendancePage() {
+  const t = useTranslations("liff.attendance");
+  const tCommon = useTranslations("common");
+  const tStatus = useTranslations("status.attendance");
+  const fmt = useFmt();
   const router = useRouter();
   const { data: today, isLoading } = useAttendanceToday();
   const { data: locations = [], isLoading: locationsLoading } =
@@ -341,12 +327,22 @@ export default function AttendancePage() {
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showCheckOut, setShowCheckOut] = useState(false);
 
+  const formatTime = (iso?: string) => (iso ? fmt.formatTime(new Date(iso), TIME_OPTIONS) : "—");
+  const lateText = (minutes: number) => {
+    if (minutes < 60) return tCommon("duration.minutes", { count: minutes });
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest > 0
+      ? tCommon("duration.hoursMinutes", { hours, minutes: rest })
+      : tCommon("duration.hours", { count: hours });
+  };
+
   return (
     <>
-      <PageHeader title="ลงเวลา" />
+      <PageHeader title={t("title")} />
 
       <div className="px-4 py-6 space-y-4">
-        {/* สถานะวันนี้ */}
+        {/* สถานะวันนี้ — shiftName เป็นชื่อไทยจาก DB (Shift มี nameEn/nameId แล้ว แต่ DTO นี้ยังส่ง name เดียว) */}
         <div className="rounded-2xl border border-border bg-white p-4 space-y-3">
           {isLoading ? (
             <div className="space-y-2">
@@ -368,14 +364,14 @@ export default function AttendancePage() {
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">เข้างาน</span>
+                <span className="text-sm text-muted-foreground">{t("checkIn")}</span>
                 <span className="text-sm font-medium">
                   {formatTime(today?.checkInTime)}
                 </span>
               </div>
 
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">ออกงาน</span>
+                <span className="text-sm text-muted-foreground">{t("checkOut")}</span>
                 <span className="text-sm font-medium">
                   {formatTime(today?.checkOutTime)}
                 </span>
@@ -390,14 +386,14 @@ export default function AttendancePage() {
                         : today.status === "Late"
                           ? "bg-yellow-100 text-yellow-700"
                           : today.status === "Absent"
-                            ? "bg-red-100 text-red-700" 
+                            ? "bg-red-100 text-red-700"
                             : "bg-blue-100 text-blue-700"
                     }`}
                   >
-                    {STATUS_LABEL[today.status]}
+                    {tStatus(today.status)}
                     {today.isLate &&
                       today.lateMinutes > 0 &&
-                      ` ${formatLate(today.lateMinutes)}`}
+                      ` ${lateText(today.lateMinutes)}`}
                   </span>
                 </div>
               )}
@@ -414,7 +410,7 @@ export default function AttendancePage() {
                 className="w-full flex items-center justify-center gap-2 rounded-2xl bg-green py-4 text-base font-semibold text-green-foreground active:opacity-80"
               >
                 <MapPin className="h-5 w-5" />
-                เช็คอิน
+                {t("checkInAction")}
               </button>
             )}
             {today?.canCheckOut && (
@@ -423,7 +419,7 @@ export default function AttendancePage() {
                 className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-red-500 py-4 text-base font-semibold text-red-500 active:opacity-80"
               >
                 <MapPin className="h-5 w-5" />
-                เช็คเอาต์
+                {t("checkOutAction")}
               </button>
             )}
           </div>
@@ -435,7 +431,7 @@ export default function AttendancePage() {
           className="w-full flex items-center justify-center gap-2 rounded-2xl border border-border py-3 text-sm font-medium text-muted-foreground active:bg-whited"
         >
           <History className="h-4 w-4" />
-          ดูประวัติการลงเวลา
+          {t("viewHistory")}
         </button>
       </div>
 

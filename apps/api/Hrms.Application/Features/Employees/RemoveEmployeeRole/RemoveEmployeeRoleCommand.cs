@@ -23,22 +23,24 @@ public class RemoveEmployeeRoleHandler(
 
         var employee = await db.Employees
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลพนักงาน");
+            ?? throw new NotFoundException("Employee", request.EmployeeId, "EMPLOYEE_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(employee.CompanyId);
 
         var role = await db.EmployeeRoles
             .FirstOrDefaultAsync(r => r.Id == request.RoleId && r.EmployeeId == request.EmployeeId, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูล role");
+            ?? throw new NotFoundException("SystemRole", request.RoleId, "ROLE_NOT_FOUND");
 
-        // ป้องกันลบ Admin คนสุดท้าย
+        // ป้องกันถอด Admin คนสุดท้าย — Admin เป็นสิทธิ์ระดับทั้งระบบ (ไม่ได้ scope ตามบริษัท)
+        // จึงต้องเหลือพนักงาน active อีกอย่างน้อย 1 คนที่ถือ Admin อยู่ ไม่ใช่นับแค่ในบริษัทเดียวกัน
         if (role.RoleId == SystemRoleIds.Admin)
         {
-            var activeAdminCount = await db.EmployeeRoles
-                .CountAsync(r => r.RoleId == SystemRoleIds.Admin && r.CompanyId == employee.CompanyId && r.IsActive, ct);
+            var otherActiveAdminExists = await db.EmployeeRoles
+                .AnyAsync(r => r.RoleId == SystemRoleIds.Admin && r.IsActive &&
+                    r.EmployeeId != request.EmployeeId && r.Employee.IsActive, ct);
 
-            if (activeAdminCount <= 1)
-                throw new ConflictException("LAST_ADMIN", "ไม่สามารถลบ Admin คนสุดท้ายของบริษัทได้");
+            if (!otherActiveAdminExists)
+                throw new ConflictException("LAST_ADMIN", "The last Admin of the system cannot be removed.");
         }
 
         role.IsActive  = false;

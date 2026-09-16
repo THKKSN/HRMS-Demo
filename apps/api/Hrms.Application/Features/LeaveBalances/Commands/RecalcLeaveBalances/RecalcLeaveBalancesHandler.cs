@@ -27,7 +27,7 @@ public class RecalcLeaveBalancesHandler(IApplicationDbContext db, ICurrentUser c
                 .Where(e => e.Id == request.EmployeeId.Value)
                 .Select(e => new { e.CompanyId })
                 .FirstOrDefaultAsync(ct)
-                ?? throw new KeyNotFoundException("ไม่พบพนักงาน");
+                ?? throw new NotFoundException("Employee", request.EmployeeId, "EMPLOYEE_NOT_FOUND");
             await scope.ThrowIfCannotAccessAsync(emp.CompanyId);
             companyId = emp.CompanyId;
         }

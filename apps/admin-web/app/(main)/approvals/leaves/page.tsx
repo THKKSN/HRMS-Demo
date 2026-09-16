@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useLocale, useTranslations } from 'next-intl'
 import {
   CheckCircle2, XCircle, ClipboardList, ChevronLeft,
   CalendarDays, Clock, User, FileText, MessageSquare,
@@ -17,33 +18,34 @@ import {
   useRejectCancelLeave,
 } from '@/hooks/use-leaves'
 import { useAuthStore } from '@/stores/auth.store'
-import { isSupervisorOrAbove } from '@/lib/auth-utils'
+import { usePermissionGate } from '@/hooks/use-permission-gate'
 import type { PendingLeaveItemDto } from '@hrms/shared-types'
+import { localizedName, type Locale } from '@hrms/i18n'
+import * as fmt from '@hrms/i18n/format'
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
-function formatDateTH(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('th-TH', {
+type LeaveTexts = ReturnType<typeof useTranslations<'admin.approval.leave'>>
+
+function formatDateShort(dateStr: string) {
+  return fmt.formatDate(new Date(dateStr), {
     day: 'numeric', month: 'short', year: '2-digit', timeZone: 'Asia/Bangkok',
   })
 }
 function formatDateLong(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('th-TH', {
+  return fmt.formatDate(new Date(dateStr), {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Bangkok',
   })
 }
-function timeAgo(dateStr: string) {
+/** เวลาที่ผ่านมาแบบหยาบ ๆ — เกิน 7 วันแสดงวันที่จริงแทน */
+function timeAgo(dateStr: string, t: LeaveTexts) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const h = Math.floor(diff / 3600000)
   const d = Math.floor(diff / 86400000)
-  if (h < 1) return 'เมื่อกี้'
-  if (h < 24) return `${h} ชม. ที่แล้ว`
-  if (d < 7) return `${d} วันที่แล้ว`
-  return formatDateTH(dateStr)
-}
-
-const HALF_DAY_LABEL: Record<string, string> = {
-  Full: 'เต็มวัน', Morning: 'ครึ่งเช้า', Afternoon: 'ครึ่งบ่าย',
+  if (h < 1) return t('justNow')
+  if (h < 24) return t('hoursAgo', { count: h })
+  if (d < 7) return t('daysAgo', { count: d })
+  return formatDateShort(dateStr)
 }
 
 // ── Leave List Card ────────────────────────────────────────────────────────────
@@ -51,6 +53,9 @@ const HALF_DAY_LABEL: Record<string, string> = {
 function LeaveCard({
   item, selected, onClick,
 }: { item: PendingLeaveItemDto; selected: boolean; onClick: () => void }) {
+  const t = useTranslations('admin.approval.leave')
+  const tCommon = useTranslations('common')
+  const locale = useLocale() as Locale
   return (
     <button
       onClick={onClick}
@@ -68,16 +73,21 @@ function LeaveCard({
             </div>
             <p className="truncate text-sm font-semibold text-foreground">{item.employeeName}</p>
           </div>
-          <p className="mt-1.5 text-sm text-muted-foreground">{item.leaveTypeName}</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {localizedName(
+              { name: item.leaveTypeName, nameEn: item.leaveTypeNameEn, nameId: item.leaveTypeNameId },
+              locale,
+            )}
+          </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {formatDateTH(item.dateFrom)}
-            {item.dateFrom !== item.dateTo && ` – ${formatDateTH(item.dateTo)}`}
-            {' · '}{item.totalDays} วัน
+            {formatDateShort(item.dateFrom)}
+            {item.dateFrom !== item.dateTo && ` – ${formatDateShort(item.dateTo)}`}
+            {' · '}{tCommon('duration.days', { count: item.totalDays })}
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           <LeaveStatusBadge status={item.status} />
-          <span className="text-[10px] text-muted-foreground">{timeAgo(item.createdAt)}</span>
+          <span className="text-[10px] text-muted-foreground">{timeAgo(item.createdAt, t)}</span>
         </div>
       </div>
     </button>
@@ -92,6 +102,10 @@ function DetailPanel({
   onRefresh,
   onDone,
 }: { selectedId: string | null; onBack: () => void; onRefresh: () => void; onDone: () => void }) {
+  const t = useTranslations('admin.approval.leave')
+  const tHalfDay = useTranslations('status.leaveHalfDay')
+  const tCommon = useTranslations('common')
+  const locale = useLocale() as Locale
   const { data: leave, isLoading } = useLeaveById(selectedId ?? '')
   const { mutateAsync: approveLeave, isPending: isApproving } = useApproveLeave()
   const { mutateAsync: rejectLeave,  isPending: isRejecting  } = useRejectLeave()
@@ -112,8 +126,8 @@ function DetailPanel({
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center px-6">
         <ClipboardList className="h-12 w-12 text-muted-foreground/40" />
-        <p className="mt-4 text-sm font-medium text-muted-foreground">เลือกรายการจากทางซ้าย</p>
-        <p className="mt-1 text-xs text-muted-foreground/60">เพื่อดูรายละเอียดและดำเนินการอนุมัติ</p>
+        <p className="mt-4 text-sm font-medium text-muted-foreground">{t('selectItem')}</p>
+        <p className="mt-1 text-xs text-muted-foreground/60">{t('selectItemApprove')}</p>
       </div>
     )
   }
@@ -136,21 +150,21 @@ function DetailPanel({
         {success === 'approved' ? (
           <>
             <CheckCircle2 className="h-14 w-14 text-green-500" />
-            <p className="mt-4 text-base font-bold text-foreground">อนุมัติสำเร็จ</p>
-            <p className="mt-1 text-sm text-muted-foreground">คำขอลาของ {leave.employeeName} ได้รับการอนุมัติแล้ว</p>
+            <p className="mt-4 text-base font-bold text-foreground">{t('approvedTitle')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('approvedBody', { name: leave.employeeName })}</p>
           </>
         ) : (
           <>
             <XCircle className="h-14 w-14 text-destructive" />
-            <p className="mt-4 text-base font-bold text-foreground">ปฏิเสธแล้ว</p>
-            <p className="mt-1 text-sm text-muted-foreground">คำขอลาของ {leave.employeeName} ถูกปฏิเสธแล้ว</p>
+            <p className="mt-4 text-base font-bold text-foreground">{t('rejectedTitle')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('rejectedBody', { name: leave.employeeName })}</p>
           </>
         )}
         <button
           onClick={onDone}
           className="mt-6 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
         >
-          ดูรายการถัดไป
+          {t('next')}
         </button>
       </div>
     )
@@ -162,7 +176,7 @@ function DetailPanel({
       await approveLeave({ id: leave!.id, comment: comment.trim() || undefined })
       setSuccess('approved')
       onRefresh()
-    } catch { setError('อนุมัติไม่สำเร็จ กรุณาลองใหม่อีกครั้ง') }
+    } catch { setError(t('approveFailed')) }
   }
 
   async function handleReject() {
@@ -171,21 +185,21 @@ function DetailPanel({
       await rejectLeave({ id: leave!.id, comment: comment.trim() || undefined })
       setSuccess('rejected')
       onRefresh()
-    } catch { setError('ปฏิเสธไม่สำเร็จ กรุณาลองใหม่อีกครั้ง') }
+    } catch { setError(t('rejectFailed')) }
   }
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 border-b border-border px-5 py-3 lg:hidden">
         <button onClick={onBack} className="flex items-center gap-1 text-sm text-primary">
-          <ChevronLeft className="h-4 w-4" /> กลับ
+          <ChevronLeft className="h-4 w-4" /> {t('back')}
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">คำขอลา</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">{t('requestLabel')}</p>
             <h2 className="mt-1 text-lg font-bold text-foreground">{leave.employeeName}</h2>
           </div>
           <LeaveStatusBadge status={leave.status} />
@@ -195,14 +209,19 @@ function DetailPanel({
           <div className="flex items-center gap-3 px-4 py-3">
             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="flex flex-1 justify-between gap-2">
-              <span className="text-sm text-muted-foreground">ประเภทการลา</span>
-              <span className="text-sm font-semibold">{leave.leaveTypeName}</span>
+              <span className="text-sm text-muted-foreground">{t('leaveType')}</span>
+              <span className="text-sm font-semibold">
+                {localizedName(
+                  { name: leave.leaveTypeName, nameEn: leave.leaveTypeNameEn, nameId: leave.leaveTypeNameId },
+                  locale,
+                )}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-3 px-4 py-3">
             <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="flex flex-1 justify-between gap-2 min-w-0">
-              <span className="text-sm text-muted-foreground shrink-0">วันที่</span>
+              <span className="text-sm text-muted-foreground shrink-0">{t('date')}</span>
               <span className="text-sm font-semibold text-right">
                 {formatDateLong(leave.dateFrom)}
                 {leave.dateFrom !== leave.dateTo && ` – ${formatDateLong(leave.dateTo)}`}
@@ -212,9 +231,12 @@ function DetailPanel({
           <div className="flex items-center gap-3 px-4 py-3">
             <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="flex flex-1 justify-between gap-2">
-              <span className="text-sm text-muted-foreground">จำนวน</span>
+              <span className="text-sm text-muted-foreground">{t('amount')}</span>
               <span className="text-sm font-semibold">
-                {HALF_DAY_LABEL[leave.halfDay]} · {leave.totalDays} วัน
+                {t('amountWithHalfDay', {
+                  halfDay: tHalfDay(leave.halfDay),
+                  days: tCommon('duration.days', { count: leave.totalDays }),
+                })}
               </span>
             </div>
           </div>
@@ -222,8 +244,10 @@ function DetailPanel({
             <div className="flex items-center gap-3 px-4 py-3">
               <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
               <div className="flex flex-1 justify-between gap-2">
-                <span className="text-sm text-muted-foreground">เวลา</span>
-                <span className="text-sm font-semibold">{leave.timeFrom} – {leave.timeTo} น.</span>
+                <span className="text-sm text-muted-foreground">{t('time')}</span>
+                <span className="text-sm font-semibold">
+                  {tCommon('time.range', { from: leave.timeFrom, to: leave.timeTo })}
+                </span>
               </div>
             </div>
           )}
@@ -231,14 +255,14 @@ function DetailPanel({
 
         {leave.reason && (
           <div className="rounded-xl border border-border bg-whited/40 px-4 py-3">
-            <p className="text-xs text-muted-foreground mb-1">เหตุผล</p>
+            <p className="text-xs text-muted-foreground mb-1">{t('reason')}</p>
             <p className="text-sm text-foreground">{leave.reason}</p>
           </div>
         )}
 
         {leave.supervisorComment && (
           <div className="rounded-xl border border-border bg-whited/40 px-4 py-3">
-            <p className="text-xs text-muted-foreground mb-1">ความเห็นหัวหน้า</p>
+            <p className="text-xs text-muted-foreground mb-1">{t('supervisorComment')}</p>
             <p className="text-sm text-foreground">{leave.supervisorComment}</p>
           </div>
         )}
@@ -248,14 +272,14 @@ function DetailPanel({
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-semibold">ความเห็น</span>
-                <span className="text-xs text-muted-foreground">(ถ้ามี)</span>
+                <span className="text-sm font-semibold">{t('comment')}</span>
+                <span className="text-xs text-muted-foreground">{t('optional')}</span>
               </div>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 rows={3}
-                placeholder="ระบุความเห็นประกอบการพิจารณา..."
+                placeholder={t('commentPlaceholder')}
                 className="w-full resize-none rounded-xl border border-border bg-whited px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
@@ -264,20 +288,20 @@ function DetailPanel({
 
             {showRejectConfirm ? (
               <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 space-y-3">
-                <p className="text-sm font-semibold text-destructive">ยืนยันการปฏิเสธคำขอลา?</p>
+                <p className="text-sm font-semibold text-destructive">{t('confirmReject')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setShowRejectConfirm(false)}
                     className="rounded-xl border border-border py-2 text-sm font-medium"
                   >
-                    ยกเลิก
+                    {tCommon('action.cancel')}
                   </button>
                   <button
                     onClick={handleReject}
                     disabled={isRejecting}
                     className="rounded-xl bg-destructive py-2 text-sm font-semibold text-white disabled:opacity-60"
                   >
-                    {isRejecting ? 'กำลังดำเนินการ...' : 'ยืนยันปฏิเสธ'}
+                    {isRejecting ? t('processing') : t('confirmRejectButton')}
                   </button>
                 </div>
               </div>
@@ -288,7 +312,7 @@ function DetailPanel({
                   disabled={isApproving}
                   className="rounded-xl border border-destructive py-3 text-sm font-semibold text-destructive hover:bg-destructive/5 disabled:opacity-60 transition-colors"
                 >
-                  ปฏิเสธ
+                  {t('reject')}
                 </button>
                 <button
                   onClick={handleApprove}
@@ -298,9 +322,9 @@ function DetailPanel({
                   {isApproving ? (
                     <span className="flex items-center justify-center gap-2">
                       <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      กำลังอนุมัติ...
+                      {t('approving')}
                     </span>
-                  ) : 'อนุมัติ ✓'}
+                  ) : t('approve')}
                 </button>
               </div>
             )}
@@ -309,7 +333,7 @@ function DetailPanel({
 
         {leave.status !== 'PendingSupervisor' && leave.status !== 'PendingHr' && (
           <div className="rounded-xl bg-whited px-4 py-3 text-sm text-muted-foreground text-center">
-            คำขอนี้ได้รับการดำเนินการแล้ว
+            {t('alreadyHandled')}
           </div>
         )}
       </div>
@@ -325,6 +349,9 @@ function CancellationDetailPanel({
   onRefresh,
   onDone,
 }: { selectedId: string | null; onBack: () => void; onRefresh: () => void; onDone: () => void }) {
+  const t = useTranslations('admin.approval.leave')
+  const tCommon = useTranslations('common')
+  const locale = useLocale() as Locale
   const { data: leave, isLoading } = useLeaveById(selectedId ?? '')
   const { mutateAsync: approveCancel, isPending: isApproving } = useApproveCancelLeave()
   const { mutateAsync: rejectCancel,  isPending: isRejecting  } = useRejectCancelLeave()
@@ -345,8 +372,8 @@ function CancellationDetailPanel({
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center px-6">
         <ClipboardList className="h-12 w-12 text-muted-foreground/40" />
-        <p className="mt-4 text-sm font-medium text-muted-foreground">เลือกรายการจากทางซ้าย</p>
-        <p className="mt-1 text-xs text-muted-foreground/60">เพื่อดูรายละเอียดและดำเนินการ</p>
+        <p className="mt-4 text-sm font-medium text-muted-foreground">{t('selectItem')}</p>
+        <p className="mt-1 text-xs text-muted-foreground/60">{t('selectItemAct')}</p>
       </div>
     )
   }
@@ -369,21 +396,21 @@ function CancellationDetailPanel({
         {success === 'approved' ? (
           <>
             <CheckCircle2 className="h-14 w-14 text-green-500" />
-            <p className="mt-4 text-base font-bold text-foreground">อนุมัติการยกเลิกสำเร็จ</p>
-            <p className="mt-1 text-sm text-muted-foreground">วันลาของ {leave.employeeName} ถูกคืนกลับแล้ว</p>
+            <p className="mt-4 text-base font-bold text-foreground">{t('cancelApprovedTitle')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('cancelApprovedBody', { name: leave.employeeName })}</p>
           </>
         ) : (
           <>
             <XCircle className="h-14 w-14 text-destructive" />
-            <p className="mt-4 text-base font-bold text-foreground">ปฏิเสธการยกเลิกแล้ว</p>
-            <p className="mt-1 text-sm text-muted-foreground">{leave.employeeName} ยังคงอยู่ในสถานะลา</p>
+            <p className="mt-4 text-base font-bold text-foreground">{t('cancelRejectedTitle')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('cancelRejectedBody', { name: leave.employeeName })}</p>
           </>
         )}
         <button
           onClick={onDone}
           className="mt-6 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
         >
-          ดูรายการถัดไป
+          {t('next')}
         </button>
       </div>
     )
@@ -395,7 +422,7 @@ function CancellationDetailPanel({
       await approveCancel({ id: leave!.id, comment: comment.trim() || undefined })
       setSuccess('approved')
       onRefresh()
-    } catch { setError('เกิดข้อผิดพลาด กรุณาลองใหม่') }
+    } catch { setError(tCommon('state.error')) }
   }
 
   async function handleReject() {
@@ -404,21 +431,21 @@ function CancellationDetailPanel({
       await rejectCancel({ id: leave!.id, comment: comment.trim() || undefined })
       setSuccess('rejected')
       onRefresh()
-    } catch { setError('เกิดข้อผิดพลาด กรุณาลองใหม่') }
+    } catch { setError(tCommon('state.error')) }
   }
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 border-b border-border px-5 py-3 lg:hidden">
         <button onClick={onBack} className="flex items-center gap-1 text-sm text-primary">
-          <ChevronLeft className="h-4 w-4" /> กลับ
+          <ChevronLeft className="h-4 w-4" /> {t('back')}
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">ขอยกเลิกการลา</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">{t('cancellationLabel')}</p>
             <h2 className="mt-1 text-lg font-bold text-foreground">{leave.employeeName}</h2>
           </div>
           <LeaveStatusBadge status={leave.status} />
@@ -428,14 +455,19 @@ function CancellationDetailPanel({
           <div className="flex items-center gap-3 px-4 py-3">
             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="flex flex-1 justify-between gap-2">
-              <span className="text-sm text-muted-foreground">ประเภทการลา</span>
-              <span className="text-sm font-semibold">{leave.leaveTypeName}</span>
+              <span className="text-sm text-muted-foreground">{t('leaveType')}</span>
+              <span className="text-sm font-semibold">
+                {localizedName(
+                  { name: leave.leaveTypeName, nameEn: leave.leaveTypeNameEn, nameId: leave.leaveTypeNameId },
+                  locale,
+                )}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-3 px-4 py-3">
             <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="flex flex-1 justify-between gap-2 min-w-0">
-              <span className="text-sm text-muted-foreground shrink-0">วันที่ลา</span>
+              <span className="text-sm text-muted-foreground shrink-0">{t('leaveDate')}</span>
               <span className="text-sm font-semibold text-right">
                 {formatDateLong(leave.dateFrom)}
                 {leave.dateFrom !== leave.dateTo && ` – ${formatDateLong(leave.dateTo)}`}
@@ -445,22 +477,24 @@ function CancellationDetailPanel({
           <div className="flex items-center gap-3 px-4 py-3">
             <Clock className="h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="flex flex-1 justify-between gap-2">
-              <span className="text-sm text-muted-foreground">จำนวน</span>
-              <span className="text-sm font-semibold">{leave.totalDays} วัน</span>
+              <span className="text-sm text-muted-foreground">{t('amount')}</span>
+              <span className="text-sm font-semibold">
+                {tCommon('duration.days', { count: leave.totalDays })}
+              </span>
             </div>
           </div>
         </div>
 
         {leave.reason && (
           <div className="rounded-xl border border-border bg-whited/40 px-4 py-3">
-            <p className="text-xs text-muted-foreground mb-1">เหตุผลการลาเดิม</p>
+            <p className="text-xs text-muted-foreground mb-1">{t('originalReason')}</p>
             <p className="text-sm text-foreground">{leave.reason}</p>
           </div>
         )}
 
         <div className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
-          <p className="text-xs font-medium text-orange-700 mb-1">ถ้าอนุมัติการยกเลิก</p>
-          <p className="text-sm text-orange-800">วันลา {leave.totalDays} วันจะถูกคืนกลับเข้าสิทธิ์ของพนักงาน</p>
+          <p className="text-xs font-medium text-orange-700 mb-1">{t('restoreNoticeTitle')}</p>
+          <p className="text-sm text-orange-800">{t('restoreNoticeBody', { days: leave.totalDays })}</p>
         </div>
 
         {leave.status === 'CancellationRequested' && (
@@ -468,14 +502,14 @@ function CancellationDetailPanel({
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-semibold">ความเห็น</span>
-                <span className="text-xs text-muted-foreground">(ถ้ามี)</span>
+                <span className="text-sm font-semibold">{t('comment')}</span>
+                <span className="text-xs text-muted-foreground">{t('optional')}</span>
               </div>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 rows={3}
-                placeholder="ระบุความเห็นประกอบการพิจารณา..."
+                placeholder={t('commentPlaceholder')}
                 className="w-full resize-none rounded-xl border border-border bg-whited px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
@@ -484,20 +518,20 @@ function CancellationDetailPanel({
 
             {showRejectConfirm ? (
               <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 space-y-3">
-                <p className="text-sm font-semibold text-destructive">ปฏิเสธการยกเลิก? พนักงานจะยังคงอยู่ในสถานะลา</p>
+                <p className="text-sm font-semibold text-destructive">{t('confirmRejectCancellation')}</p>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setShowRejectConfirm(false)}
                     className="rounded-xl border border-border py-2 text-sm font-medium"
                   >
-                    ยกเลิก
+                    {tCommon('action.cancel')}
                   </button>
                   <button
                     onClick={handleReject}
                     disabled={isRejecting}
                     className="rounded-xl bg-destructive py-2 text-sm font-semibold text-white disabled:opacity-60"
                   >
-                    {isRejecting ? 'กำลังดำเนินการ...' : 'ยืนยัน'}
+                    {isRejecting ? t('processing') : tCommon('action.confirm')}
                   </button>
                 </div>
               </div>
@@ -508,7 +542,7 @@ function CancellationDetailPanel({
                   disabled={isApproving}
                   className="rounded-xl border border-destructive py-3 text-sm font-semibold text-destructive hover:bg-destructive/5 disabled:opacity-60 transition-colors"
                 >
-                  ไม่อนุมัติ
+                  {t('rejectCancellation')}
                 </button>
                 <button
                   onClick={handleApprove}
@@ -518,9 +552,9 @@ function CancellationDetailPanel({
                   {isApproving ? (
                     <span className="flex items-center justify-center gap-2">
                       <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                      กำลังดำเนินการ...
+                      {t('processing')}
                     </span>
-                  ) : 'อนุมัติการยกเลิก ✓'}
+                  ) : t('approveCancellation')}
                 </button>
               </div>
             )}
@@ -536,9 +570,13 @@ function CancellationDetailPanel({
 type TabId = 'pending' | 'cancellation'
 
 export default function ApprovalsLeavesPage() {
+  const t = useTranslations('admin.approval.leave')
   const router   = useRouter()
   const employee = useAuthStore((s) => s.employee)
-  const isHr     = employee?.roles.some((r) => r.role === 'Hr' || r.role === 'Admin') ?? false
+  const { has, hasAny } = usePermissionGate()
+  // เข้าหน้าได้ถ้าอนุมัติ stage ใด stage หนึ่งได้ · tab ยกเลิกการลาเป็นของ stage HR
+  const canApprove = hasAny(['leave:approve-supervisor', 'leave:approve-hr'], ['Supervisor', 'Hr', 'Admin'])
+  const isHr = has('leave:approve-hr', ['Hr', 'Admin'])
 
   const { data: pendingData,      isLoading: pendingLoading,      refetch: refetchPending }      = usePendingApprovals()
   const { data: cancellationData, isLoading: cancellationLoading, refetch: refetchCancellation } = useCancellationPending()
@@ -548,12 +586,12 @@ export default function ApprovalsLeavesPage() {
   const [showDetail, setShowDetail] = useState(false)
 
   useEffect(() => {
-    if (employee && !isSupervisorOrAbove(employee.roles)) {
+    if (employee && !canApprove) {
       router.replace('/dashboard')
     }
-  }, [employee, router])
+  }, [employee, canApprove, router])
 
-  if (!employee || !isSupervisorOrAbove(employee.roles)) return null
+  if (!employee || !canApprove) return null
 
   const activeItems    = tab === 'pending' ? pendingData?.items      ?? [] : cancellationData?.items      ?? []
   const activeTotal    = tab === 'pending' ? pendingData?.totalCount ?? 0  : cancellationData?.totalCount ?? 0
@@ -587,9 +625,9 @@ export default function ApprovalsLeavesPage() {
         {/* ── Header ──────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-foreground">อนุมัติการลา</h1>
+            <h1 className="text-xl font-bold text-foreground">{t('title')}</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              {activeLoading ? '...' : `${activeTotal} รายการรอดำเนินการ`}
+              {activeLoading ? '...' : t('pendingCount', { count: activeTotal })}
             </p>
           </div>
         </div>
@@ -605,7 +643,7 @@ export default function ApprovalsLeavesPage() {
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              รออนุมัติการลา
+              {t('tabPending')}
               {(pendingData?.totalCount ?? 0) > 0 && (
                 <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700">
                   {pendingData?.totalCount}
@@ -620,7 +658,7 @@ export default function ApprovalsLeavesPage() {
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              รออนุมัติยกเลิก
+              {t('tabCancellation')}
               {cancellationCount > 0 && (
                 <span className="ml-2 rounded-full bg-orange-100 px-1.5 py-0.5 text-xs font-semibold text-orange-700">
                   {cancellationCount}
@@ -638,7 +676,7 @@ export default function ApprovalsLeavesPage() {
             <div className="rounded-2xl border border-border bg-background shadow-sm overflow-hidden">
               <div className="border-b border-border px-5 py-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
-                  {tab === 'pending' ? 'คำขอรออนุมัติ' : 'คำขอยกเลิกการลา'}
+                  {tab === 'pending' ? t('listPending') : t('listCancellation')}
                 </p>
               </div>
 
@@ -651,8 +689,8 @@ export default function ApprovalsLeavesPage() {
               ) : !activeItems.length ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center px-6">
                   <CheckCircle2 className="h-12 w-12 text-green-500" />
-                  <p className="mt-4 font-medium text-foreground">ไม่มีรายการรอดำเนินการ</p>
-                  <p className="mt-1 text-sm text-muted-foreground">ทุกรายการได้รับการดำเนินการแล้ว</p>
+                  <p className="mt-4 font-medium text-foreground">{t('emptyTitle')}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{t('emptyHint')}</p>
                 </div>
               ) : (
                 <div className="p-3 space-y-2">

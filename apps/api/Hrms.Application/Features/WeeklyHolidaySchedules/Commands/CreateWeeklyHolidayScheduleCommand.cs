@@ -1,4 +1,5 @@
 using FluentValidation;
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.WeeklyHolidaySchedules.Dtos;
 using Hrms.Application.Features.WeeklyHolidaySchedules.Queries;
@@ -21,7 +22,7 @@ public class CreateWeeklyHolidayScheduleValidator : AbstractValidator<CreateWeek
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.DayOfWeek).IsInEnum();
         RuleForEach(x => x.WorkDayOccurrences).InclusiveBetween(1, 5)
-            .WithMessage("occurrence ต้องอยู่ระหว่าง 1–5");
+            .WithErrorCode("WORKDAY_OCCURRENCE_RANGE").WithMessage("The occurrence must be between 1 and 5.");
     }
 }
 
@@ -36,7 +37,7 @@ public class CreateWeeklyHolidayScheduleHandler(IApplicationDbContext db, IScope
             await scope.ThrowIfCannotAccessAsync(request.CompanyId.Value, ct);
             var exists = await db.Companies.AnyAsync(c => c.Id == request.CompanyId.Value && c.IsActive, ct);
             if (!exists)
-                throw new KeyNotFoundException($"ไม่พบ Company Id '{request.CompanyId}'");
+                throw new NotFoundException("Company", request.CompanyId, "COMPANY_NOT_FOUND");
         }
 
         var schedule = new WeeklyHolidaySchedule

@@ -3,25 +3,22 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronLeft, ChevronRight, Clock3, Inbox, MapPin, Search, UserRound } from 'lucide-react'
 import type { TicketInboxItemDto, TicketPriority, TicketStatus } from '@hrms/shared-types'
 import { PageHeader } from '@/components/layout/page-header'
 import { SourceChannelIcon } from '@/components/tickets/source-channel-icon'
 import { TicketBoardSummary } from '@/components/tickets/ticket-board-summary'
 import { TicketListTabs } from '@/components/tickets/ticket-list-tabs'
+import { useFmt } from '@/hooks/use-fmt'
 import { useTicketInbox } from '@/hooks/use-tickets'
-import { isSupervisorOrAbove } from '@/lib/auth-utils'
+import { hasPermission } from '@/lib/auth-utils'
 import { TICKET_STATUS_CLASS, TICKET_STATUS_LABEL } from '@/lib/ticket-status'
 import { useAuthStore } from '@/stores/auth.store'
 
 const PAGE_SIZE = 10
-
-const PRIORITY_LABEL: Record<TicketPriority, string> = {
-  Low: 'ปกติ',
-  Medium: 'กลาง',
-  High: 'ด่วน',
-  Critical: 'ด่วนมาก',
-}
+const STATUSES = Object.keys(TICKET_STATUS_LABEL) as TicketStatus[]
+const PRIORITIES: TicketPriority[] = ['Low', 'Medium', 'High', 'Critical']
 
 function priorityClass(priority: TicketPriority) {
   if (priority === 'Critical') return 'bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-200'
@@ -29,19 +26,16 @@ function priorityClass(priority: TicketPriority) {
   return 'bg-muted text-muted-foreground'
 }
 
-function thaiDate(value: string) {
-  return new Intl.DateTimeFormat('th-TH', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(value))
-}
-
 function TicketInboxCard({ ticket }: { ticket: TicketInboxItemDto }) {
+  const t = useTranslations('liff.ticket.list.queue')
+  const tStatus = useTranslations('status.ticket')
+  const tPriority = useTranslations('status.ticketPriority')
+  const fmt = useFmt()
   const assignmentLabel = ticket.currentAssigneeName
-    ? `มอบหมายให้ ${ticket.currentAssigneeName}`
+    ? t('assignedTo', { name: ticket.currentAssigneeName })
     : ticket.isAccepted
-      ? 'รับเรื่องแล้ว รอมอบหมาย'
-      : 'รอรับเรื่อง'
+      ? t('acceptedAwaitingAssign')
+      : t('awaitingAccept')
 
   return (
     <Link
@@ -58,11 +52,11 @@ function TicketInboxCard({ ticket }: { ticket: TicketInboxItemDto }) {
           <h2 className="mt-1 line-clamp-2 text-sm font-semibold leading-5">{ticket.otherTopicText ?? ticket.title}</h2>
         </div>
         <span className={`shrink-0 rounded px-2 py-1 text-[10px] font-semibold ${priorityClass(ticket.priority)}`}>
-          {PRIORITY_LABEL[ticket.priority]}
+          {tPriority(ticket.priority)}
         </span>
       </div>
 
-      {/* หัวข้อ (subject) แสดงเป็น title อยู่แล้ว — บรรทัดนี้เหลือ หมวด / หมวดย่อย */}
+      {/* หัวข้อ (subject) แสดงเป็น title อยู่แล้ว — บรรทัดนี้เหลือ หมวด / หมวดย่อย (snapshot ไทยจาก API ดูแผน Phase 1) */}
       <p className="mt-2 text-xs text-muted-foreground">
         {ticket.categoryName ?? ticket.externalTicketCategoryName ?? '-'} /{' '}
         {ticket.topicName ?? ticket.externalTicketTopicName ?? '-'}
@@ -71,7 +65,7 @@ function TicketInboxCard({ ticket }: { ticket: TicketInboxItemDto }) {
       <div className="mt-3 space-y-1 text-xs text-muted-foreground">
         <p className="flex items-center gap-1.5">
           <UserRound className="h-3.5 w-3.5" />
-          ผู้แจ้ง {ticket.requesterName}{ticket.requester.nickname && ` (${ticket.requester.nickname})`}
+          {t('requester', { name: ticket.requesterName })}{ticket.requester.nickname && ` (${ticket.requester.nickname})`}
           {ticket.sourceDepartmentName ? ` · ${ticket.sourceDepartmentName}` : ''}
         </p>
         <p className="line-clamp-1">{[ticket.targetCompanyName, ticket.targetDepartmentName].filter(Boolean).join(' · ')}</p>
@@ -83,7 +77,7 @@ function TicketInboxCard({ ticket }: { ticket: TicketInboxItemDto }) {
         )}
         <p className="flex items-center gap-1.5">
           <Clock3 className="h-3.5 w-3.5" />
-          แจ้งเมื่อ {thaiDate(ticket.createdAt)}
+          {t('reportedAt', { time: fmt.formatDateTime(new Date(ticket.createdAt), { dateStyle: 'short', timeStyle: 'short' }) })}
         </p>
       </div>
 
@@ -97,7 +91,7 @@ function TicketInboxCard({ ticket }: { ticket: TicketInboxItemDto }) {
       <div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3">
         <span className="min-w-0 truncate text-xs text-muted-foreground">{assignmentLabel}</span>
         <span className={`shrink-0 rounded border px-2 py-1 text-[10px] font-semibold ${TICKET_STATUS_CLASS[ticket.status]}`}>
-          {TICKET_STATUS_LABEL[ticket.status]}
+          {tStatus(ticket.status)}
         </span>
       </div>
     </Link>
@@ -105,9 +99,12 @@ function TicketInboxCard({ ticket }: { ticket: TicketInboxItemDto }) {
 }
 
 export default function TicketInboxPage() {
+  const t = useTranslations('liff.ticket.list')
+  const tStatus = useTranslations('status.ticket')
+  const tPriority = useTranslations('status.ticketPriority')
   const router = useRouter()
   const employee = useAuthStore(state => state.employee)
-  const canViewInbox = employee ? isSupervisorOrAbove(employee.roles) : false
+  const canViewInbox = hasPermission(employee, 'ticket:view-team', ['Admin', 'Hr', 'Supervisor'])
   const [status, setStatus] = useState<TicketStatus | undefined>()
   const [priority, setPriority] = useState<TicketPriority | undefined>()
   const [searchInput, setSearchInput] = useState('')
@@ -136,7 +133,7 @@ export default function TicketInboxPage() {
 
   return (
     <div className="min-h-screen bg-muted/30 pb-20">
-      <PageHeader title="กล่องงาน" subtitle={`${totalCount} รายการ`} />
+      <PageHeader title={t('inboxTitle')} subtitle={t('count', { count: totalCount })} />
       <TicketListTabs />
 
       <div className="sticky top-14 z-10 border-b border-border bg-background p-3">
@@ -147,19 +144,19 @@ export default function TicketInboxPage() {
             onClick={() => { setRequestType('Internal'); setPage(1) }}
             className={`h-9 rounded-md text-sm font-semibold ${requestType === 'Internal' ? 'bg-primary text-primary-foreground' : 'border border-border bg-background text-muted-foreground'}`}
           >
-            ภายใน
+            {t('queue.internal')}
           </button>
           <button
             type="button"
             onClick={() => { setRequestType('External'); setPage(1) }}
             className={`h-9 rounded-md text-sm font-semibold ${requestType === 'External' ? 'bg-primary text-primary-foreground' : 'border border-border bg-background text-muted-foreground'}`}
           >
-            ภายนอก
+            {t('queue.external')}
           </button>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <select
-            aria-label="สถานะ Ticket"
+            aria-label={t('queue.ticketStatus')}
             value={status ?? ''}
             onChange={event => {
               setStatus((event.target.value || undefined) as TicketStatus | undefined)
@@ -167,13 +164,13 @@ export default function TicketInboxPage() {
             }}
             className="h-10 min-w-0 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
           >
-            <option value="">ทุกสถานะ</option>
-            {(Object.keys(TICKET_STATUS_LABEL) as TicketStatus[]).map(item => (
-              <option key={item} value={item}>{TICKET_STATUS_LABEL[item]}</option>
+            <option value="">{t('queue.allStatuses')}</option>
+            {STATUSES.map(item => (
+              <option key={item} value={item}>{tStatus(item)}</option>
             ))}
           </select>
           <select
-            aria-label="ความเร่งด่วน"
+            aria-label={t('queue.priority')}
             value={priority ?? ''}
             onChange={event => {
               setPriority((event.target.value || undefined) as TicketPriority | undefined)
@@ -181,9 +178,9 @@ export default function TicketInboxPage() {
             }}
             className="h-10 min-w-0 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
           >
-            <option value="">ทุกความเร่งด่วน</option>
-            {(Object.keys(PRIORITY_LABEL) as TicketPriority[]).map(item => (
-              <option key={item} value={item}>{PRIORITY_LABEL[item]}</option>
+            <option value="">{t('queue.allPriorities')}</option>
+            {PRIORITIES.map(item => (
+              <option key={item} value={item}>{tPriority(item)}</option>
             ))}
           </select>
           <form
@@ -198,7 +195,7 @@ export default function TicketInboxPage() {
             <input
               value={searchInput}
               onChange={event => setSearchInput(event.target.value)}
-              placeholder="ค้นหาเลข Ticket, เรื่อง, รถ หรือสถานที่"
+              placeholder={t('searchPlaceholderTeam')}
               className="h-10 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"
             />
           </form>
@@ -213,7 +210,7 @@ export default function TicketInboxPage() {
         {!query.isLoading && (query.data?.items.length ?? 0) === 0 && (
           <div className="flex flex-col items-center py-16 text-center text-muted-foreground">
             <Inbox className="mb-3 h-9 w-9" />
-            <p className="text-sm font-medium">ไม่มีรายการในกล่องรับเรื่อง</p>
+            <p className="text-sm font-medium">{t('queue.inboxEmpty')}</p>
           </div>
         )}
 
@@ -221,12 +218,12 @@ export default function TicketInboxPage() {
 
         <div className="flex items-center justify-between border-t border-border pt-3">
           <p className="text-xs text-muted-foreground">
-            {firstItem}-{lastItem} จาก {totalCount} · หน้า {page}/{totalPages}
+            {t('rangeOf', { from: firstItem, to: lastItem, total: totalCount, page, totalPages })}
           </p>
           <div className="flex gap-1">
             <button
               type="button"
-              title="หน้าก่อน"
+              title={t('prevPage')}
               disabled={page <= 1}
               onClick={() => setPage(value => value - 1)}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background disabled:opacity-40"
@@ -235,7 +232,7 @@ export default function TicketInboxPage() {
             </button>
             <button
               type="button"
-              title="หน้าถัดไป"
+              title={t('nextPage')}
               disabled={page >= totalPages}
               onClick={() => setPage(value => value + 1)}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background disabled:opacity-40"

@@ -61,7 +61,11 @@ public class Ticket : BaseEntity
     public DateTime? WorkStartedAt { get; set; }
     public Guid? WaitingInfoByEmployeeId { get; set; }
     public DateTime? WaitingInfoAt { get; set; }
+    /// <summary>enum เดิม — คงไว้ช่วงเปลี่ยนผ่าน ค่าจริงย้ายไป <see cref="CloseoutReasonId"/> แล้ว</summary>
     public TicketProblemType? ProblemType { get; set; }
+    public Guid? CloseoutReasonId { get; set; }
+    /// <summary>ชื่อเหตุผล ณ เวลาที่เลือก — ประวัติไม่เพี้ยนแม้ master ถูกแก้ชื่อภายหลัง</summary>
+    public string? CloseoutReasonNameSnapshot { get; set; }
     public string? InitialInspectionNote { get; set; }
     public string? ResolutionNote { get; set; }
     public Guid? ResolvedByEmployeeId { get; set; }
@@ -87,6 +91,7 @@ public class Ticket : BaseEntity
     public TicketCategory? Category { get; set; }
     public TicketTopic? Topic { get; set; }
     public TicketSubject? Subject { get; set; }
+    public TicketCloseoutReason? CloseoutReason { get; set; }
     public ExternalTicketCategory? ExternalTicketCategory { get; set; }
     public ExternalTicketTopic? ExternalTicketTopic { get; set; }
     public ExternalTicketSubject? ExternalTicketSubject { get; set; }

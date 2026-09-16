@@ -22,17 +22,17 @@ public class CreateExpenseBillingBatchValidator : AbstractValidator<CreateExpens
     {
         RuleFor(x => x.PeriodFrom)
             .NotEmpty()
-            .WithMessage("กรุณาระบุวันที่เริ่มรอบ");
+            .WithErrorCode("PERIOD_FROM_REQUIRED").WithMessage("The period start date is required.");
 
         RuleFor(x => x.PeriodTo)
             .NotEmpty()
-            .WithMessage("กรุณาระบุวันที่จบรอบ")
+            .WithErrorCode("PERIOD_TO_REQUIRED").WithMessage("The period end date is required.")
             .GreaterThanOrEqualTo(x => x.PeriodFrom)
-            .WithMessage("วันที่จบรอบต้องไม่น้อยกว่าวันที่เริ่มรอบ");
+            .WithErrorCode("PERIOD_RANGE_INVALID").WithMessage("The period end date must not be earlier than the start date.");
 
         RuleFor(x => x.ExpenseClaimIds)
             .NotEmpty()
-            .WithMessage("กรุณาเลือกรายการวางบิลอย่างน้อย 1 รายการ");
+            .WithErrorCode("EXPENSE_CLAIM_SELECTION_REQUIRED").WithMessage("At least one expense claim must be selected.");
 
         RuleFor(x => x.Note)
             .MaximumLength(500);

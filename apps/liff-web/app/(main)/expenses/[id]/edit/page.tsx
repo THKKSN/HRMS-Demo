@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import type { ChangeEvent, FormEvent, InputHTMLAttributes } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   AlertCircle,
   Banknote,
@@ -31,8 +32,8 @@ import type {
   ExpenseOcrSummaryDto,
 } from '@hrms/shared-types'
 import { useDeleteExpenseDraft, useExpense, useExpenseOcrResult, useStartExpenseOcr, useUpdateExpense } from '@/hooks/use-expenses'
+import { apiMessageDetailed } from '@/lib/api-message'
 import {
-  EXPENSE_DOCUMENT_LABEL,
   REQUIRED_FUEL_DOCUMENTS,
   hasRequiredExpenseDocuments,
   isImageAttachmentUrl,
@@ -50,13 +51,7 @@ type PendingAttachment = {
   file: File
 }
 
-const TYPE_OPTIONS: { value: ExpenseClaimType; label: string }[] = [
-  { value: 'Fuel', label: 'ค่าน้ำมัน' },
-  { value: 'Toll', label: 'ค่าทางด่วน' },
-  { value: 'Parking', label: 'ค่าจอดรถ' },
-  { value: 'Meal', label: 'ค่าอาหาร' },
-  { value: 'Other', label: 'อื่น ๆ' },
-]
+const TYPE_OPTIONS: ExpenseClaimType[] = ['Fuel', 'Toll', 'Parking', 'Meal', 'Other']
 
 const OCR_FIELD_ORDER = [
   'expenseDate',
@@ -78,32 +73,6 @@ const OCR_FIELD_ORDER = [
 ] as const
 
 type OcrFieldKey = (typeof OCR_FIELD_ORDER)[number]
-
-const OCR_FIELD_LABEL: Record<OcrFieldKey, string> = {
-  expenseDate: 'วันที่เอกสาร',
-  amount: 'ยอดเงินรวม',
-  merchantName: 'ร้านค้า / ปั๊มน้ำมัน',
-  billNo: 'เลขที่บิล',
-  receiptTid: 'TID',
-  receiptBatch: 'BATCH',
-  receiptMid: 'MID',
-  receiptTrace: 'TRACE',
-  driverName: 'ชื่อพนักงานขับรถ',
-  vehicleNo: 'เบอร์รถ',
-  plateNo: 'ทะเบียนรถ',
-  fuelLiters: 'จำนวนลิตร',
-  transportNo: 'เลขที่ใบขนส่ง',
-  origin: 'ต้นทาง / สถานที่',
-  customerName: 'ลูกค้า',
-  tripCount: 'จำนวนเที่ยว',
-}
-
-const OCR_STATUS_LABEL: Record<ExpenseOcrStatus, string> = {
-  Pending: 'รอคิว',
-  Processing: 'กำลังอ่าน',
-  Succeeded: 'อ่านสำเร็จ',
-  Failed: 'อ่านไม่สำเร็จ',
-}
 
 function parsePositiveNumber(value: string) {
   if (!value.trim()) return undefined
@@ -157,15 +126,10 @@ function suggestionFormValue(key: OcrFieldKey, suggestion?: ExpenseOcrFieldSugge
   return value
 }
 
-function apiMessage(error: unknown) {
-  const response = (error as {
-    response?: { data?: { message?: string; error?: string; errors?: string[]; details?: Array<{ error?: string }> } }
-  })?.response?.data
-  return response?.details?.[0]?.error ?? response?.errors?.[0] ?? response?.message
-    ?? response?.error ?? 'ไม่สามารถบันทึกรายการได้ กรุณาลองใหม่'
-}
-
 export default function EditExpensePage() {
+  const t = useTranslations('liff.expense')
+  const tType = useTranslations('status.expenseType')
+  const tDoc = useTranslations('status.expenseDocument')
   const router = useRouter()
   const params = useParams<{ id: string }>()
   const id = params.id
@@ -265,13 +229,17 @@ export default function EditExpensePage() {
     [type, expenseDate, amountNumber, allAttachments, submitting, isDeletingDraft, data?.status]
   )
 
+  // รายชื่อเอกสารที่ขาด แปลตามภาษา เช่น "ใบสั่งจ่าย และ ใบเสร็จชำระเงิน"
+  const missingDocuments = (attachments: Pick<ExpenseAttachmentFileDto, 'documentType'>[]) =>
+    missingExpenseDocumentLabels(type, attachments, { document: tDoc, anyFile: t('form.atLeastOneFile') }).join(t('form.documentsJoin'))
+
   function handleFileChange(documentType: ExpenseAttachmentDocumentType, event: ChangeEvent<HTMLInputElement>) {
     const incoming = Array.from(event.target.files ?? [])
     event.target.value = ''
 
     const tooBig = incoming.filter(file => file.size > MAX_SIZE)
     if (tooBig.length) {
-      setError(`ไฟล์ใหญ่เกิน 10 MB: ${tooBig.map(file => file.name).join(', ')}`)
+      setError(t('form.fileTooBig', { names: tooBig.map(file => file.name).join(', ') }))
       return
     }
 
@@ -282,7 +250,7 @@ export default function EditExpensePage() {
         .map(file => ({ id: `${documentType}:${file.name}:${file.size}:${Date.now()}:${Math.random()}`, documentType, file }))
       const next = [...prev, ...newItems]
       if (existingAttachments.length + next.length > MAX_FILES) {
-        setError(`แนบไฟล์ได้สูงสุด ${MAX_FILES} ไฟล์`)
+        setError(t('form.tooManyFiles', { max: MAX_FILES }))
         return next.slice(0, Math.max(0, MAX_FILES - existingAttachments.length))
       }
       setError(null)
@@ -292,18 +260,18 @@ export default function EditExpensePage() {
 
   async function handleStartOcr() {
     if (files.length > 0) {
-      setError('กรุณาบันทึกร่างหลังเพิ่มไฟล์ก่อนเริ่ม OCR')
+      setError(t('form.errors.saveDraftBeforeOcr'))
       return
     }
 
     if (existingAttachments.length === 0) {
-      setError('กรุณาแนบไฟล์และบันทึกร่างก่อนเริ่ม OCR')
+      setError(t('form.errors.attachAndSaveBeforeOcr'))
       return
     }
 
-    const missing = missingExpenseDocumentLabels(type, existingAttachments)
-    if (missing.length > 0) {
-      setError(`กรุณาบันทึกไฟล์ ${missing.join(' และ ')} ก่อนเริ่ม OCR`)
+    const missing = missingDocuments(existingAttachments)
+    if (missing) {
+      setError(t('form.errors.saveFilesBeforeOcr', { documents: missing }))
       return
     }
 
@@ -313,7 +281,7 @@ export default function EditExpensePage() {
       await startOcr()
       await refetchOcr()
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiMessageDetailed(err, t('form.errors.saveFailed')))
     }
   }
 
@@ -347,10 +315,10 @@ export default function EditExpensePage() {
     applyText('tripCount', setTripCount)
 
     if (applied > 0) {
-      setOcrMessage(isAuto ? `เติมข้อมูลจาก OCR อัตโนมัติแล้ว ${applied} ฟิลด์` : `เติมข้อมูลจาก OCR แล้ว ${applied} ฟิลด์`)
+      setOcrMessage(isAuto ? t('edit.ocrAppliedAuto', { count: applied }) : t('edit.ocrApplied', { count: applied }))
       setError(null)
     } else {
-      setError('ยังไม่มีข้อมูล OCR ที่เติมลงฟอร์มได้')
+      setError(t('form.errors.noOcrData'))
     }
     return applied
   }
@@ -359,13 +327,13 @@ export default function EditExpensePage() {
     const isDraft = mode === 'draft'
 
     if (!isDraft && (!canSubmit || !amountNumber)) {
-      const missing = missingExpenseDocumentLabels(type, allAttachments)
-      setError(missing.length > 0 ? `กรุณาแนบ ${missing.join(' และ ')}` : 'กรุณากรอกข้อมูลที่จำเป็นให้ครบ')
+      const missing = missingDocuments(allAttachments)
+      setError(missing ? t('form.errors.attachRequired', { documents: missing }) : t('form.errors.fillRequired'))
       return
     }
 
     if (isDraft && !canSaveDraft) {
-      setError('รายการนี้ไม่สามารถแก้ไขแบบร่างได้')
+      setError(t('form.errors.notEditable'))
       return
     }
 
@@ -407,7 +375,7 @@ export default function EditExpensePage() {
       })
       router.replace(`/expenses/${result.id}`)
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiMessageDetailed(err, t('form.errors.saveFailed')))
     } finally {
       setSubmitting(false)
     }
@@ -415,7 +383,7 @@ export default function EditExpensePage() {
 
   async function handleDeleteDraft() {
     if (isDeletingDraft || submitting) return
-    const ok = window.confirm('ลบแบบร่างนี้พร้อมรูปที่แนบไว้ใช่ไหม? การลบนี้ย้อนกลับไม่ได้')
+    const ok = window.confirm(t('edit.confirmDelete'))
     if (!ok) return
 
     setError(null)
@@ -423,7 +391,7 @@ export default function EditExpensePage() {
       await deleteDraft()
       router.replace('/expenses')
     } catch (err) {
-      setError(apiMessage(err))
+      setError(apiMessageDetailed(err, t('form.errors.saveFailed')))
     }
   }
 
@@ -443,10 +411,10 @@ export default function EditExpensePage() {
   if (!data) {
     return (
       <div className="min-h-screen bg-muted/30 pb-24">
-        <Header backHref="/expenses" title="แก้ไขแบบร่าง" />
+        <Header backHref="/expenses" title={t('edit.title')} />
         <div className="px-4 py-10 text-center">
           <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-          <p className="mt-4 font-semibold">ไม่พบรายการ</p>
+          <p className="mt-4 font-semibold">{t('edit.notFound')}</p>
         </div>
       </div>
     )
@@ -455,11 +423,11 @@ export default function EditExpensePage() {
   if (data.status !== 'Draft') {
     return (
       <div className="min-h-screen bg-muted/30 pb-24">
-        <Header backHref={`/expenses/${data.id}`} title="แก้ไขแบบร่าง" />
+        <Header backHref={`/expenses/${data.id}`} title={t('edit.title')} />
         <div className="px-4 py-10 text-center">
           <ReceiptText className="mx-auto h-12 w-12 text-muted-foreground" />
-          <p className="mt-4 font-semibold">รายการนี้ส่งเข้าตรวจแล้ว</p>
-          <p className="mt-1 text-sm text-muted-foreground">แก้ไขได้เฉพาะรายการที่ยังเป็นแบบร่าง</p>
+          <p className="mt-4 font-semibold">{t('edit.alreadySubmitted')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('edit.draftOnly')}</p>
         </div>
       </div>
     )
@@ -467,7 +435,7 @@ export default function EditExpensePage() {
 
   return (
     <div className="min-h-screen bg-[#eef7f3]">
-      <Header backHref={`/expenses/${id}`} title="แก้ไขแบบร่าง" subtitle="ปรับข้อมูลก่อนส่งเข้าตรวจ" />
+      <Header backHref={`/expenses/${id}`} title={t('edit.title')} subtitle={t('edit.subtitle')} />
 
       <form onSubmit={onSubmit} className="flex flex-col gap-3 px-4 pb-32 pt-3">
         {error && (
@@ -486,21 +454,21 @@ export default function EditExpensePage() {
         <section className="overflow-hidden rounded-lg border border-border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <ReceiptText className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">ประเภทค่าใช้จ่าย</span>
+            <span className="text-sm font-semibold">{t('form.typeSection')}</span>
           </div>
           <div className="grid grid-cols-2 gap-2">
             {TYPE_OPTIONS.map(option => (
               <button
-                key={option.value}
+                key={option}
                 type="button"
-                onClick={() => setType(option.value)}
+                onClick={() => setType(option)}
                 className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold ${
-                  type === option.value
+                  type === option
                     ? 'border-[#0f8f72] bg-emerald-50 text-[#0f8f72]'
                     : 'border-border bg-background text-foreground'
                 }`}
               >
-                {option.label}
+                {tType(option)}
               </button>
             ))}
           </div>
@@ -519,20 +487,20 @@ export default function EditExpensePage() {
         <section className="overflow-hidden rounded-lg border border-border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Banknote className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">ข้อมูลบิล</span>
+            <span className="text-sm font-semibold">{t('form.billInfo')}</span>
           </div>
           <div className="min-w-0 space-y-3">
-            <TextInput label="วันที่เอกสาร *" value={expenseDate} onChange={setExpenseDate} type="date" />
-            <TextInput label="ยอดเงินรวม *" value={amount} onChange={setAmount} type="number" inputMode="decimal" placeholder="เช่น 8605" />
-            <TextInput label="ร้านค้า / ปั๊มน้ำมัน" value={merchantName} onChange={setMerchantName} placeholder="เช่น BSRC-T.P.OIL" maxLength={200} />
-            <TextInput label="เลขที่บิล" value={billNo} onChange={setBillNo} placeholder="เช่น FB-CM6905-02769" maxLength={80} />
+            <TextInput label={`${t('form.documentDate')} *`} value={expenseDate} onChange={setExpenseDate} type="date" />
+            <TextInput label={`${t('form.amount')} *`} value={amount} onChange={setAmount} type="number" inputMode="decimal" placeholder={t('form.amountPlaceholder')} />
+            <TextInput label={t('form.merchant')} value={merchantName} onChange={setMerchantName} placeholder={t('form.merchantPlaceholder')} maxLength={200} />
+            <TextInput label={t('form.billNo')} value={billNo} onChange={setBillNo} placeholder={t('form.billNoPlaceholder')} maxLength={80} />
             <div className="grid grid-cols-2 gap-3">
-              <TextInput label="TID" value={receiptTid} onChange={setReceiptTid} placeholder="เช่น 28257831" maxLength={80} />
-              <TextInput label="BATCH" value={receiptBatch} onChange={setReceiptBatch} placeholder="เช่น 000123" maxLength={80} />
+              <TextInput label="TID" value={receiptTid} onChange={setReceiptTid} placeholder={t('form.tidPlaceholder')} maxLength={80} />
+              <TextInput label="BATCH" value={receiptBatch} onChange={setReceiptBatch} placeholder={t('form.batchPlaceholder')} maxLength={80} />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <TextInput label="MID" value={receiptMid} onChange={setReceiptMid} placeholder="เลข MID" maxLength={80} />
-              <TextInput label="TRACE" value={receiptTrace} onChange={setReceiptTrace} placeholder="เช่น 002795" maxLength={80} />
+              <TextInput label="MID" value={receiptMid} onChange={setReceiptMid} placeholder={t('form.midPlaceholder')} maxLength={80} />
+              <TextInput label="TRACE" value={receiptTrace} onChange={setReceiptTrace} placeholder={t('form.tracePlaceholder')} maxLength={80} />
             </div>
           </div>
         </section>
@@ -540,28 +508,28 @@ export default function EditExpensePage() {
         <section className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Truck className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">ข้อมูลรถและงานขนส่ง</span>
+            <span className="text-sm font-semibold">{t('form.vehicleInfo')}</span>
           </div>
           <div className="space-y-3">
-            <TextInput label="ชื่อพนักงานขับรถ" value={driverName} onChange={setDriverName} placeholder="ชื่อในเอกสาร" maxLength={160} />
+            <TextInput label={t('form.driver')} value={driverName} onChange={setDriverName} placeholder={t('form.driverPlaceholder')} maxLength={160} />
             <div className="grid grid-cols-2 gap-3">
-              <TextInput label="เบอร์รถ" value={vehicleNo} onChange={setVehicleNo} placeholder="272-131" maxLength={80} />
-              <TextInput label="ทะเบียนรถ" value={plateNo} onChange={setPlateNo} placeholder="76-9442" maxLength={80} />
+              <TextInput label={t('form.vehicleNo')} value={vehicleNo} onChange={setVehicleNo} placeholder="272-131" maxLength={80} />
+              <TextInput label={t('form.plateNo')} value={plateNo} onChange={setPlateNo} placeholder="76-9442" maxLength={80} />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <TextInput label="จำนวนลิตร" value={fuelLiters} onChange={setFuelLiters} type="number" inputMode="decimal" placeholder="104" />
-              <TextInput label="จำนวนเที่ยว" value={tripCount} onChange={setTripCount} type="number" inputMode="numeric" placeholder="1" />
+              <TextInput label={t('form.fuelLiters')} value={fuelLiters} onChange={setFuelLiters} type="number" inputMode="decimal" placeholder="104" />
+              <TextInput label={t('form.tripCount')} value={tripCount} onChange={setTripCount} type="number" inputMode="numeric" placeholder="1" />
             </div>
-            <TextInput label="เลขที่ใบขนส่ง" value={transportNo} onChange={setTransportNo} placeholder="เช่น 249842118" maxLength={100} />
-            <TextInput label="ต้นทาง / สถานที่" value={origin} onChange={setOrigin} placeholder="เช่น รง. ปูนพงแก่งคอย" maxLength={200} />
-            <TextInput label="ลูกค้า" value={customerName} onChange={setCustomerName} placeholder="ชื่อลูกค้าหรือปลายทาง" maxLength={200} />
+            <TextInput label={t('form.transportNo')} value={transportNo} onChange={setTransportNo} placeholder={t('form.transportNoPlaceholder')} maxLength={100} />
+            <TextInput label={t('form.origin')} value={origin} onChange={setOrigin} placeholder={t('form.originPlaceholder')} maxLength={200} />
+            <TextInput label={t('form.customer')} value={customerName} onChange={setCustomerName} placeholder={t('form.customerPlaceholder')} maxLength={200} />
           </div>
         </section>
 
         <section className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <FileText className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">หมายเหตุ</span>
+            <span className="text-sm font-semibold">{t('form.note')}</span>
             <span className="ml-auto text-xs text-muted-foreground">{note.length}/500</span>
           </div>
           <textarea
@@ -569,7 +537,7 @@ export default function EditExpensePage() {
             onChange={event => setNote(event.target.value)}
             rows={3}
             maxLength={500}
-            placeholder="รายละเอียดเพิ่มเติมสำหรับบัญชี"
+            placeholder={t('form.notePlaceholder')}
             className="w-full resize-none rounded-lg border border-border bg-whited px-3 py-2.5 text-sm outline-none focus:border-[#0f8f72]"
           />
         </section>
@@ -577,7 +545,7 @@ export default function EditExpensePage() {
         <section className="rounded-lg border border-border bg-background p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Paperclip className="h-4 w-4 text-[#0f8f72]" />
-            <span className="text-sm font-semibold">หลักฐานแนบ</span>
+            <span className="text-sm font-semibold">{t('form.attachments')}</span>
             <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{totalFiles}/{MAX_FILES}</span>
           </div>
 
@@ -591,12 +559,12 @@ export default function EditExpensePage() {
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold">
-                        {EXPENSE_DOCUMENT_LABEL[documentType]}
+                        {tDoc(documentType)}
                         {required && <span className="ml-1 text-red-600">*</span>}
                       </p>
                     </div>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${(existing.length + pending.length) ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                      {(existing.length + pending.length) ? 'แนบแล้ว' : 'ยังไม่มีไฟล์'}
+                      {(existing.length + pending.length) ? t('form.attached') : t('form.noFile')}
                     </span>
                   </div>
 
@@ -605,14 +573,14 @@ export default function EditExpensePage() {
                       {existing.map((item, index) => (
                         <div key={`${item.url}-${index}`} className="flex items-center gap-3 rounded-lg border border-border bg-white p-2.5">
                           {isImageAttachmentUrl(item.url) ? (
-                            <img src={publicFileUrl(item.url)} alt={item.fileName || EXPENSE_DOCUMENT_LABEL[item.documentType]} className="h-10 w-10 shrink-0 rounded-md object-cover" />
+                            <img src={publicFileUrl(item.url)} alt={item.fileName || tDoc(item.documentType)} className="h-10 w-10 shrink-0 rounded-md object-cover" />
                           ) : (
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10">
                               <FileText className="h-5 w-5 text-primary" />
                             </div>
                           )}
                           <a href={publicFileUrl(item.url)} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-xs font-medium">
-                            {item.fileName || `${EXPENSE_DOCUMENT_LABEL[item.documentType]} ${index + 1}`} <ExternalLink className="inline h-3 w-3" />
+                            {item.fileName || `${tDoc(item.documentType)} ${index + 1}`} <ExternalLink className="inline h-3 w-3" />
                           </a>
                           <button type="button" onClick={() => setExistingAttachments(prev => prev.filter(file => file.url !== item.url))} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted-foreground">
                             <X className="h-4 w-4" />
@@ -643,14 +611,14 @@ export default function EditExpensePage() {
                   {totalFiles < MAX_FILES && (
                     <label className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background text-sm font-medium active:bg-primary/5">
                       <Paperclip className="h-4 w-4 text-muted-foreground" />
-                      เพิ่มไฟล์
+                      {t('form.addFile')}
                       <input type="file" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple className="hidden" onChange={(event) => handleFileChange(documentType, event)} />
                     </label>
                   )}
                 </div>
               )
             })}
-            {totalFiles >= MAX_FILES && <p className="py-2 text-center text-xs text-muted-foreground">แนบครบ {MAX_FILES} ไฟล์แล้ว</p>}
+            {totalFiles >= MAX_FILES && <p className="py-2 text-center text-xs text-muted-foreground">{t('form.filesFull', { max: MAX_FILES })}</p>}
           </div>
         </section>
 
@@ -662,7 +630,7 @@ export default function EditExpensePage() {
             className="flex h-12 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white text-xs font-bold text-red-600 shadow-lg disabled:border-slate-200 disabled:text-slate-300"
           >
             {isDeletingDraft ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            ลบร่าง
+            {t('form.deleteDraft')}
           </button>
           <button
             type="button"
@@ -671,7 +639,7 @@ export default function EditExpensePage() {
             className="flex h-12 items-center justify-center gap-1.5 rounded-lg border border-[#0f8f72] bg-white text-xs font-bold text-[#0f8f72] shadow-lg disabled:border-slate-200 disabled:text-slate-300"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            บันทึกร่าง
+            {t('form.saveDraft')}
           </button>
           <button
             type="submit"
@@ -679,7 +647,7 @@ export default function EditExpensePage() {
             className="flex h-12 items-center justify-center gap-1.5 rounded-lg bg-[#0f8f72] text-xs font-bold text-white shadow-lg disabled:bg-slate-300"
           >
             {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            ส่งรายการ
+            {t('form.submit')}
           </button>
         </div>
       </form>
@@ -704,6 +672,8 @@ function OcrAssistantPanel({
   onStart: () => void
   onApply: () => void
 }) {
+  const t = useTranslations('liff.expense.edit.ocr')
+  const tOcrStatus = useTranslations('status.expenseOcr')
   const status = result?.status
   const running = isOcrRunning(status)
   const suggestions = result?.suggestions ?? {}
@@ -717,7 +687,7 @@ function OcrAssistantPanel({
     <section className="rounded-lg border border-emerald-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-[#0f8f72]" />
-        <span className="text-sm font-semibold">ตรวจสอบข้อมูลจากภาพ</span>
+        <span className="text-sm font-semibold">{t('title')}</span>
         {status && (
           <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${
             status === 'Succeeded'
@@ -727,7 +697,7 @@ function OcrAssistantPanel({
                 : 'bg-amber-100 text-amber-700'
           }`}
           >
-            {OCR_STATUS_LABEL[status]}
+            {tOcrStatus(status)}
           </span>
         )}
       </div>
@@ -740,7 +710,7 @@ function OcrAssistantPanel({
           className="flex h-11 items-center justify-center gap-2 rounded-lg border border-[#0f8f72] bg-white text-sm font-bold text-[#0f8f72] disabled:border-slate-200 disabled:text-slate-300"
         >
           {(isStarting || running || isFetching) ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          อ่านข้อมูลจากไฟล์
+          {t('read')}
         </button>
         <button
           type="button"
@@ -749,12 +719,12 @@ function OcrAssistantPanel({
           className="flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0f8f72] px-3 text-sm font-bold text-white disabled:bg-slate-300"
         >
           <CheckCircle2 className="h-4 w-4" />
-          เติม
+          {t('apply')}
         </button>
       </div>
 
       {pendingFileCount > 0 && (
-        <p className="mt-2 text-xs text-amber-700">มีไฟล์ใหม่ที่ยังไม่บันทึก กรุณาบันทึกร่างก่อนเริ่ม OCR</p>
+        <p className="mt-2 text-xs text-amber-700">{t('pendingFiles')}</p>
       )}
 
       {result?.results.some(item => item.errorMessage) && (
@@ -768,7 +738,7 @@ function OcrAssistantPanel({
           {suggestionEntries.map(({ key, suggestion, value }) => (
             <div key={key} className="flex items-start justify-between gap-3 rounded-lg border border-border bg-[#f8fbfa] px-3 py-2">
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">{OCR_FIELD_LABEL[key]}</p>
+                <p className="text-xs text-muted-foreground">{t(`field.${key}`)}</p>
                 <p className="truncate text-sm font-semibold">{value}</p>
               </div>
               {suggestion?.confidence != null && (

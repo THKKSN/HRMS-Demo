@@ -25,7 +25,8 @@ public class RecurringJobRegistrarTests
             "notification-outbox-delivery",
             "external-repair-sync-delivery",
             "expense-ocr-stale-recovery",
-            "ticket-auto-requester-confirmation"
+            "ticket-auto-requester-confirmation",
+            "audit-log-retention"
         ]);
     }
 

@@ -95,7 +95,7 @@ public class AuthController(IMediator mediator) : ControllerBase
         try
         {
             var result = await mediator.Send(
-                new RequestOtpCommand(request.AccessToken, request.PreviewToken), ct);
+                new RequestOtpCommand(request.AccessToken, request.PreviewToken, Ip, UserAgent), ct);
             return Ok(result);
         }
         catch (AppUnauthorizedException ex)

@@ -33,7 +33,10 @@ export const externalTicketsApi = {
 
   updateProfile: (body: {
     fullName: string
+    /** ต้องเป็น E.164 เท่านั้น — ประกอบด้วย `toE164()` จาก @hrms/i18n ก่อนส่ง */
     phone: string
+    /** ISO 3166-1 alpha-2 ของประเทศที่เลือกในช่องเบอร์ */
+    phoneCountry: string
     email: string
     organization: string
   }) =>

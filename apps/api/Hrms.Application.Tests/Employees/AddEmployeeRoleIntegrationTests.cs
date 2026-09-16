@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
 using Hrms.Application.Features.Employees.AddEmployeeRole;
 using Hrms.Application.Tests.Support;
@@ -40,8 +41,8 @@ public class AddEmployeeRoleIntegrationTests
             new AddEmployeeRoleCommand(employeeId, Guid.NewGuid(), null),
             default);
 
-        await action.Should().ThrowAsync<KeyNotFoundException>()
-            .WithMessage("ไม่พบข้อมูล role");
+        await action.Should().ThrowAsync<NotFoundException>()
+            .Where(e => e.Code == "ROLE_NOT_FOUND");
         (await db.EmployeeRoles.CountAsync()).Should().Be(0);
     }
 

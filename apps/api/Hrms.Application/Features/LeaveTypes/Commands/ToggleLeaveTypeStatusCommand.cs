@@ -13,7 +13,7 @@ public class ToggleLeaveTypeStatusHandler(IApplicationDbContext db, IAuditLogSer
     public async Task Handle(ToggleLeaveTypeStatusCommand request, CancellationToken ct)
     {
         var leaveType = await db.LeaveTypes.FirstOrDefaultAsync(lt => lt.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบประเภทการลา");
+            ?? throw new NotFoundException("LeaveType", request.Id, "LEAVE_TYPE_NOT_FOUND");
 
         if (!request.IsActive)
         {
@@ -23,7 +23,7 @@ public class ToggleLeaveTypeStatusHandler(IApplicationDbContext db, IAuditLogSer
                  r.Status == Domain.Enums.LeaveStatus.PendingHr), ct);
 
             if (hasActive)
-                throw new ConflictException("IN_USE", "ไม่สามารถปิดประเภทการลานี้ได้ เนื่องจากมีคำขอลาที่รออนุมัติอยู่");
+                throw new ConflictException("IN_USE", "This leave type cannot be deactivated while leave requests are awaiting approval.");
         }
 
         var oldIsActive = leaveType.IsActive;

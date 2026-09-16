@@ -48,13 +48,13 @@ public class UpdateEmployeeHandler(
             .Include(e => e.Roles).ThenInclude(r => r.Role)
             .Include(e => e.RoleLabel)
             .FirstOrDefaultAsync(e => e.Id == request.Id, ct)
-            ?? throw new KeyNotFoundException("ไม่พบข้อมูลพนักงาน");
+            ?? throw new NotFoundException("Employee", request.Id, "EMPLOYEE_NOT_FOUND");
 
         await scope.ThrowIfCannotAccessAsync(employee.CompanyId);
 
         if (!string.IsNullOrEmpty(request.Email) && request.Email != employee.Email &&
             await db.Employees.AnyAsync(e => e.Email == request.Email && e.Id != request.Id, ct))
-            throw new ConflictException("DUPLICATE_EMAIL", $"อีเมล '{request.Email}' ถูกใช้งานแล้ว");
+            throw new ConflictException("DUPLICATE_EMAIL", $"Email '{request.Email}' is already in use.");
 
         Department? department = null;
         if (request.DepartmentId.HasValue)

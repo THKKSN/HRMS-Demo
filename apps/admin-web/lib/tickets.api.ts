@@ -3,6 +3,8 @@ import type {
   PagedResult,
   TicketActionResultDto,
   TicketAssignmentCandidateDto,
+  TicketTeamMemberDto,
+  TicketTeamTemplateOptionDto,
   TicketPendingCountsDto,
   TicketAssignmentDto,
   TicketDetailDto,
@@ -20,7 +22,9 @@ import type {
   TicketStatus,
   TicketCancellationRequestDto,
   AssignedTicketItemDto,
+  AssignedTicketScope,
   TicketAttachmentDto,
+  TicketCloseoutReasonOptionDto,
   TicketProblemType,
   TicketCommentDto,
   TicketCommentType,
@@ -98,7 +102,8 @@ export const ticketsApi = {
   getAssigned: (params: {
     status?: TicketStatus
     search?: string
-    history?: boolean
+    // scope แทน history — 'All' รวมงานที่ถืออยู่กับประวัติงานไว้ด้วยกัน (backend ตัดใบซ้ำให้แล้ว)
+    scope?: AssignedTicketScope
     requestType?: TicketRequestType
     page?: number
     pageSize?: number
@@ -159,11 +164,16 @@ export const ticketsApi = {
   }) => api.post<TicketCommentDto>(`/tickets/${id}/comments`, body).then(r => r.data),
 
   updateWorkDetail: (id: string, body: {
+    /** enum เดิม — ไม่ต้องส่งแล้ว backend sync ให้จาก closeoutReasonId */
     problemType?: TicketProblemType
+    closeoutReasonId?: string
     initialInspectionNote?: string
     resolutionNote?: string
     expectedUpdatedAt?: string
   }) => api.put<TicketActionResultDto>(`/tickets/${id}/work-detail`, body).then(r => r.data),
+
+  getCloseoutReasonOptions: (id: string) =>
+    api.get<TicketCloseoutReasonOptionDto[]>(`/tickets/${id}/closeout-reason-options`).then(r => r.data),
 
   updateProgress: (id: string, body: {
     workState?: string
@@ -171,7 +181,40 @@ export const ticketsApi = {
     nextAction?: string
     note?: string
     expectedUpdatedAt?: string
+    ownerEmployeeId?: string
   }) => api.post<TicketActionResultDto>(`/tickets/${id}/progress`, body).then(r => r.data),
+
+  updateProgressEntry: (id: string, entryId: string, body: {
+    workState?: string
+    blockerReason?: string
+    nextAction?: string
+    note?: string
+    expectedUpdatedAt?: string
+    ownerEmployeeId?: string
+  }) => api.put<TicketActionResultDto>(`/tickets/${id}/progress/${entryId}`, body).then(r => r.data),
+
+  pinProgressEntry: (id: string, entryId: string, body: { isPinned: boolean; expectedUpdatedAt?: string }) =>
+    api.patch<TicketActionResultDto>(`/tickets/${id}/progress/${entryId}/pin`, body).then(r => r.data),
+
+  getTeamTemplateOptions: (id: string) =>
+    api.get<TicketTeamTemplateOptionDto[]>(`/tickets/${id}/team-template-options`).then(r => r.data),
+
+  applyTeamTemplate: (id: string, body: { templateId: string; expectedUpdatedAt?: string }) =>
+    api.post<TicketActionResultDto>(`/tickets/${id}/team/apply-template`, body).then(r => r.data),
+
+  getTeam: (id: string) =>
+    api.get<TicketTeamMemberDto[]>(`/tickets/${id}/team`).then(r => r.data),
+
+  addTeamMembers: (id: string, body: {
+    employeeIds: string[]
+    note?: string
+    expectedUpdatedAt?: string
+  }) => api.post<TicketActionResultDto>(`/tickets/${id}/team`, body).then(r => r.data),
+
+  removeTeamMember: (id: string, employeeId: string, expectedUpdatedAt?: string) =>
+    api.delete<TicketActionResultDto>(`/tickets/${id}/team/${employeeId}`, {
+      params: { expectedUpdatedAt },
+    }).then(r => r.data),
 
   resolve: (id: string, expectedUpdatedAt?: string) =>
     api.post<TicketActionResultDto>(`/tickets/${id}/resolve`, { expectedUpdatedAt }).then(r => r.data),

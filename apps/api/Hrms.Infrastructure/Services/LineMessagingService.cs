@@ -1,5 +1,9 @@
+using System.Net;
 using System.Net.Http.Json;
+using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Features.LineWebhook;
+using Hrms.Application.Common.Localization;
 using Hrms.Application.Common.Options;
 using Microsoft.Extensions.Options;
 
@@ -64,12 +68,12 @@ public class LineMessagingService(
         await ReplyAsync(replyToken, new object[] { new { type = "text", text = message } }, ct);
     }
 
-    public async Task ReplyHrMenuAsync(string replyToken, CancellationToken ct = default)
+    public async Task ReplyHrMenuAsync(string replyToken, MessageText text, CancellationToken ct = default)
     {
         var message = new
         {
             type = "text",
-            text = "สวัสดีครับ/ค่ะ! ยินดีต้อนรับสู่ระบบบริหารงานบุคคล กรุณาเลือกเมนูที่ต้องการ",
+            text = text.Of("webhook.menu.welcome"),
             quickReply = new
             {
                 items = new object[]
@@ -80,8 +84,10 @@ public class LineMessagingService(
                         action = new
                         {
                             type = "message",
-                            label = "ลงเวลางาน",
-                            text = "ลงเวลา"
+                            label = text.Of("webhook.menu.attendance"),
+                            // ตัว text คือคำที่ถูกส่งกลับเข้า webhook เป็น "คำสั่ง" — ต้องตรงกับ
+                            // WebhookKeywords และกับปุ่มบน rich menu ที่ตั้งไว้ใน LINE console จึงห้ามแปล
+                            text = WebhookKeywords.Attendance
                         }
                     },
                     new
@@ -90,7 +96,7 @@ public class LineMessagingService(
                         action = new
                         {
                             type = "uri",
-                            label = "ลางาน",
+                            label = text.Of("webhook.menu.leave"),
                             uri = BuildLiffUri("/leaves/new")
                         }
                     },
@@ -110,8 +116,8 @@ public class LineMessagingService(
                         action = new
                         {
                             type = "message",
-                            label = "ตรวจสอบสิทธิ์",
-                            text = "ตรวจสอบสิทธิ์"
+                            label = text.Of("webhook.menu.leaveQuota"),
+                            text = WebhookKeywords.CheckQuota
                         }
                     }
                 }
@@ -121,30 +127,13 @@ public class LineMessagingService(
         await ReplyAsync(replyToken, new object[] { message }, ct);
     }
 
-    public async Task ReplyWithLocationRequestAsync(string replyToken, string promptText, CancellationToken ct = default)
-    {
-        var message = new
-        {
-            type = "text",
-            text = promptText,
-            quickReply = new
-            {
-                items = new[]
-                {
-                    new { type = "action", action = new { type = "location", label = "แชร์ตำแหน่ง" } }
-                }
-            }
-        };
-        await ReplyAsync(replyToken, new object[] { message }, ct);
-    }
-
     public async Task ReplyFlexMessageAsync(string replyToken, string altText, object flexContainer, CancellationToken ct = default)
     {
         var message = new { type = "flex", altText, contents = flexContainer };
         await ReplyAsync(replyToken, new object[] { message }, ct);
     }
 
-    public async Task ReplyFlexWithLocationRequestAsync(string replyToken, string altText, object flexContainer, CancellationToken ct = default)
+    public async Task ReplyFlexWithLocationRequestAsync(string replyToken, string altText, object flexContainer, MessageText text, CancellationToken ct = default)
     {
         var message = new
         {
@@ -155,7 +144,7 @@ public class LineMessagingService(
             {
                 items = new[]
                 {
-                    new { type = "action", action = new { type = "location", label = "แชร์ตำแหน่ง" } }
+                    new { type = "action", action = new { type = "location", label = text.Of("webhook.shareLocation") } }
                 }
             }
         };
@@ -171,6 +160,10 @@ public class LineMessagingService(
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync(ct);
+            // 429 = โควตาข้อความรายเดือนเต็ม (หรือ rate limit) — แยกเป็น exception เฉพาะ
+            // ให้ flow ผูกบัญชี fallback มา OTP ไม่ได้ ตัดสินใจได้ว่านี่คือเคส push เต็มจริง
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                throw new LinePushQuotaExceededException(errorBody);
             throw new HttpRequestException(
                 $"LINE push failed with {(int)response.StatusCode} {response.StatusCode}: {errorBody}");
         }

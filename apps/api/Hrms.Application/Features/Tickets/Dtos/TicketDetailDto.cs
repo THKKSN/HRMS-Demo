@@ -65,6 +65,8 @@ public record TicketDetailDto(
     string? WaitingInfoByEmployeeName,
     DateTime? WaitingInfoAt,
     TicketProblemType? ProblemType,
+    Guid? CloseoutReasonId,
+    string? CloseoutReasonName,
     string? InitialInspectionNote,
     string? ResolutionNote,
     Guid? ResolvedByEmployeeId,
@@ -85,6 +87,8 @@ public record TicketDetailDto(
     DateTime? CancelledAt,
     string? CancellationReason,
     TicketAssignmentDto? CurrentAssignment,
+    /// <summary>ทีมงานที่ยัง active ของใบนี้ — Owner มาก่อนแล้วต่อด้วยผู้ร่วมงานตามลำดับที่ถูกดึงเข้า</summary>
+    IReadOnlyList<TicketTeamMemberDto> TeamMembers,
     IReadOnlyList<TicketProgressEntryDto> ProgressEntries,
     IReadOnlyList<TicketAttachmentDto> Attachments,
     TicketCancellationRequestDto? LatestCancellationRequest,

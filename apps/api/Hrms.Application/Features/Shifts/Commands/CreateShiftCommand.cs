@@ -13,7 +13,9 @@ public record CreateShiftCommand(
     string Name,
     TimeOnly StartTime,
     TimeOnly EndTime,
-    int GracePeriodMinutes) : IRequest<ShiftDto>;
+    int GracePeriodMinutes,
+    string? NameEn = null,
+    string? NameId = null) : IRequest<ShiftDto>;
 
 public class CreateShiftCommandValidator : AbstractValidator<CreateShiftCommand>
 {
@@ -21,10 +23,12 @@ public class CreateShiftCommandValidator : AbstractValidator<CreateShiftCommand>
     {
         RuleFor(x => x.CompanyId).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.NameEn).MaximumLength(100).When(x => x.NameEn is not null);
+        RuleFor(x => x.NameId).MaximumLength(100).When(x => x.NameId is not null);
         RuleFor(x => x.GracePeriodMinutes).InclusiveBetween(0, 120);
         RuleFor(x => x).Must(x => x.StartTime.CompareTo(x.EndTime) < 0)
             .WithName("StartTime")
-            .WithMessage("เวลาเข้างานต้องน้อยกว่าเวลาเลิกงาน");
+            .WithErrorCode("SHIFT_TIME_RANGE_INVALID").WithMessage("The shift start time must be earlier than the end time.");
     }
 }
 
@@ -38,19 +42,21 @@ public class CreateShiftHandler(IApplicationDbContext db, IScopeGuard scope, IAu
         var companyExists = await db.Companies
             .AnyAsync(c => c.Id == request.CompanyId && c.IsActive, ct);
         if (!companyExists)
-            throw new KeyNotFoundException($"ไม่พบ Company Id '{request.CompanyId}'");
+            throw new NotFoundException("Company", request.CompanyId, "COMPANY_NOT_FOUND");
 
         var duplicate = await db.Shifts
             .AnyAsync(s => s.CompanyId == request.CompanyId
                         && s.Name == request.Name
                         && s.IsActive, ct);
         if (duplicate)
-            throw new ConflictException("DUPLICATE_SHIFT", $"ชื่อกะ '{request.Name}' มีอยู่แล้วใน company นี้");
+            throw new ConflictException("DUPLICATE_SHIFT", $"Shift '{request.Name}' already exists in this company.");
 
         var shift = new Shift
         {
             CompanyId           = request.CompanyId,
             Name                = request.Name,
+            NameEn              = Common.Helpers.NameText.Normalize(request.NameEn),
+            NameId              = Common.Helpers.NameText.Normalize(request.NameId),
             StartTime           = request.StartTime,
             EndTime             = request.EndTime,
             GracePeriodMinutes  = request.GracePeriodMinutes,
@@ -83,5 +89,7 @@ public class CreateShiftHandler(IApplicationDbContext db, IScopeGuard scope, IAu
         s.StartTime,
         s.EndTime,
         s.GracePeriodMinutes,
-        s.IsActive);
+        s.IsActive,
+        s.NameEn,
+        s.NameId);
 }

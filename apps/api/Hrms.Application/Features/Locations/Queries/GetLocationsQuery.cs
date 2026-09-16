@@ -60,5 +60,8 @@ public class GetLocationsHandler(IApplicationDbContext db, ICurrentUser currentU
         l.District?.DistrictName,
         l.SubDistrictId,
         l.SubDistrict?.SubDistrictName,
-        l.IsActive);
+        l.IsActive,
+        // NameEn/NameId เป็น optional parameter ท้าย record — ต้องส่งชื่อ argument เสมอ ไม่งั้นรายการตอบกลับเป็น null ทั้งที่บันทึกแล้ว
+        NameEn: l.NameEn,
+        NameId: l.NameId);
 }

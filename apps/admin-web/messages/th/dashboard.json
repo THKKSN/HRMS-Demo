@@ -1,0 +1,153 @@
+{
+  "greeting": {
+    "morning": "สวัสดีตอนเช้า",
+    "afternoon": "สวัสดีตอนบ่าย",
+    "evening": "สวัสดีตอนเย็น",
+    "withName": "{greeting}, {name}"
+  },
+  "loadFailed": "โหลดข้อมูล dashboard ไม่สำเร็จ กรุณาลองใหม่",
+  "admin": {
+    "companies": "บริษัท",
+    "departments": "แผนก",
+    "employees": "พนักงานทั้งหมด",
+    "activeEmployees": "พนักงานที่ active"
+  },
+  "company": {
+    "overview": "ภาพรวมองค์กร",
+    "todayOverview": "ภาพรวมวันนี้",
+    "allCompanies": "ทุกบริษัท",
+    "yourCompany": "บริษัทของคุณ",
+    "totalPeople": "ทั้งหมด {count} คน",
+    "present": "มาทำงาน",
+    "late": "มาสาย",
+    "absent": "ขาดงาน",
+    "onLeave": "ลา"
+  },
+  "attendance": {
+    "todayTitle": "การเข้างานวันนี้",
+    "notCheckedIn": "ยังไม่ได้เช็คอิน",
+    "lateBy": "มาสาย {minutes} นาที",
+    "onTime": "มาตรงเวลา",
+    "checkIn": "เช็คอิน",
+    "checkOut": "เช็คเอาต์",
+    "trendTitle": "แนวโน้มการเข้างาน 30 วัน",
+    "seriesPresent": "มา",
+    "seriesLate": "สาย",
+    "seriesAbsent": "ขาด",
+    "seriesOnLeave": "ลา"
+  },
+  "leaveBalance": {
+    "title": "วันลาคงเหลือ",
+    "ofTotalDays": "/ {total} วัน",
+    "pendingDays": "รออนุมัติ {days} วัน"
+  },
+  "monthStats": {
+    "title": "สถิติเดือน{month}",
+    "presentDays": "มาทำงาน",
+    "lateDays": "มาสาย",
+    "absentDays": "ขาดงาน",
+    "leaveDays": "วันลา"
+  },
+  "team": {
+    "overview": "ภาพรวมทีม",
+    "size": "สมาชิกทีม",
+    "pendingLeave": "รออนุมัติลา",
+    "lateToday": "มาสายวันนี้",
+    "absentToday": "ขาด/ลาวันนี้"
+  },
+  "pendingApproval": {
+    "title": "รออนุมัติ",
+    "empty": "ไม่มีรายการรออนุมัติ",
+    "totalDays": "({days} วัน)",
+    "review": "พิจารณา"
+  },
+  "auditLog": {
+    "title": "Audit Log ล่าสุด",
+    "empty": "ไม่มีข้อมูล",
+    "unknownActor": "ไม่ระบุ"
+  },
+  "pendingWork": {
+    "inboxUntriaged": "เรื่องใหม่รอจัดการ",
+    "cancellationPending": "คำขอยกเลิกรอตัดสิน",
+    "assignedActive": "งานที่รับไว้กำลังทำ",
+    "assignedWaitingInfo": "งานรอข้อมูล",
+    "claimable": "งานใหม่รอรับ",
+    "awaitingMyConfirmation": "เรื่องที่แจ้งรอตรวจรับ",
+    "memoAwaitingApproval": "Memo รออนุมัติ",
+    "memoAwaitingAck": "Memo รอแผนกรับทราบ"
+  },
+  "assignedTickets": {
+    "title": "งานที่ได้รับมอบหมาย",
+    "summary": "ค้าง {working}",
+    "summaryWithReview": "ค้าง {working} · รอตรวจรับ {review}",
+    "colSubject": "เรื่อง",
+    "colStatus": "สถานะ",
+    "colPriority": "ความเร่งด่วน",
+    "colUpdatedAt": "อัปเดตล่าสุด",
+    "more": "และอีก {count} งาน — ดูทั้งหมดที่หน้ากล่องงาน"
+  },
+  "ticketOverview": {
+    "title": "ภาพรวมการแจ้งเรื่อง",
+    "range": {
+      "today": "วันนี้",
+      "7d": "7 วัน",
+      "30d": "30 วัน",
+      "custom": "เลือกช่วง",
+      "to": "ถึง"
+    },
+    "channel": {
+      "all": "ทั้งหมด",
+      "internal": "ภายใน",
+      "external": "ภายนอก"
+    },
+    "allCompanies": "ทุกบริษัท",
+    "kpi": {
+      "open": "เปิดใหม่",
+      "unassigned": "ยังไม่มีผู้รับ",
+      "active": "กำลังดำเนินการ",
+      "waitingReview": "รอตรวจรับ",
+      "closed": "ปิดแล้ว",
+      "backlog": "งานค้าง"
+    },
+    "timeToAccept": "เวลารับงานเฉลี่ย",
+    "totalLeadTime": "เวลาจบงานเฉลี่ย",
+    "medianHint": "ค่ากึ่งกลาง {median} · {count} งาน",
+    "channelSplitHint": "เปิดใหม่ / ค้าง",
+    "trendTitle": "ความถี่การแจ้งเรื่อง · {range}",
+    "seriesOpened": "เปิดใหม่",
+    "seriesClosed": "ปิดแล้ว",
+    "fullReport": "ดูรายงานเต็ม →",
+    "topSubjects": "หัวข้อที่ถูกแจ้งมากที่สุด",
+    "staff": "เจ้าหน้าที่",
+    "emptyRange": "ไม่มีข้อมูลในช่วงที่เลือก",
+    "staffCounts": "รับ {assigned} · ดำเนินการ {inProgress} · ปิด {closed}",
+    "slowClosers": {
+      "title": "เวลาจบงานเฉลี่ยรายคน (ช้า → เร็ว)",
+      "hint": "เฉพาะคนที่ปิดงานตั้งแต่ {min} งานขึ้นไปในช่วงที่เลือก",
+      "colEmployee": "พนักงาน",
+      "colClosed": "ปิดแล้ว",
+      "colAverage": "เฉลี่ย",
+      "colMedian": "ค่ากึ่งกลาง",
+      "colWorkingTime": "เวลาทำจริงเฉลี่ย"
+    },
+    "dataCompleteFrom": "ข้อมูลระยะเวลาเชื่อถือได้ตั้งแต่ {date}"
+  },
+  "memoOverview": {
+    "title": "ภาพรวม Memo",
+    "scopeAll": "ทุกบริษัท",
+    "scopeDepartment": "เฉพาะแผนกของคุณ",
+    "goToMemo": "ไปที่ Memo →",
+    "topSubjects": "หัวข้อที่ขอ Memo มากที่สุด",
+    "totalCount": "ทั้งหมด {count} เรื่อง",
+    "empty": "ยังไม่มีการขอ Memo ในช่วงที่เลือก",
+    "itemCounts": "รออนุมัติ {pending} · ดำเนินการ {inProgress} · เสร็จ {completed}",
+    "itemRejected": " · ไม่อนุมัติ {rejected}",
+    "statusTitle": "สถานะ Memo",
+    "status": {
+      "pending": "รออนุมัติ",
+      "inProgress": "กำลังดำเนินการ",
+      "completed": "เสร็จสิ้น",
+      "rejected": "ไม่อนุมัติ"
+    }
+  }
+}

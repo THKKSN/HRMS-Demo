@@ -19,7 +19,7 @@ public sealed class PiswinEmployeeClient(HttpClient httpClient, IOptions<PiswinO
     public async Task<PiswinEmployee> FindByNationalIdAsync(string nationalId, CancellationToken ct = default)
     {
         if (!NationalIdPattern.IsMatch(nationalId))
-            throw new ExternalEmployeeDataException("หมายเลขบัตรประชาชนไม่ถูกต้อง");
+            throw new ExternalEmployeeDataException("The national ID is not valid.");
 
         var configuration = options.Value;
         var payload = new
@@ -67,7 +67,7 @@ public sealed class PiswinEmployeeClient(HttpClient httpClient, IOptions<PiswinO
             }
             catch (JsonException)
             {
-                throw new ExternalEmployeeDataException("ข้อมูลจากระบบต้นทางไม่ถูกต้อง");
+                throw new ExternalEmployeeDataException("The upstream system returned invalid data.");
             }
         }
     }
@@ -87,13 +87,13 @@ public sealed class PiswinEmployeeClient(HttpClient httpClient, IOptions<PiswinO
     {
         if (!root.TryGetProperty("columns", out var columns) || columns.ValueKind != JsonValueKind.Array ||
             !root.TryGetProperty("rows", out var rows) || rows.ValueKind != JsonValueKind.Array)
-            throw new ExternalEmployeeDataException("ข้อมูลจากระบบต้นทางไม่ถูกต้อง");
+            throw new ExternalEmployeeDataException("The upstream system returned invalid data.");
 
         if (rows.GetArrayLength() == 0)
             throw new ExternalEmployeeNotFoundException();
 
         if (rows.GetArrayLength() != 1 || rows[0].ValueKind != JsonValueKind.Object)
-            throw new ExternalEmployeeDataException("ข้อมูลพนักงานจากระบบต้นทางไม่ชัดเจน");
+            throw new ExternalEmployeeDataException("The upstream system returned ambiguous employee data.");
 
         var row = rows[0];
         var employeeCode = ReadRequiredString(row, "ID");
@@ -101,7 +101,7 @@ public sealed class PiswinEmployeeClient(HttpClient httpClient, IOptions<PiswinO
         var lastName = ReadRequiredString(row, "Last_Name");
         var sourceNationalId = ReadRequiredString(row, "Id_Card");
         if (!string.Equals(sourceNationalId, nationalId, StringComparison.Ordinal))
-            throw new ExternalEmployeeDataException("ข้อมูลบัตรประชาชนจากระบบต้นทางไม่ตรงกัน");
+            throw new ExternalEmployeeDataException("The national ID from the upstream system does not match.");
 
         return new PiswinEmployee(
             employeeCode,
@@ -115,11 +115,11 @@ public sealed class PiswinEmployeeClient(HttpClient httpClient, IOptions<PiswinO
     private static string ReadRequiredString(JsonElement row, string propertyName)
     {
         if (!row.TryGetProperty(propertyName, out var value) || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
-            throw new ExternalEmployeeDataException($"ไม่พบข้อมูล {propertyName} จากระบบต้นทาง");
+            throw new ExternalEmployeeDataException($"The upstream system did not return {propertyName}.");
 
         var text = value.ValueKind == JsonValueKind.String ? value.GetString() : value.GetRawText();
         if (string.IsNullOrWhiteSpace(text))
-            throw new ExternalEmployeeDataException($"ไม่พบข้อมูล {propertyName} จากระบบต้นทาง");
+            throw new ExternalEmployeeDataException($"The upstream system did not return {propertyName}.");
 
         return text.Trim();
     }
@@ -137,7 +137,7 @@ public sealed class PiswinEmployeeClient(HttpClient httpClient, IOptions<PiswinO
             DateOnly.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.None, out usDate))
             return usDate;
 
-        throw new ExternalEmployeeDataException("วันเริ่มงานจากระบบต้นทางไม่ถูกต้อง");
+        throw new ExternalEmployeeDataException("The start date from the upstream system is not valid.");
     }
 
     private static bool? ReadOptionalBoolean(JsonElement row, string propertyName)
@@ -150,7 +150,7 @@ public sealed class PiswinEmployeeClient(HttpClient httpClient, IOptions<PiswinO
             JsonValueKind.True => true,
             JsonValueKind.False => false,
             JsonValueKind.String when bool.TryParse(value.GetString(), out var parsed) => parsed,
-            _ => throw new ExternalEmployeeDataException("สถานะพนักงานจากระบบต้นทางไม่ถูกต้อง")
+            _ => throw new ExternalEmployeeDataException("The employee status from the upstream system is not valid.")
         };
     }
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronDown, Building2, Globe, Check } from 'lucide-react'
 import type { AccessibleCompanyItem } from '@hrms/shared-types'
 
@@ -11,6 +12,7 @@ type Props = {
 }
 
 export function CompanySelector({ companies, selectedId, onChange }: Props) {
+  const t = useTranslations('admin.dashboard')
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -23,7 +25,7 @@ export function CompanySelector({ companies, selectedId, onChange }: Props) {
   }, [])
 
   const selected = companies.find(c => c.id === selectedId)
-  const label    = selected ? selected.name : 'ทุกบริษัท'
+  const label    = selected ? selected.name : t('company.allCompanies')
   const isAll    = !selectedId
 
   return (
@@ -48,7 +50,7 @@ export function CompanySelector({ companies, selectedId, onChange }: Props) {
             className="flex w-full items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted/60"
           >
             <Globe className="h-4 w-4 text-blue-500" />
-            <span className="flex-1 text-left font-medium">ทุกบริษัท</span>
+            <span className="flex-1 text-left font-medium">{t('company.allCompanies')}</span>
             {isAll && <Check className="h-4 w-4 text-blue-500" />}
           </button>
 

@@ -9,6 +9,7 @@ import { AlertCircle, CalendarDays, Clock, FileText, ChevronLeft, Paperclip, X }
 import Link from 'next/link'
 import { useCreateLeave, useLeaveBalance, useLeaveTypes } from '@/hooks/use-leaves'
 import { uploadApi } from '@/lib/upload.api'
+import * as fmt from '@hrms/i18n/format'
 
 const todayStr = new Date().toISOString().split('T')[0]
 
@@ -460,10 +461,10 @@ export default function MyLeaveNewPage() {
                     <span className="text-muted-foreground">วันที่</span>
                     <span className="font-medium text-right">
                       {dateFrom
-                        ? new Date(dateFrom).toLocaleDateString('th-TH', { dateStyle: 'medium' })
+                        ? fmt.formatDate(new Date(dateFrom), { dateStyle: 'medium' })
                         : '—'}
                       {dateTo && dateTo !== dateFrom && (
-                        <> – {new Date(dateTo).toLocaleDateString('th-TH', { dateStyle: 'medium' })}</>
+                        <> – {fmt.formatDate(new Date(dateTo), { dateStyle: 'medium' })}</>
                       )}
                     </span>
                   </div>

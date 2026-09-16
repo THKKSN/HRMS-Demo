@@ -11,4 +11,6 @@ public record TicketAssignmentCandidateDto(
     bool IsRecommended,
     TicketRoutingLevel ResponsibilityLevel,
     string? DepartmentName,
-    bool IsInTargetDepartment);
+    bool IsInTargetDepartment,
+    /// <summary>งานที่กำลังร่วมทีมกับคนอื่น (ไม่ใช่ผู้รับผิดชอบหลัก) — ใช้ดูภาระงานจริงประกอบการจ่ายงาน</summary>
+    int TeamTicketCount);

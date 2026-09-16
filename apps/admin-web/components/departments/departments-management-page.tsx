@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
+import { useTranslations } from 'next-intl'
 import { Plus, Pencil, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
@@ -18,6 +19,7 @@ import { useDepartments, useCreateDepartment, useUpdateDepartment } from '@/hook
 import { useEmployees } from '@/hooks/use-employees'
 import { useShifts } from '@/hooks/use-shifts'
 import type { DepartmentListItemDto } from '@hrms/shared-types'
+import { useApiError } from '@/hooks/use-api-error'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -28,13 +30,18 @@ function FieldError({ message }: { message?: string }) {
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
-const deptSchema = z.object({
-  companyId: z.string().min(1, 'กรุณาเลือกบริษัท'),
-  name: z.string().min(1, 'กรุณากรอกชื่อแผนก').max(200),
+// ข้อความ validation มาจาก useTranslations จึงสร้าง schema ใน component
+function buildDeptSchema(t: (key: string) => string) {
+  return z.object({
+  companyId: z.string().min(1, t('errorSelectCompany')),
+  name: z.string().min(1, t('errorNameRequired')).max(200),
+  nameEn: z.string().max(200).optional().or(z.literal('')),
+  nameId: z.string().max(200).optional().or(z.literal('')),
   deptType: z.string().max(100).optional().or(z.literal('')),
-})
+  })
+}
 
-type DeptFormValues = z.infer<typeof deptSchema>
+type DeptFormValues = z.infer<ReturnType<typeof buildDeptSchema>>
 
 // ── Create Modal ──────────────────────────────────────────────────────────────
 
@@ -49,6 +56,11 @@ function CreateDeptModal({
   defaultCompanyId?: string
   lockedCompanyName?: string
 }) {
+  const t = useTranslations('admin.org.departments')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const deptSchema = useMemo(() => buildDeptSchema(t), [t])
   const { data: tree = [] } = useCompanies()
   const create = useCreateDepartment()
 
@@ -75,25 +87,27 @@ function CreateDeptModal({
       await create.mutateAsync({
         companyId: values.companyId,
         name: values.name,
+        nameEn: values.nameEn ?? '',
+        nameId: values.nameId ?? '',
         deptType: values.deptType || undefined,
       })
-      toast.success(`เพิ่มแผนก "${values.name}" สำเร็จ`)
+      toast.success(t('createSuccess', { name: values.name }))
       reset({ companyId: defaultCompanyId ?? '' })
       onClose()
     } catch (err: unknown) {
       const e = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      if (e === 'DUPLICATE_DEPARTMENT') setError('name', { message: 'ชื่อแผนกนี้มีอยู่แล้วในบริษัทนี้' })
-      else if (e === 'COMPANY_NOT_FOUND') setError('companyId', { message: 'ไม่พบบริษัทที่ระบุ' })
-      else { setError('root', { message: 'เกิดข้อผิดพลาด กรุณาลองใหม่' }); toast.error('เกิดข้อผิดพลาด') }
+      if (e === 'DUPLICATE_DEPARTMENT') setError('name', { message: t('errorDuplicate') })
+      else if (e === 'COMPANY_NOT_FOUND') setError('companyId', { message: t('errorCompanyNotFound') })
+      else { setError('root', { message: apiError(err, tOrg('errorRetry')) }); toast.error(apiError(err, tOrg('error'))) }
     }
   }
 
   return (
-    <Modal open={open} onClose={() => { reset(); onClose() }} title="เพิ่มแผนกใหม่">
+    <Modal open={open} onClose={() => { reset(); onClose() }} title={t('addTitle')}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {lockedCompanyName ? (
           <div className="space-y-1.5">
-            <Label>บริษัท</Label>
+            <Label>{tOrg('company')}</Label>
             <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm font-medium">
               {lockedCompanyName}
             </div>
@@ -101,9 +115,9 @@ function CreateDeptModal({
           </div>
         ) : (
           <div className="space-y-1.5">
-            <Label htmlFor="d-company">บริษัท *</Label>
+            <Label htmlFor="d-company">{tOrg('company')} *</Label>
             <Select id="d-company" {...register('companyId')}>
-              <option value="">— เลือกบริษัท —</option>
+              <option value="">{tOrg('selectCompany')}</option>
               {activeCompanies.map((c) => (
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
@@ -113,21 +127,35 @@ function CreateDeptModal({
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="d-name">ชื่อแผนก *</Label>
-          <Input id="d-name" {...register('name')} placeholder="ฝ่ายทรัพยากรบุคคล" />
+          <Label htmlFor="d-name">{t('name')} *</Label>
+          <Input id="d-name" {...register('name')} placeholder={t('namePlaceholder')} />
           <FieldError message={errors.name?.message} />
         </div>
 
+        {/* ชื่อภาษาอื่นสำหรับหน้าจอที่สลับภาษา — ว่างได้ ระบบจะแสดงชื่อไทยแทน */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="d-name-en">{tOrg('nameEn')}</Label>
+            <Input id="d-name-en" {...register('nameEn')} placeholder="Human Resources" />
+            <FieldError message={errors.nameEn?.message} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="d-name-id">{tOrg('nameId')}</Label>
+            <Input id="d-name-id" {...register('nameId')} placeholder="Sumber Daya Manusia" />
+            <FieldError message={errors.nameId?.message} />
+          </div>
+        </div>
+
         <div className="space-y-1.5">
-          <Label htmlFor="d-type">ประเภทแผนก</Label>
-          <Input id="d-type" {...register('deptType')} placeholder="เช่น ฝ่าย, แผนก, ส่วน" />
+          <Label htmlFor="d-type">{t('deptType')}</Label>
+          <Input id="d-type" {...register('deptType')} placeholder={t('deptTypePlaceholder')} />
           <FieldError message={errors.deptType?.message} />
         </div>
 
         {errors.root && <p className="text-sm text-destructive">{errors.root.message}</p>}
         <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => { reset(); onClose() }}>ยกเลิก</Button>
-          <Button type="submit" loading={isSubmitting}>บันทึก</Button>
+          <Button type="button" variant="outline" onClick={() => { reset(); onClose() }}>{tCommon('action.cancel')}</Button>
+          <Button type="submit" loading={isSubmitting}>{tCommon('action.save')}</Button>
         </div>
       </form>
     </Modal>
@@ -136,14 +164,19 @@ function CreateDeptModal({
 
 // ── Edit Modal ────────────────────────────────────────────────────────────────
 
-const editDeptSchema = z.object({
-  name: z.string().min(1, 'กรุณากรอกชื่อแผนก').max(200),
+// ข้อความ validation มาจาก useTranslations จึงสร้าง schema ใน component
+function buildEditDeptSchema(t: (key: string) => string) {
+  return z.object({
+  name: z.string().min(1, t('errorNameRequired')).max(200),
+  nameEn: z.string().max(200).optional().or(z.literal('')),
+  nameId: z.string().max(200).optional().or(z.literal('')),
   deptType: z.string().max(100).optional().or(z.literal('')),
   shiftId: z.string().optional().or(z.literal('')),
   managerEmployeeId: z.string().optional().or(z.literal('')),
-})
+  })
+}
 
-type EditDeptFormValues = z.infer<typeof editDeptSchema>
+type EditDeptFormValues = z.infer<ReturnType<typeof buildEditDeptSchema>>
 
 function EditDeptModal({
   dept,
@@ -152,6 +185,11 @@ function EditDeptModal({
   dept: DepartmentListItemDto
   onClose: () => void
 }) {
+  const t = useTranslations('admin.org.departments')
+  const tOrg = useTranslations('admin.org.common')
+  const tCommon = useTranslations('common')
+  const apiError = useApiError()
+  const editDeptSchema = useMemo(() => buildEditDeptSchema(t), [t])
   const update = useUpdateDepartment()
   const [deactivateConfirm, setDeactivateConfirm] = useState(false)
 
@@ -166,6 +204,8 @@ function EditDeptModal({
       resolver: zodResolver(editDeptSchema),
       defaultValues: {
         name: dept.name,
+        nameEn: dept.nameEn ?? '',
+        nameId: dept.nameId ?? '',
         deptType: dept.deptType ?? '',
         shiftId: dept.shiftId ?? '',
         managerEmployeeId: dept.managerEmployeeId ?? '',
@@ -177,42 +217,57 @@ function EditDeptModal({
       await update.mutateAsync({
         id: dept.id,
         name: values.name,
+        nameEn: values.nameEn ?? '',
+        nameId: values.nameId ?? '',
         deptType: values.deptType || undefined,
         shiftId: values.shiftId || null,
         managerEmployeeId: values.managerEmployeeId || undefined,
         isActive,
       })
-      toast.success('อัปเดตข้อมูลแผนกสำเร็จ')
+      toast.success(t('updateSuccess'))
       setDeactivateConfirm(false)
       onClose()
     } catch (err: unknown) {
       const e = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-      if (e === 'DUPLICATE_DEPARTMENT') setError('name', { message: 'ชื่อแผนกนี้มีอยู่แล้วในบริษัทนี้' })
-      else if (e === 'HAS_ACTIVE_EMPLOYEES') toast.error('ไม่สามารถปิดได้ — มีพนักงานที่ยังใช้งานอยู่ในแผนกนี้')
-      else { setError('root', { message: 'เกิดข้อผิดพลาด' }); toast.error('เกิดข้อผิดพลาด') }
+      if (e === 'DUPLICATE_DEPARTMENT') setError('name', { message: t('errorDuplicate') })
+      else if (e === 'HAS_ACTIVE_EMPLOYEES') toast.error(t('errorHasActiveEmployees'))
+      else { setError('root', { message: apiError(err, tOrg('error')) }); toast.error(apiError(err, tOrg('error'))) }
     }
   }
 
   return (
     <>
-      <Modal open onClose={onClose} title={`แก้ไข — ${dept.name}`}>
+      <Modal open onClose={onClose} title={tOrg('editTitle', { name: dept.name })}>
         <form onSubmit={handleSubmit((v) => doUpdate(v, dept.isActive))} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="ed-name">ชื่อแผนก *</Label>
+            <Label htmlFor="ed-name">{t('name')} *</Label>
             <Input id="ed-name" {...register('name')} />
             <FieldError message={errors.name?.message} />
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ed-name-en">{tOrg('nameEn')}</Label>
+              <Input id="ed-name-en" {...register('nameEn')} />
+              <FieldError message={errors.nameEn?.message} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ed-name-id">{tOrg('nameId')}</Label>
+              <Input id="ed-name-id" {...register('nameId')} />
+              <FieldError message={errors.nameId?.message} />
+            </div>
+          </div>
+
           <div className="space-y-1.5">
-            <Label htmlFor="ed-type">ประเภทแผนก</Label>
-            <Input id="ed-type" {...register('deptType')} placeholder="เช่น ฝ่าย, แผนก, ส่วน" />
+            <Label htmlFor="ed-type">{t('deptType')}</Label>
+            <Input id="ed-type" {...register('deptType')} placeholder={t('deptTypePlaceholder')} />
             <FieldError message={errors.deptType?.message} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="ed-shift">กะการทำงานเริ่มต้น</Label>
+            <Label htmlFor="ed-shift">{t('defaultShift')}</Label>
             <Select id="ed-shift" {...register('shiftId')}>
-              <option value="">— ใช้กะของบริษัท —</option>
+              <option value="">{t('useCompanyShift')}</option>
               {activeShifts.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name} ({s.startTime.slice(0, 5)}–{s.endTime.slice(0, 5)})
@@ -222,9 +277,9 @@ function EditDeptModal({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="ed-manager">หัวหน้าแผนก (รับแจ้งเตือน LINE เมื่อมีเรื่องใหม่)</Label>
+            <Label htmlFor="ed-manager">{t('manager')}</Label>
             <Select id="ed-manager" {...register('managerEmployeeId')}>
-              <option value="">— ไม่ระบุ —</option>
+              <option value="">{t('noManager')}</option>
               {departmentEmployees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
                   {emp.employeeCode} — {emp.fullName}
@@ -233,7 +288,7 @@ function EditDeptModal({
             </Select>
             {dept.managerEmployeeId && !departmentEmployees.some((emp) => emp.id === dept.managerEmployeeId) && (
               <p className="text-xs text-muted-foreground">
-                หัวหน้าแผนกปัจจุบัน ({dept.managerName ?? dept.managerEmployeeId}) ไม่อยู่ในรายชื่อพนักงานที่ใช้งานอยู่ของแผนกนี้แล้ว
+                {t('managerMissing', { name: dept.managerName ?? dept.managerEmployeeId ?? '' })}
               </p>
             )}
           </div>
@@ -250,11 +305,11 @@ function EditDeptModal({
               }
               loading={update.isPending}
             >
-              {dept.isActive ? 'ปิดการใช้งาน' : 'เปิดการใช้งาน'}
+              {dept.isActive ? tOrg('deactivate') : tOrg('activate')}
             </Button>
             <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={onClose}>ยกเลิก</Button>
-              <Button type="submit" loading={isSubmitting} disabled={!isDirty}>บันทึก</Button>
+              <Button type="button" variant="outline" onClick={onClose}>{tCommon('action.cancel')}</Button>
+              <Button type="submit" loading={isSubmitting} disabled={!isDirty}>{tCommon('action.save')}</Button>
             </div>
           </div>
         </form>
@@ -264,9 +319,9 @@ function EditDeptModal({
         open={deactivateConfirm}
         onClose={() => setDeactivateConfirm(false)}
         onConfirm={() => doUpdate(getValues(), false)}
-        title="ปิดการใช้งานแผนก"
-        description={`ยืนยันปิดการใช้งานแผนก "${dept.name}"?`}
-        confirmLabel="ปิดการใช้งาน"
+        title={t('deactivateTitle')}
+        description={t('deactivateDesc', { name: dept.name })}
+        confirmLabel={tOrg('deactivate')}
         variant="destructive"
         loading={update.isPending}
       />
@@ -283,6 +338,8 @@ export function DepartmentsManagementPage({
   companyId?: string
   companyName?: string
 }) {
+  const t = useTranslations('admin.org.departments')
+  const tOrg = useTranslations('admin.org.common')
   const isScopedToCompany = !!companyId
   const [companyFilter, setCompanyFilter] = useState(companyId ?? '')
   const [showInactive, setShowInactive] = useState(false)
@@ -312,13 +369,13 @@ export function DepartmentsManagementPage({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">แผนก</h1>
+          <h1 className="text-xl font-semibold text-foreground">{t('title')}</h1>
           {companyName && (
             <p className="mt-1 text-sm text-muted-foreground">{companyName}</p>
           )}
         </div>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" />เพิ่มแผนก
+          <Plus className="h-4 w-4" />{t('add')}
         </Button>
       </div>
 
@@ -330,7 +387,7 @@ export function DepartmentsManagementPage({
             onChange={(e) => setCompanyFilter(e.target.value)}
             className="w-56"
           >
-            <option value="">ทุกบริษัท</option>
+            <option value="">{tOrg('allCompanies')}</option>
             {activeCompanies.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -344,7 +401,7 @@ export function DepartmentsManagementPage({
             checked={showInactive}
             onChange={(e) => setShowInactive(e.target.checked)}
           />
-          แสดงปิดใช้งาน
+          {tOrg('showInactive')}
         </label>
       </div>
 
@@ -353,15 +410,15 @@ export function DepartmentsManagementPage({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-whited/40">
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ชื่อแผนก</th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">ประเภท</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colName')}</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t('colType')}</th>
               {!isScopedToCompany && (
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">บริษัท</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">{tOrg('company')}</th>
               )}
               <th className="px-4 py-3 text-center font-medium text-muted-foreground">
                 <Users className="h-4 w-4 mx-auto" />
               </th>
-              <th className="px-4 py-3 text-left font-medium text-muted-foreground">สถานะ</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">{tOrg('colStatus')}</th>
               <th className="w-12" />
             </tr>
           </thead>
@@ -379,7 +436,7 @@ export function DepartmentsManagementPage({
             ) : departments.length === 0 ? (
               <tr>
                 <td colSpan={isScopedToCompany ? 5 : 6} className="py-12 text-center text-muted-foreground">
-                  {effectiveCompanyId ? 'ไม่พบแผนกในบริษัทนี้' : 'ยังไม่มีแผนก'}
+                  {effectiveCompanyId ? t('emptyInCompany') : t('empty')}
                 </td>
               </tr>
             ) : (
@@ -406,7 +463,7 @@ export function DepartmentsManagementPage({
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant={dept.isActive ? 'success' : 'secondary'}>
-                      {dept.isActive ? 'ใช้งาน' : 'ปิดใช้งาน'}
+                      {dept.isActive ? tOrg('statusActive') : tOrg('statusInactive')}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">

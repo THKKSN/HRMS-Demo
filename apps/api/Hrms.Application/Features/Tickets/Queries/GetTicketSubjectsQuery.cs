@@ -31,7 +31,7 @@ public class GetTicketSubjectsHandler(IApplicationDbContext db, ICurrentUser cur
             .ThenBy(s => s.Name)
             .Select(s => new TicketSubjectDto(
                 s.Id, s.CompanyId, s.DepartmentId, s.CategoryId, s.TopicId,
-                s.Name, s.Description, s.SortOrder, s.IsActive))
+                s.Name, s.Description, s.SortOrder, s.IsActive, s.NameEn, s.NameId))
             .ToListAsync(ct);
     }
 }

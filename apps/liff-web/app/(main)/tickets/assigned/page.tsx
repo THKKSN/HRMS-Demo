@@ -2,20 +2,20 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { ChevronLeft, ChevronRight, Clock3, MapPin, Search, Wrench } from 'lucide-react'
 import type { TicketPriority, TicketStatus } from '@hrms/shared-types'
 import { PageHeader } from '@/components/layout/page-header'
 import { TicketBoardSummary } from '@/components/tickets/ticket-board-summary'
 import { TicketListTabs } from '@/components/tickets/ticket-list-tabs'
+import { useFmt } from '@/hooks/use-fmt'
 import { useAssignedTickets, useClaimableTickets } from '@/hooks/use-tickets'
 import { TICKET_STATUS_LABEL } from '@/lib/ticket-status'
 
 const PAGE_SIZE = 10
 type QueueMode = 'mine' | 'claimable' | 'history'
-
-const priorityLabel: Record<TicketPriority, string> = {
-  Low: 'ปกติ', Medium: 'กลาง', High: 'ด่วน', Critical: 'ด่วนมาก',
-}
+const QUEUE_MODES: QueueMode[] = ['mine', 'claimable', 'history']
+const STATUSES = Object.keys(TICKET_STATUS_LABEL) as TicketStatus[]
 
 function priorityClass(priority: TicketPriority) {
   if (priority === 'Critical') return 'bg-red-50 text-red-700'
@@ -38,11 +38,11 @@ function statusClass(status: TicketStatus) {
   return styles[status]
 }
 
-function thaiDate(value: string) {
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
-}
-
 export default function AssignedTicketsPage() {
+  const t = useTranslations('liff.ticket.list')
+  const tStatus = useTranslations('status.ticket')
+  const tPriority = useTranslations('status.ticketPriority')
+  const fmt = useFmt()
   const [mode, setMode] = useState<QueueMode>('mine')
   const [status, setStatus] = useState<TicketStatus | undefined>()
   const [searchInput, setSearchInput] = useState('')
@@ -60,15 +60,16 @@ export default function AssignedTicketsPage() {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const firstItem = totalCount === 0 ? 0 : ((page - 1) * PAGE_SIZE) + 1
   const lastItem = Math.min(page * PAGE_SIZE, totalCount)
+  const shortDateTime = (value: string) => fmt.formatDateTime(new Date(value), { dateStyle: 'short', timeStyle: 'short' })
 
   return (
     <div className="min-h-screen bg-muted/30 pb-20">
-      <PageHeader title="งานของฉัน" subtitle={`${totalCount} รายการ`} />
+      <PageHeader title={t('assignedTitle')} subtitle={t('count', { count: totalCount })} />
       <TicketListTabs />
       <div className="sticky top-14 z-10 border-b border-border bg-background p-3">
         <div className="grid grid-cols-2 gap-2">
           <select
-            aria-label="ประเภทคิวงาน"
+            aria-label={t('queue.queueType')}
             value={mode}
             onChange={event => {
               setMode(event.target.value as QueueMode)
@@ -76,12 +77,12 @@ export default function AssignedTicketsPage() {
             }}
             className="h-10 min-w-0 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
           >
-            <option value="mine">งานของฉันทั้งหมด</option>
-            <option value="claimable">งานที่รับได้</option>
-            <option value="history">ประวัติการมอบหมาย</option>
+            {QUEUE_MODES.map(item => (
+              <option key={item} value={item}>{t(`queue.${item}`)}</option>
+            ))}
           </select>
           <select
-            aria-label="สถานะงาน"
+            aria-label={t('queue.status')}
             value={isClaimable ? 'Open' : (status ?? '')}
             disabled={isClaimable}
             onChange={event => {
@@ -90,9 +91,9 @@ export default function AssignedTicketsPage() {
             }}
             className="h-10 min-w-0 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary disabled:bg-muted"
           >
-            <option value="">ทุกสถานะ</option>
-            {(Object.keys(TICKET_STATUS_LABEL) as TicketStatus[]).map(item => (
-              <option key={item} value={item}>{TICKET_STATUS_LABEL[item]}</option>
+            <option value="">{t('queue.allStatuses')}</option>
+            {STATUSES.map(item => (
+              <option key={item} value={item}>{tStatus(item)}</option>
             ))}
           </select>
           <form
@@ -107,7 +108,7 @@ export default function AssignedTicketsPage() {
             <input
               value={searchInput}
               onChange={event => setSearchInput(event.target.value)}
-              placeholder="ค้นหาเลข Ticket, เรื่อง, รถ หรือสถานที่"
+              placeholder={t('searchPlaceholderTeam')}
               className="h-10 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"
             />
           </form>
@@ -122,7 +123,7 @@ export default function AssignedTicketsPage() {
         {!query.isLoading && (query.data?.items.length ?? 0) === 0 && (
           <div className="flex flex-col items-center py-16 text-center text-muted-foreground">
             <Wrench className="mb-3 h-9 w-9" />
-            <p className="text-sm font-medium">ไม่มีงานในรายการนี้</p>
+            <p className="text-sm font-medium">{t('queue.empty')}</p>
           </div>
         )}
 
@@ -130,19 +131,33 @@ export default function AssignedTicketsPage() {
           <Link key={ticket.id} href={`/tickets/${ticket.id}`} className="block rounded-lg border border-border bg-background p-4 active:bg-muted">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-primary">{ticket.ticketNo}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-semibold text-primary">{ticket.ticketNo}</p>
+                  {/* งานที่ถูกดึงเข้าร่วมทีม ไม่ใช่งานที่ตัวเองเป็นเจ้าภาพ */}
+                  {!isClaimable && ticket.memberRole === 'Member' && (
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                      {t('queue.member')}
+                    </span>
+                  )}
+                </div>
                 <h2 className="mt-1 line-clamp-2 text-sm font-semibold">{ticket.title}</h2>
               </div>
               <span className={`shrink-0 rounded px-2 py-1 text-[10px] font-semibold ${priorityClass(ticket.priority)}`}>
-                {priorityLabel[ticket.priority]}
+                {tPriority(ticket.priority)}
               </span>
             </div>
+            {/* categoryName/topicName เป็น snapshot ไทยจาก API — รอปรับ DTO ฝั่งผู้บริโภค (ดูแผน Phase 1) */}
             <p className="mt-2 text-xs text-muted-foreground">{ticket.categoryName} / {ticket.topicName}</p>
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               {(ticket.locationText || ticket.vehicleText) && (
                 <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{ticket.locationText || ticket.vehicleText}</span>
               )}
-              <span className="flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" />{isClaimable ? 'แจ้งเมื่อ ' : 'มอบหมายเมื่อ '}{thaiDate(ticket.assignedAt)}</span>
+              <span className="flex items-center gap-1">
+                <Clock3 className="h-3.5 w-3.5" />
+                {isClaimable
+                  ? t('queue.reportedAt', { time: shortDateTime(ticket.assignedAt) })
+                  : t('queue.assignedAt', { time: shortDateTime(ticket.assignedAt) })}
+              </span>
             </div>
             <TicketBoardSummary
               workflowCurrentStepLabel={ticket.workflowCurrentStepLabel}
@@ -152,12 +167,12 @@ export default function AssignedTicketsPage() {
             />
             <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
               <span className="text-xs text-muted-foreground">
-                ผู้แจ้ง {ticket.requesterName}{ticket.requester.nickname && ` (${ticket.requester.nickname})`}
+                {t('queue.requester', { name: ticket.requesterName })}{ticket.requester.nickname && ` (${ticket.requester.nickname})`}
               </span>
               <span className={`shrink-0 rounded border px-2 py-1 text-[10px] font-semibold ${
                 isClaimable ? 'border-blue-200 bg-blue-50 text-blue-700' : statusClass(ticket.status)
               }`}>
-                {isClaimable ? 'กดเพื่อรับงาน' : TICKET_STATUS_LABEL[ticket.status]}
+                {isClaimable ? t('queue.claim') : tStatus(ticket.status)}
               </span>
             </div>
           </Link>
@@ -165,12 +180,12 @@ export default function AssignedTicketsPage() {
 
         <div className="flex items-center justify-between border-t border-border pt-3">
           <p className="text-xs text-muted-foreground">
-            {firstItem}–{lastItem} จาก {totalCount} · หน้า {page}/{totalPages}
+            {t('rangeOf', { from: firstItem, to: lastItem, total: totalCount, page, totalPages })}
           </p>
           <div className="flex gap-1">
             <button
               type="button"
-              title="หน้าก่อน"
+              title={t('prevPage')}
               disabled={page <= 1}
               onClick={() => setPage(value => value - 1)}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background disabled:opacity-40"
@@ -179,7 +194,7 @@ export default function AssignedTicketsPage() {
             </button>
             <button
               type="button"
-              title="หน้าถัดไป"
+              title={t('nextPage')}
               disabled={page >= totalPages}
               onClick={() => setPage(value => value + 1)}
               className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background disabled:opacity-40"

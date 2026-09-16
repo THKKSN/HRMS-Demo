@@ -1,5 +1,6 @@
 using Hrms.Application.Common.Exceptions;
 using Hrms.Application.Common.Interfaces;
+using Hrms.Application.Features.Auth.Common;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,7 +11,8 @@ public class RequestOtpHandler(
     ILineAuthService line,
     ILinkPreviewTokenService previewTokens,
     IOtpService otp,
-    ILineMessagingService messaging) : IRequestHandler<RequestOtpCommand, RequestOtpResult>
+    ILineMessagingService messaging,
+    IJwtService jwt) : IRequestHandler<RequestOtpCommand, RequestOtpResult>
 {
     public async Task<RequestOtpResult> Handle(RequestOtpCommand request, CancellationToken ct)
     {
@@ -25,8 +27,10 @@ public class RequestOtpHandler(
 
         // 3) เช็กสถานะพนักงานใหม่อีกครั้ง เพราะอาจถูกปิดใช้งานหรือผูกบัญชีไปแล้ว
         //    ในช่วง 5 นาทีระหว่าง preview กับตอนกดยืนยัน
-        var employee = await db.Employees.FirstOrDefaultAsync(
-            x => x.Id == preview.EmployeeId && x.IsActive, ct);
+        //    โหลด Roles มาด้วยเผื่อต้องออก session ตรงในเคส push เต็ม
+        var employee = await db.Employees
+            .Include(e => e.Roles.Where(r => r.IsActive))
+            .FirstOrDefaultAsync(x => x.Id == preview.EmployeeId && x.IsActive, ct);
         if (employee is null)
             throw new AppUnauthorizedException("INVALID_OR_EXPIRED_PREVIEW");
 
@@ -38,7 +42,21 @@ public class RequestOtpHandler(
         var otpPlain = await otp.GenerateAndStoreAsync(employee.Id, profile.UserId, ct);
 
         var message = $"รหัส OTP สำหรับเชื่อมบัญชี TBG Assistant: {otpPlain}\n(ใช้ได้ภายใน 5 นาที ห้ามแชร์รหัสนี้กับผู้อื่น)";
-        await messaging.PushMessageAsync(profile.UserId, message, ct);
+        try
+        {
+            await messaging.PushMessageAsync(profile.UserId, message, ct);
+        }
+        catch (LinePushQuotaExceededException)
+        {
+            // LINE ส่ง OTP ไม่ได้เพราะโควตารายเดือนเต็ม (429 มาจาก LINE เอง client ปลอมไม่ได้)
+            // OTP ตัวนี้ push เข้า LINE บัญชีเดียวกับที่ access token เพิ่ง verify อยู่แล้ว จึง
+            // แทบไม่ได้เพิ่ม factor ใหม่ — เคสนี้จึงผูกบัญชีให้เลยเพื่อไม่ให้พนักงานใหม่ติดค้าง
+            var session = await employee.BindLineAndIssueSessionAsync(
+                db, jwt, profile.UserId, profile.PictureUrl, request.Ip, request.UserAgent, ct);
+            return new RequestOtpResult(
+                "ระบบยืนยันตัวตนให้อัตโนมัติเนื่องจากส่ง OTP ทาง LINE ไม่ได้ชั่วคราว",
+                session);
+        }
 
         return new RequestOtpResult("OTP ส่งแล้ว กรุณาตรวจสอบ LINE ของคุณ");
     }

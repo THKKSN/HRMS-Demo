@@ -57,14 +57,14 @@ public class CreateExpenseClaimValidator : AbstractValidator<CreateExpenseClaimC
         RuleFor(x => x.Note).MaximumLength(500);
         RuleFor(x => x)
             .Must(x => ExpenseClaimMapper.NormalizeFiles(x.AttachmentFiles, x.AttachmentUrls).Count > 0)
-            .WithMessage("กรุณาแนบหลักฐานอย่างน้อย 1 ไฟล์")
+            .WithErrorCode("EXPENSE_ATTACHMENT_REQUIRED").WithMessage("At least one attachment is required.")
             .When(x => !x.SaveAsDraft);
         RuleFor(x => x)
             .Must(x => ExpenseClaimMapper.NormalizeFiles(x.AttachmentFiles, x.AttachmentUrls).Count <= 5)
-            .WithMessage("แนบหลักฐานได้สูงสุด 5 ไฟล์");
+            .WithErrorCode("EXPENSE_ATTACHMENT_LIMIT").WithMessage("Up to 5 attachments are allowed.");
         RuleFor(x => x)
             .Must(HasRequiredFuelDocuments)
-            .WithMessage("ค่าน้ำมันต้องแนบใบสั่งจ่ายและใบเสร็จชำระเงิน")
+            .WithErrorCode("EXPENSE_FUEL_DOCUMENTS_REQUIRED").WithMessage("A fuel claim requires both the payment order and the receipt.")
             .When(x => !x.SaveAsDraft && x.Type == ExpenseClaimType.Fuel);
         RuleForEach(x => x.AttachmentUrls)
             .NotEmpty()
